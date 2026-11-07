@@ -103,11 +103,6 @@ def test_page_is_served(station) -> None:
     assert "/assets/" in body
 
 
-def test_legacy_page_is_served(station) -> None:
-    with urllib.request.urlopen(_url(station, "/legacy"), timeout=5) as response:
-        body = response.read().decode("utf-8")
-    assert response.status == 200
-    assert "/api/start" in body
 
 
 def test_start_rejects_bad_parameters(station) -> None:

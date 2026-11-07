@@ -577,15 +577,14 @@ src/web_grid_paradigm/
     ├── __init__.py      # 对外导出
     ├── schema.py        # 参数表单描述与校验
     ├── state.py         # 运行队列、实时快照、SessionView
-    ├── server.py        # HTTP 路由、SSE、页面资源（`/` 新界面、`/legacy` 旧页）
+    ├── server.py        # HTTP 路由、SSE、页面资源（`/` 新界面、`/assets/*`）
     ├── lsl_state.py     # LSL 状态流推送线程
-    ├── dashboard.html   # 旧版单文件页面（Phase 4 前仍是 `/`）
-    └── static/          # Vue 重构版的构建产物（由 webui/ 生成，随 wheel 分发）
+    └── static/          # Vue 控制台的构建产物（由 webui/ 生成，随 wheel 分发）
 ```
 
-前端重构（进行中）：`webui/` 用 Vue 3 + TypeScript + Vite + Naive UI 重写控制台，构建产物写入
-`src/web_grid_paradigm/panel/static/`，现在直接以根路径 `/` 提供；旧的单文件页面保留在 `/legacy`。
-开发/构建见 [webui/README.md](<webui/README.md>)。
+前端：`webui/` 用 Vue 3 + TypeScript + Vite + Naive UI 编写控制台，构建产物写入
+`src/web_grid_paradigm/panel/static/`，由控制台在根路径 `/` 提供。开发/构建见
+[webui/README.md](<webui/README.md>)。
 
 依赖方向：`config/geometry/scoring/session` 不依赖 PsychoPy；`runner` 只依赖 `monitor` 协议，不依赖 `panel`；`panel` 依赖 `runner` 提供的 `SessionView` 语义。因此 `geometry`、`scoring`、`session`、`inputs`、`panel/schema` 的单元测试无需打开窗口。
 

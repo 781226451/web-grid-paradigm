@@ -1,7 +1,7 @@
 # Web UI（Vue 3 + Vite + Naive UI）
 
 控制台的 Vue 重构版本。构建产物写入 `src/web_grid_paradigm/panel/static/`，由 Python
-控制台在根路径 `/` 提供；旧的单文件页面保留在 `/legacy`，作为回退。
+控制台在根路径 `/` 提供；旧的单文件页面（`panel/dashboard.html`）已在收尾时删除。
 
 ## 进度
 
@@ -12,7 +12,11 @@
   （text / int / float / bool / choice），启动/中止按钮，运行中锁定参数，服务端 400 错误显示在表单顶部。
 - **Phase 3（已完成）**：奖励设备区（连接…弹窗填串口/波特率、断开、测试一次、按交付方式显示状态）
   与 LSL 状态流卡（启停、推送计数）。
-- Phase 4：旧页面 `/legacy` 下线、Playwright E2E、窄屏打磨。
+- **Phase 4（已完成）**：Playwright E2E（Edge，5 条：外壳/表单/监控卡/启动到完成/校验错误）、
+  窄屏（≤1000px 单列、表单不再内部滚动）、`test:e2e` 脚本。
+- **收尾（已完成）**：历史运行表（补齐旧页最后一个区块）、vendor 拆包（应用 chunk 23.6 KB，
+  `naive-ui` 单独缓存）。
+- 旧单文件页面与 `/legacy` 路由已删除，Git 历史里仍可找回。
 
 ## 命令
 
@@ -39,4 +43,10 @@ cd webui; pnpm dev
 - 目标浏览器 `chrome100+`；不引入 CDN、不下载网络字体（中文用系统字体）。
 - 服务端 API 契约保持不变：`/api/state`、`/api/config`、`/events`(SSE)、
   `/api/start`、`/api/stop`、`/api/lsl`、`/api/reward/{connect,disconnect,test}`。
-- 表单继续由服务端 `/api/config` 的 `schema`/`groups` 驱动（`SchemaForm.vue`，Phase 2）。
+- 表单继续由服务端 `/api/config` 的 `schema`/`groups` 驱动（`SchemaForm.vue`）。
+- 端到端测试会自己启动控制台（`playwright.config.ts` 的 `webServer`），使用系统安装的 Edge
+  （`channel: "msedge"`），不需要下载浏览器：
+
+  ```powershell
+  pnpm test:e2e        # 5 条，约 10 s；第一次会等 webgrid 启动
+  ```

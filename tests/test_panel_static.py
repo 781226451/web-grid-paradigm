@@ -1,4 +1,4 @@
-"""The Vue app owns the root path; the old page is served at /legacy."""
+"""The Vue app is served from the root path by the control panel."""
 
 from __future__ import annotations
 
@@ -49,16 +49,16 @@ def test_assets_have_correct_mime_types(station: Station) -> None:
 
 
 def test_missing_asset_and_traversal_are_404(station: Station) -> None:
-    for path in ("/assets/nope.js", "/assets/../dashboard.html"):
+    for path in ("/assets/nope.js", "/assets/../index.html"):
         with pytest.raises(urllib.error.HTTPError) as info:
             _get(station, path)
         assert info.value.code == 404
 
 
-def test_legacy_page_is_kept_as_fallback(station: Station) -> None:
-    status, content_type, body = _get(station, "/legacy")
-    assert status == 200 and content_type.startswith("text/html")
-    assert "rewardDialog" in body.decode("utf-8")
+def test_legacy_path_is_gone(station: Station) -> None:
+    with pytest.raises(urllib.error.HTTPError) as info:
+        _get(station, "/legacy")
+    assert info.value.code == 404
 
 
 def test_app_path_redirects_to_root(station: Station) -> None:

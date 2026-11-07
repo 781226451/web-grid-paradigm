@@ -14,6 +14,7 @@ import { computed, onBeforeUnmount, onMounted } from "vue";
 import BlockTable from "@/components/BlockTable.vue";
 import ConfigPanel from "@/components/ConfigPanel.vue";
 import GridCanvas from "@/components/GridCanvas.vue";
+import HistoryRuns from "@/components/HistoryRuns.vue";
 import LslCard from "@/components/LslCard.vue";
 import KpiCards from "@/components/KpiCards.vue";
 import LogPanel from "@/components/LogPanel.vue";
@@ -116,6 +117,9 @@ onBeforeUnmount(disconnect);
           </n-card>
           <n-card title="最近 trial" size="small">
             <TrialTable />
+          </n-card>
+          <n-card title="历史运行" size="small">
+            <HistoryRuns />
           </n-card>
           <n-card title="日志" size="small">
             <LogPanel />

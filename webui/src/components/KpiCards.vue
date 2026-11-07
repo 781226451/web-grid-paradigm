@@ -33,7 +33,7 @@ const items = computed(() => [
 
 <template>
   <div class="kpis">
-    <div v-for="item in items" :key="item.label" class="kpi">
+    <div v-for="item in items" :key="item.label" class="kpi" :data-kpi="item.label">
       <div class="value" :style="{ color: item.color }">{{ item.value }}</div>
       <div class="label">{{ item.label }}</div>
     </div>

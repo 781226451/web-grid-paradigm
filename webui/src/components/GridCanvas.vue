@@ -130,7 +130,7 @@ watch(grid, draw, { deep: true });
 .grid-canvas {
   width: 100%;
   aspect-ratio: 1 / 1;
-  max-height: 46vh;
+  max-height: min(46vh, 420px);
   border-radius: 6px;
   background: #fafafa;
 }

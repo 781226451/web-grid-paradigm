@@ -35,16 +35,7 @@ class _Server(ThreadingHTTPServer):
 # ----------------------------------------------------------------------
 # HTTP plumbing
 # ----------------------------------------------------------------------
-# The Vue bundle owns the root path; the hand-written panel moved to /legacy.
 STATIC_PREFIX = "/assets/"
-LEGACY_PATH = "/legacy"
-
-
-def _legacy_page() -> bytes:
-    """The hand-written panel, kept at /legacy as a fallback."""
-    return (
-        resources.files("web_grid_paradigm.panel").joinpath("dashboard.html").read_bytes()
-    )
 
 
 def _static_file(relative: str) -> bytes | None:
@@ -101,8 +92,6 @@ def _make_handler(station: Station) -> type[BaseHTTPRequestHandler]:
                     self.send_response(HTTPStatus.FOUND)
                     self.send_header("Location", "/")
                     self.end_headers()
-                elif path == LEGACY_PATH:
-                    self._send(HTTPStatus.OK, _legacy_page(), "text/html; charset=utf-8")
                 elif path == "/api/state":
                     self._json(HTTPStatus.OK, station.snapshot())
                 elif path == "/api/config":

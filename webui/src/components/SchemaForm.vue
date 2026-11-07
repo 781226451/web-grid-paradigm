@@ -116,4 +116,13 @@ function choices(field: FieldSchema) {
 .number {
   width: 100%;
 }
+
+/* On a single-column layout the card can grow with the page instead of
+   scrolling inside 56vh. */
+@media (max-width: 1000px) {
+  .schema-form {
+    max-height: none;
+    overflow: visible;
+  }
+}
 </style>

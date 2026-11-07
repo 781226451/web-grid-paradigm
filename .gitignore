@@ -30,3 +30,6 @@ configs/reward.toml
 # Front-end tooling (only needed to rebuild webui/)
 webui/node_modules/
 webui/.vite/
+webui/test-results/
+webui/playwright-report/
+.e2e-data/
