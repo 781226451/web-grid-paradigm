@@ -20,9 +20,23 @@ from typing import Any
 from loguru import logger
 
 from ..config import ExperimentConfig
+from ..reward.sink import (
+    DryRunRewardSink,
+    SerialRewardSink,
+    format_command,
+    serial_ports,
+)
 from .lsl_state import LslStatePublisher
 from .schema import _FORM_BY_NAME, _FORM_GROUPS, coerce_params, form_schema
 from .server import _make_handler, _Server
+
+# Fields the "test reward" button may override.  Port and baud rate belong to
+# the connected device (set in the dialog), so they are not listed here.
+_REWARD_TEST_KEYS = (
+    "reward",
+    "reward_amount",
+    "reward_duration_ms",
+)
 
 
 class Station:
@@ -65,6 +79,12 @@ class Station:
         self._lsl_sent = 0
         self._lsl_error: str | None = None
         self._lsl_counts = {"hits": 0, "timeouts": 0, "misclicks": 0}
+        # Reward device opened from the panel (optional).  When connected it is
+        # shared by every session until the experimenter disconnects.
+        self._reward_device: SerialRewardSink | None = None
+        self._reward_port = self.base_config.reward_port
+        self._reward_baud = self.base_config.reward_baud
+        self._reward_error: str | None = None
 
         self._server = _Server((host, port), _make_handler(self))
         self.host = host
@@ -130,12 +150,117 @@ class Station:
             "busy": busy,
             "control": self.control,
             "base_config": self.base_config.to_dict(),
+            "options": {"reward_port": serial_ports()},
         }
 
     def _base_values(self) -> dict[str, Any]:
         data = self.base_config.to_dict()
         data["output_dir"] = str(self.base_config.output_dir)
         return {name: data[name] for name in _FORM_BY_NAME}
+
+    # --- reward hardware --------------------------------------------------
+    # --- reward device (connect / disconnect from the page) ---------------
+    def reward_device(self) -> SerialRewardSink | None:
+        """The connected serial device, if any (sessions share it)."""
+        with self._cond:
+            return self._reward_device
+
+    def reward_status(self) -> dict[str, Any]:
+        with self._cond:
+            device = self._reward_device
+            return {
+                "connected": device is not None,
+                "port": self._reward_port,
+                "baud": self._reward_baud,
+                "sent": device.sent if device is not None else 0,
+                "errors": device.errors if device is not None else 0,
+                "error": self._reward_error,
+                "ports": serial_ports(),
+            }
+
+    def connect_reward(
+        self, port: str | None = None, baud: int | None = None
+    ) -> dict[str, Any]:
+        """Open the serial reward device (used by every session afterwards).
+
+        ``port`` and ``baud`` are the only device settings: the wire command is
+        built into the protocol (see :data:`web_grid_paradigm.reward.sink.WIRE_COMMAND`).
+        """
+        port = (port or self._reward_port or "").strip()
+        try:
+            baud = int(baud if baud is not None else self._reward_baud)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"波特率无效: {baud!r}") from exc
+        if not port:
+            raise ValueError("串口不能为空")
+        if not 300 <= baud <= 2_000_000:
+            raise ValueError("波特率必须在 300–2000000 之间")
+        self.disconnect_reward()
+        try:
+            device = SerialRewardSink(port, baud)
+        except Exception as exc:
+            with self._cond:
+                self._reward_error = str(exc)
+                self._bump()
+            raise ValueError(f"无法打开串口 {port}: {exc}") from exc
+        with self._cond:
+            self._reward_device = device
+            self._reward_port = port
+            self._reward_baud = baud
+            self._reward_error = None
+            self._bump()
+        logger.info("reward device connected: {} @ {} baud", port, baud)
+        return self.reward_status()
+
+    def disconnect_reward(self) -> dict[str, Any]:
+        with self._cond:
+            device = self._reward_device
+            self._reward_device = None
+            self._bump()
+        if device is not None:
+            device.close()
+            logger.info("reward device {} disconnected", device.port)
+        return self.reward_status()
+
+    def reward_self_test(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Send one pulse with the panel's reward settings (no session needed).
+
+        Uses the connected device when there is one, otherwise a dry run
+        (``reward = test``).  Unlike a real run this does *not* open the port
+        implicitly or fall back to ``test``: a failed wiring check must be
+        visible.
+        """
+        keys = {k: v for k, v in payload.items() if k in _REWARD_TEST_KEYS}
+        config = coerce_params(keys, self.base_config)
+        with self._cond:
+            device = self._reward_device
+        if config.reward == "off":
+            return {"ok": True, "sink": "off", "detail": "奖励已关闭，未发送"}
+        if device is not None:
+            sink: Any = device
+            port = device.port
+        elif config.reward == "test":
+            sink, port = DryRunRewardSink(None), ""
+        else:
+            raise ValueError("串口奖励设备未连接：请先在“奖励设备”里连接串口")
+        sink.deliver(config.reward_amount, config.reward_duration_ms, "self-test")
+        logger.info(
+            "reward self-test: {} via {} ({} unit / {} ms)",
+            format_command(config.reward_amount, config.reward_duration_ms).rstrip(),
+            sink.name,
+            config.reward_amount,
+            config.reward_duration_ms,
+        )
+        with self._cond:
+            self._bump()
+        return {
+            "ok": True,
+            "sink": sink.name,
+            "port": port,
+            "command": format_command(
+                config.reward_amount, config.reward_duration_ms
+            ).rstrip("\n"),
+        }
 
     # --- LSL state stream (start/stop from the page) ----------------------
     def start_lsl_state(
@@ -466,6 +591,7 @@ class Station:
             "blocks": list(self._blocks),
             "runs": list(self._runs),
             "lsl": self.lsl_status(),
+            "reward_device": self.reward_status(),
             "logs": [line for seq, line in self._logs if seq > log_seq],
         }
 
@@ -514,6 +640,7 @@ class Station:
             self._closed = True
             self._cond.notify_all()
         self.stop_lsl_state()
+        self.disconnect_reward()
         if self._sink_id is not None:
             try:
                 logger.remove(self._sink_id)
@@ -534,6 +661,11 @@ class SessionView:
     @property
     def stop_requested(self) -> bool:
         return self._station._stop.is_set()
+
+    @property
+    def reward_sink(self) -> SerialRewardSink | None:
+        """The reward device connected from the panel, if any."""
+        return self._station.reward_device()
 
     def update(self, **fields: Any) -> None:
         self._station._view_update(self._run_id, **fields)

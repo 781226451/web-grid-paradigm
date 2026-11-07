@@ -320,17 +320,110 @@ uv run webgrid --reward serial --reward-port COM3 --reward-baud 9600
 uv run webgrid --reward test
 ```
 
-**串口协议**（默认指令模板 `R {amount} {duration_ms}\n`）：
+### 硬件参数放在单独的 TOML 里（也可以只用一个文件）
+
+串口号是按机器不同的，**如果**你希望实验设计随仓库走、硬件只留在本机，就把示例文件复制一份填好：
+
+```powershell
+copy configs\reward.example.toml configs\reward.toml     # 只在本机保留
+```
+
+`configs/reward.toml` 存在时，`webgrid` 启动会**自动加载**它（日志会打印 `reward hardware settings loaded from ...`）；也可以用 `--reward-config 其他文件.toml` 指定。文件里只允许奖励相关键（写错键名会直接报错，避免静默改错）：
+
+```toml
+reward = "serial"           # serial | test | off
+reward_port = "COM3"
+reward_baud = 9600
+reward_policy = "per_hit"   # per_hit | ratio | none
+reward_ratio = 2
+reward_amount = 1
+reward_duration_ms = 50
+```
+
+**不需要两个文件**：单个 `--config` 文件里也可以直接写 `reward*` 键，或用一个 `[reward]` 小节把硬件参数分开写：
+
+```toml
+# configs/session.toml —— 一个文件搞定
+subject = "sub-07"
+rows = 8
+cols = 10
+blocks = 2
+targets = 5
+
+[reward]
+reward = "serial"
+reward_port = "COM9"
+reward_baud = 115200
+reward_policy = "ratio"
+reward_ratio = 3
+```
+
+```powershell
+uv run webgrid --config configs/session.toml
+```
+
+三种用法等价、按需选择：
+
+| 用法 | 适合场景 |
+| --- | --- |
+| 单个 `--config`（含 `reward*` 或 `[reward]`） | 单机、参数就一套 |
+| `--config` 范式 + 自动加载的 `configs/reward.toml` | 多台机器共用同一份实验设计，各自配硬件 |
+| `--config` + `--reward-config 文件` | 同一台机器多套硬件（例如两套 Arduino） |
+
+优先级：**默认值 → `--config` → `configs/reward.toml`（或 `--reward-config`）→ 命令行参数**。所以临时换端口不用改文件：`uv run webgrid --reward-port COM9`。
+
+### 在网页里连接与选择奖励方式
+
+网页里的奖励分成两组：
+
+**奖励设备**（外接设备）
+
+- 交付方式：`serial`（用已连接的串口设备）/ `test`（只写文件，不发硬件）/ `off`（不发）
+- 一行状态 + 三个按钮 `[连接…] [断开] [测试一次]`，状态**随交付方式变化**，串口只在 serial 下才有意义：
+
+| 交付方式 | 状态行 | 连接按钮 |
+| --- | --- | --- |
+| `serial` 未连接 | `未连接` | 可用 |
+| `serial` 已连接 | `已连接 COM3 @ 9600 baud · 已发送 N 次` | 可用（“重新连接…”） |
+| `test` | `test 模式：只写入 reward_out.txt，不使用串口` | 禁用 |
+| `off` | `奖励已关闭，不发送` | 禁用（“测试一次”也禁用） |
+
+- 点“连接…”弹出对话框，只需填**串口**和**波特率**（串口协议是内置固定格式，不需要、也不允许在界面上改）：
+
+  ```
+  串口       COM3          （下拉列出检测到的端口，也可手输）
+  波特率     9600
+  检测到：COM6, COM7
+  ```
+
+- 连接是**面板级**的：一次连接，之后每次运行都复用，**实验结束不会断开**；点“断开”才关闭；
+- 对话框打开时会用上一次（或配置文件）的端口/波特率/模板预填；切到 `test` / `off` 时旧的连接不受影响，只是不会被用到。
+
+**奖励策略**（每场实验）
+
+- 发放策略：`per_hit` / `ratio` / `none`
+- 每 N 次命中（ratio）、每次奖励量、奖励脉冲时长
+
+“测试一次”不启动实验，直接用已连接设备发一次脉冲，成功后显示实际指令，例如 `已发送：R 1 50（serial COM3）`；未连接且交付方式为 `serial` 会明确报错，便于排查接线。
+
+服务端接口（也可给其他程序调用）：
+
+| 方法 | 路径 | 作用 |
+| --- | --- | --- |
+| POST | `/api/reward/connect` | `{"port":"COM3","baud":9600}` 打开设备（失败返回 400 + 原因） |
+| POST | `/api/reward/disconnect` | 关闭设备 |
+| POST | `/api/reward/test` | 用已连接设备发一次脉冲（未连接且非 test 模式时报错） |
+| GET | `/api/state` | 含 `reward_device`：连接状态、端口、波特率、已发送/失败次数、检测到的串口 |
+
+配置文件（`configs/reward.toml` / `--reward-config` / `[reward]`）里的端口、波特率只是**默认值**：弹窗里改了就按弹窗的来，不改则沿用配置。串口指令模板是**内置固定**的，不提供配置项。
+
+**串口协议**（内置固定，不可配置）：
 
 ```
 R 1 50
 ```
 
-即每个命中发送 `R` + 奖励量 + 脉冲毫秒数 + 换行。`{amount}` 与 `{duration_ms}` 可自行调整模板，例如只发一个字节 `"1"`：
-
-```powershell
-uv run webgrid --reward serial --reward-command "1"
-```
+即每个命中发送 `R` + 奖励量 + 脉冲毫秒数 + 换行，格式写死在 [reward/sink.py](<src/web_grid_paradigm/reward/sink.py>) 的 `WIRE_COMMAND`（需要改协议时改这一行，例如只发一个字节 `"1"`），没有配置项。
 
 Arduino 侧最小示例：
 
@@ -351,7 +444,7 @@ void loop() {
 - 奖励在 trial 命中时由**发放策略**决定是否触发，再由**交付策略**送出；`reward_amount = 0` 也等于关闭。
 - 串口写入在**独立线程**里完成，渲染循环不会因为 UART 阻塞而掉帧。
 - 每次奖励都会写 `rewards.csv` 和 `events.csv`（事件名 `reward`），两个文件互为校验；`test` 模式还多一份 `reward_out.txt` 保存原始字节。
-- 网页控制台有“奖励”参数组（通道、串口、波特率、发放策略、N、奖励量、脉冲时长、指令模板），实时面板显示**奖励次数 / 累计奖励量 / 当前通道与策略**。
+- 网页控制台分“奖励设备”（交付方式 + 连接弹窗里的串口/波特率）与“奖励策略”（策略、N、奖励量、脉冲时长）两组，实时面板显示**奖励次数 / 累计奖励量 / 当前通道与策略**。
 - 新增发放策略只需实现 `on_trial()`（返回 `Reward` 或 `None`）并注册进 `POLICIES`；新增交付方式只需实现 `deliver()` / `close()`。
 
 ## 数据文件
@@ -425,7 +518,7 @@ data/
 | `--reward-baud` | 9600 | 串口波特率 |
 | `--reward-amount` | 1 | 每次命中的奖励量（0 = 不发） |
 | `--reward-duration-ms` | 50 | 奖励脉冲时长（毫秒） |
-| `--reward-command` | `R {amount} {duration_ms}\n` | 串口指令模板 |
+| `--reward-config` | `configs/reward.toml`（存在时） | 硬件配置 TOML（端口/波特率等） |
 | `--debug` | 关 | 调试：DEBUG 日志、完整堆栈 |
 | `--log-file` | 空 | 额外写一份滚动日志文件（每个会话目录总会有 `session.log`） |
 | `--instructions` | 关 | 显示人用指导语页；动物实验保持关闭 |

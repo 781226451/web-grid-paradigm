@@ -23,3 +23,6 @@ pytest-of-songle/
 
 # Local screenshots (docs/preview.png is kept)
 _smoke*.png
+
+# Machine-specific reward hardware settings (copy from reward.example.toml)
+configs/reward.toml

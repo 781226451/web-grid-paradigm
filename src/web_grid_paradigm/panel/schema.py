@@ -71,27 +71,28 @@ _FORM: list[dict[str, Any]] = [
     {"name": "lsl_stream", "label": "标记流名称", "type": "text", "group": "标记"},
     {"name": "marker_udp", "label": "UDP 标记 (host:port)", "type": "text",
      "group": "标记"},
-    # reward
-    {"name": "reward", "label": "奖励方式", "type": "choice",
-     "options": ["serial", "test", "off"], "group": "奖励",
-     "hint": "serial = 串口给 Arduino；test = 写入 reward_out.txt"},
-    {"name": "reward_port", "label": "串口", "type": "text", "group": "奖励"},
-    {"name": "reward_baud", "label": "波特率", "type": "int", "min": 300,
-     "max": 2000000, "group": "奖励"},
-    {"name": "reward_amount", "label": "每次命中奖励量", "type": "int", "min": 0,
-     "max": 255, "group": "奖励", "hint": "0 = 不发奖励"},
+    # --- reward part 1: the external device -----------------------------
+    # Port, baud rate and command template are protocol details of the device,
+    # so they are asked for in the "连接…" dialog instead of the form.
+    {"name": "reward", "label": "交付方式", "type": "choice",
+     "options": ["serial", "test", "off"], "group": "奖励设备",
+     "hint": "serial = 用已连接的串口设备；test = 只写文件；off = 不发"},
+    # --- reward part 2: the schedule ------------------------------------
     {"name": "reward_policy", "label": "发放策略", "type": "choice",
-     "options": ["per_hit", "ratio", "none"], "group": "奖励",
+     "options": ["per_hit", "ratio", "none"], "group": "奖励策略",
      "hint": "per_hit = 每次命中；ratio = 每 N 次命中；none = 不发"},
     {"name": "reward_ratio", "label": "每 N 次命中 (ratio)", "type": "int",
-     "min": 1, "max": 100, "group": "奖励"},
+     "min": 1, "max": 100, "group": "奖励策略"},
+    {"name": "reward_amount", "label": "每次奖励量", "type": "int", "min": 0,
+     "max": 255, "group": "奖励策略", "hint": "0 = 不发奖励"},
     {"name": "reward_duration_ms", "label": "奖励脉冲 (ms)", "type": "int",
-     "min": 0, "max": 5000, "group": "奖励"},
-    {"name": "reward_command", "label": "串口指令模板", "type": "text",
-     "group": "奖励"},
+     "min": 0, "max": 5000, "group": "奖励策略"},
 ]
 _FORM_BY_NAME = {field["name"]: field for field in _FORM}
-_FORM_GROUPS = ["会话", "实验设计", "任务", "输入", "显示", "标记", "奖励"]
+# Reward sits right after the task section: it is an experiment-level setting,
+# and the two parts (device / schedule) are read together.
+_FORM_GROUPS = ["会话", "实验设计", "任务", "奖励设备", "奖励策略",
+                "输入", "显示", "标记"]
 
 
 def form_schema() -> list[dict[str, Any]]:

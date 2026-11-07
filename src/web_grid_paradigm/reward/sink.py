@@ -24,14 +24,16 @@ from typing import Any, Protocol
 
 from loguru import logger
 
-DEFAULT_COMMAND = "R {amount} {duration_ms}\n"
+# Wire protocol of the reward device.  Built in and fixed: the Arduino sketch
+# parses one ASCII line "R <amount> <duration_ms>" per reward.
+WIRE_COMMAND = "R {amount} {duration_ms}\n"
 DEFAULT_BAUD = 9600
 REWARD_MODES = ("serial", "test", "off")
 
 
-def format_command(template: str, amount: int, duration_ms: int) -> str:
+def format_command(amount: int, duration_ms: int) -> str:
     """Render the wire command for one reward."""
-    return template.format(amount=int(amount), duration_ms=int(duration_ms))
+    return WIRE_COMMAND.format(amount=int(amount), duration_ms=int(duration_ms))
 
 
 class RewardSink(Protocol):
@@ -61,12 +63,7 @@ class DryRunRewardSink:
 
     name = "test"
 
-    def __init__(
-        self,
-        directory: Path | None = None,
-        command: str = DEFAULT_COMMAND,
-    ) -> None:
-        self.command = command
+    def __init__(self, directory: Path | None = None) -> None:
         self.path: Path | None = None
         if directory is not None:
             directory.mkdir(parents=True, exist_ok=True)
@@ -74,7 +71,7 @@ class DryRunRewardSink:
         self.sent = 0
 
     def deliver(self, amount: int, duration_ms: int, reason: str = "") -> None:
-        text = format_command(self.command, amount, duration_ms)
+        text = format_command(amount, duration_ms)
         self.sent += 1
         logger.info(
             "[reward:test] {} <- amount={} duration={}ms reason={}",
@@ -105,13 +102,11 @@ class SerialRewardSink:
         self,
         port: str,
         baud: int = DEFAULT_BAUD,
-        command: str = DEFAULT_COMMAND,
         *,
         write_timeout: float = 1.0,
     ) -> None:
         self.port = port
         self.baud = int(baud)
-        self.command = command
         self.sent = 0
         self.errors = 0
         self._serial = _open_serial(port, self.baud, write_timeout)
@@ -124,7 +119,7 @@ class SerialRewardSink:
         logger.info("reward serial port {} open at {} baud", port, self.baud)
 
     def deliver(self, amount: int, duration_ms: int, reason: str = "") -> None:
-        text = format_command(self.command, amount, duration_ms)
+        text = format_command(amount, duration_ms)
         self._queue.put(text)
         self.sent += 1
         logger.debug(
@@ -166,23 +161,36 @@ def _open_serial(port: str, baud: int, write_timeout: float) -> Any:
     )
 
 
+def serial_ports() -> list[dict[str, str]]:
+    """Ports currently visible to pyserial, for the web panel's picker."""
+    try:
+        from serial.tools import list_ports
+    except Exception:  # noqa: BLE001 - pyserial unavailable, not fatal
+        return []
+    try:
+        return [
+            {"device": port.device, "description": port.description or ""}
+            for port in list_ports.comports()
+        ]
+    except Exception:  # noqa: BLE001 - driver quirk
+        return []
+
+
 def build_reward_sink(config: Any, directory: Path | None = None) -> RewardSink:
     """Pick and build the delivery strategy named in the configuration."""
     mode = getattr(config, "reward", "off")
-    command = getattr(config, "reward_command", DEFAULT_COMMAND)
     if mode == "off":
         logger.info("rewards disabled")
         return NullRewardSink()
     if mode == "test":
         logger.info("reward sink: test (no hardware)")
-        return DryRunRewardSink(directory, command)
+        return DryRunRewardSink(directory)
     if mode != "serial":
         raise ValueError(f"unknown reward mode: {mode!r}")
     try:
         return SerialRewardSink(
             getattr(config, "reward_port", "COM3"),
             getattr(config, "reward_baud", DEFAULT_BAUD),
-            command,
         )
     except Exception as exc:  # noqa: BLE001 - hardware is optional
         logger.error(
@@ -190,4 +198,4 @@ def build_reward_sink(config: Any, directory: Path | None = None) -> RewardSink:
             getattr(config, "reward_port", "COM3"),
             exc,
         )
-        return DryRunRewardSink(directory, command)
+        return DryRunRewardSink(directory)

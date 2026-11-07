@@ -8,8 +8,12 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import tomllib
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
+
+from loguru import logger
 
 from . import __version__
 from .config import ExperimentConfig
@@ -229,8 +233,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--reward-duration-ms", type=int, help="pulse length in ms (default: 50)"
     )
     reward.add_argument(
-        "--reward-command",
-        help="wire command template (default: 'R {amount} {duration_ms}\\n')",
+        "--reward-config",
+        type=Path,
+        metavar="FILE",
+        help="TOML with hardware settings (reward_port, reward_baud, ...); "
+        "defaults to configs/reward.toml when that file exists",
     )
 
     dash = parser.add_argument_group("web dashboard")
@@ -288,6 +295,11 @@ def load_config(args: argparse.Namespace) -> ExperimentConfig:
     config = (
         ExperimentConfig.from_toml(args.config) if args.config else ExperimentConfig()
     )
+    # Hardware settings live in their own file (per machine, not in git):
+    # defaults <- --config <- reward TOML <- command line.
+    reward_file = args.reward_config or default_reward_config()
+    if reward_file is not None:
+        config = apply_reward_config(config, reward_file)
     overrides: dict[str, Any] = {}
     fields = {
         "subject": "subject",
@@ -327,7 +339,6 @@ def load_config(args: argparse.Namespace) -> ExperimentConfig:
         "reward_baud": "reward_baud",
         "reward_amount": "reward_amount",
         "reward_duration_ms": "reward_duration_ms",
-        "reward_command": "reward_command",
         "lsl_state_stream": "lsl_state_stream",
         "lsl_state_rate": "lsl_state_rate",
         "dashboard_port": "dashboard_port",
@@ -362,3 +373,47 @@ def load_config(args: argparse.Namespace) -> ExperimentConfig:
     config = dataclasses.replace(config, **overrides)
     config.validate()
     return config
+
+
+# ----------------------------------------------------------------------
+# Reward hardware configuration (separate TOML, per machine)
+# ----------------------------------------------------------------------
+DEFAULT_REWARD_CONFIG = Path("configs/reward.toml")
+REWARD_KEYS = (
+    "reward",
+    "reward_policy",
+    "reward_ratio",
+    "reward_port",
+    "reward_baud",
+    "reward_amount",
+    "reward_duration_ms",
+)
+
+
+def default_reward_config() -> Path | None:
+    """``configs/reward.toml`` when it exists (written once per setup machine)."""
+    return DEFAULT_REWARD_CONFIG if DEFAULT_REWARD_CONFIG.is_file() else None
+
+
+def apply_reward_config(
+    config: ExperimentConfig, path: str | Path
+) -> ExperimentConfig:
+    """Layer the hardware settings from ``path`` over ``config``.
+
+    The file may be flat or use a ``[reward]`` table; only reward keys are
+    allowed, so a typo cannot silently change the paradigm.
+    """
+    path = Path(path)
+    data = tomllib.loads(path.read_text(encoding="utf-8-sig"))
+    table = data
+    nested = data.get("reward")
+    if isinstance(nested, Mapping):
+        table = nested
+    elif nested is not None and len(data) == 1:
+        raise TypeError(f"{path}: 'reward' must be a string or a [reward] table")
+    unknown = sorted(set(table) - set(REWARD_KEYS))
+    if unknown:
+        raise ValueError(f"{path}: unknown reward key(s): {', '.join(unknown)}")
+    updated = dataclasses.replace(config, **dict(table))
+    logger.info("reward hardware settings loaded from {}", path)
+    return updated

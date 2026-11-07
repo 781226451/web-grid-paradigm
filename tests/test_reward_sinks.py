@@ -19,7 +19,7 @@ from web_grid_paradigm.reward.sink import (
 
 
 def test_format_command_default_protocol() -> None:
-    assert format_command("R {amount} {duration_ms}\n", 2, 40) == "R 2 40\n"
+    assert format_command(2, 40) == "R 2 40\n"
 
 
 def test_build_reward_sink_selects_strategy(tmp_path: Path) -> None:
@@ -33,10 +33,7 @@ def test_build_reward_sink_selects_strategy(tmp_path: Path) -> None:
 
 
 def test_dry_run_sink_records_exact_bytes(tmp_path: Path) -> None:
-    sink = build_reward_sink(
-        ExperimentConfig(reward="test", reward_command="R {amount} {duration_ms}\n"),
-        tmp_path,
-    )
+    sink = build_reward_sink(ExperimentConfig(reward="test"), tmp_path)
     sink.deliver(1, 50, "hit")
     sink.deliver(3, 20, "hit")
     sink.close()
@@ -76,7 +73,7 @@ def fake_serial(monkeypatch: pytest.MonkeyPatch) -> FakeSerial:
 
 
 def test_serial_sink_writes_ascii_command(fake_serial: FakeSerial) -> None:
-    sink = SerialRewardSink("COM_TEST", 9600, "R {amount} {duration_ms}\n")
+    sink = SerialRewardSink("COM_TEST", 9600)
     sink.deliver(2, 30, "hit")
     fake_serial.release.set()
     deadline = time.time() + 5

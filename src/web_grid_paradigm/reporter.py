@@ -43,12 +43,14 @@ class Reporter:
         marker_sink: MarkerSink | None = None,
         monitor: SessionMonitor | None = None,
         reward_sink: RewardSink | None = None,
+        own_reward_sink: bool = True,
     ) -> None:
         self.cfg = config
         self.layout = layout
         self.rec = recorder
         self.markers = marker_sink or NullMarkerSink()
         self.monitor = monitor or NullMonitor()
+        self._owns_reward_sink = reward_sink is None or own_reward_sink
         self.rewards = reward_sink or build_reward_sink(
             config, recorder.dir if recorder is not None else None
         )
@@ -382,7 +384,8 @@ class Reporter:
         except Exception:  # noqa: BLE001 - teardown must not fail
             logger.exception("error closing event markers")
         try:
-            self.rewards.close()
+            if self._owns_reward_sink:
+                self.rewards.close()
         except Exception:  # noqa: BLE001 - teardown must not fail
             logger.exception("error closing the reward sink")
 

@@ -17,6 +17,10 @@ class SessionMonitor(Protocol):
     def stop_requested(self) -> bool:
         """True when the experimenter asked to abort from the panel."""
 
+    @property
+    def reward_sink(self) -> Any | None:
+        """A reward device the panel already connected, if any."""
+
     def update(self, **fields: Any) -> None: ...
 
     def cursor(self, x_px: float, y_px: float, fps: float | None = None) -> None: ...
@@ -32,6 +36,7 @@ class NullMonitor:
     """Monitoring disabled: accepts everything, publishes nothing."""
 
     stop_requested = False
+    reward_sink = None
 
     def update(self, **fields: Any) -> None:
         return None

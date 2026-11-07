@@ -78,6 +78,18 @@ def _make_handler(station: Station) -> type[BaseHTTPRequestHandler]:
                     else:
                         status = station.stop_lsl_state()
                     self._json(HTTPStatus.OK, status)
+                elif path == "/api/reward/test":
+                    self._json(HTTPStatus.OK, station.reward_self_test(self._read_json()))
+                elif path == "/api/reward/connect":
+                    payload = self._read_json()
+                    self._json(
+                        HTTPStatus.OK,
+                        station.connect_reward(
+                            payload.get("port"), payload.get("baud")
+                        ),
+                    )
+                elif path == "/api/reward/disconnect":
+                    self._json(HTTPStatus.OK, station.disconnect_reward())
                 else:
                     self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
             except (TypeError, ValueError) as exc:

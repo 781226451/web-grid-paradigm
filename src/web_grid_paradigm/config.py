@@ -87,7 +87,6 @@ class ExperimentConfig:
     reward_baud: int = 9600
     reward_amount: int = 1  # units handed out per hit
     reward_duration_ms: int = 50  # pulse length passed to the Arduino
-    reward_command: str = "R {amount} {duration_ms}\n"
 
     # --- live web dashboard -----------------------------------------------
     dashboard: bool = True
@@ -104,14 +103,25 @@ class ExperimentConfig:
     def from_toml(cls, path: str | Path) -> ExperimentConfig:
         """Load a configuration from a TOML file.
 
-        Both a top-level table and a ``[webgrid]`` table are accepted.
-        Unknown keys are rejected so typos cannot silently change a session.
+        Accepted shapes::
+
+            rows = 12                  # flat
+            [webgrid]                  # one named table
+            rows = 12
+            [reward]                   # optional section for hardware keys
+            reward_port = "COM3"
+
+        A ``[reward]`` (or ``[webgrid.reward]``) table is folded into the same
+        flat namespace, so a single file can hold both the paradigm settings
+        and the reward hardware settings.  Unknown keys are rejected so typos
+        cannot silently change a session.
         """
         path = Path(path)
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        data = tomllib.loads(path.read_text(encoding="utf-8-sig"))
         table = data.get("webgrid", data)
         if not isinstance(table, Mapping):
             raise TypeError(f"{path}: [webgrid] must be a table")
+        table = _merge_reward_table(table, path)
         known = {f.name for f in dataclasses.fields(cls)}
         unknown = sorted(set(table) - known)
         if unknown:
@@ -207,14 +217,6 @@ class ExperimentConfig:
             raise ValueError("reward_amount must be between 0 and 255")
         if not 0 <= self.reward_duration_ms <= 5000:
             raise ValueError("reward_duration_ms must be between 0 and 5000")
-        if not self.reward_command.strip():
-            raise ValueError("reward_command must not be empty")
-        try:
-            self.reward_command.format(amount=1, duration_ms=50)
-        except (KeyError, IndexError, ValueError) as exc:
-            raise ValueError(
-                "reward_command may only use {amount} and {duration_ms}"
-            ) from exc
 
     # ------------------------------------------------------------------
     @property
@@ -250,6 +252,21 @@ class ExperimentConfig:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self.to_toml(), encoding="utf-8")
         return path
+
+
+def _merge_reward_table(table: Mapping[str, Any], path: Path) -> dict[str, Any]:
+    """Fold a ``[reward]`` section into the flat key namespace.
+
+    ``reward = "serial"`` (a string) is the ordinary config field, while a
+    ``[reward]`` table is the optional hardware section; only the latter is
+    flattened.
+    """
+    reward = table.get("reward")
+    if not isinstance(reward, Mapping):
+        return dict(table)
+    merged = {key: value for key, value in table.items() if key != "reward"}
+    merged.update(dict(reward))
+    return merged
 
 
 def _toml_value(value: Any) -> str:

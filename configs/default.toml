@@ -60,7 +60,6 @@ reward_port = "COM3"        # Arduino serial port
 reward_baud = 9600
 reward_amount = 1           # reward units per payout (0 = no reward)
 reward_duration_ms = 50     # pulse length passed to the Arduino
-reward_command = "R {amount} {duration_ms}\n"
 
 # --- web control panel -----------------------------------------------------
 dashboard = true            # start the web panel (parameters + start + live view)

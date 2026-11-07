@@ -1,0 +1,24 @@
+# Reward hardware settings — copy to configs/reward.toml and edit per machine.
+#
+#   copy configs\reward.example.toml configs\reward.toml
+#
+# `webgrid` loads configs/reward.toml automatically when the file exists
+# (or point at another file with --reward-config).  Command-line flags still
+# win over this file, and the web panel lets you pick the delivery mode and
+# port per session without editing anything.
+
+# How the pulse leaves the machine: serial | test | off
+reward = "serial"
+
+# Serial port of the Arduino.  Find it in Windows Device Manager
+# ("USB-SERIAL CH340 (COM3)") or list them in the web panel.
+reward_port = "COM3"
+reward_baud = 9600
+
+# When to reward: per_hit | ratio | none
+reward_policy = "per_hit"
+reward_ratio = 2            # only used by the "ratio" policy
+
+# How much: units per payout and pulse length handed to the Arduino.
+reward_amount = 1
+reward_duration_ms = 50

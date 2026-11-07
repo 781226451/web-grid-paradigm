@@ -88,6 +88,36 @@ def test_off_sink_records_nothing(tmp_path: Path) -> None:
     recorder.close()
 
 
+def test_shared_device_is_not_closed_by_the_session(tmp_path: Path) -> None:
+    """A device connected from the panel survives the session that used it."""
+
+    class Device:
+        name = "serial"
+
+        def __init__(self) -> None:
+            self.closed = False
+            self.delivered = 0
+
+        def deliver(self, amount: int, duration_ms: int, reason: str = "") -> None:
+            self.delivered += 1
+
+        def close(self) -> None:
+            self.closed = True
+
+    device = Device()
+    reporter = Reporter(
+        ExperimentConfig(reward="serial"),
+        Layout.create(800, 600, 4, 4),
+        recorder=None,
+        reward_sink=device,
+        own_reward_sink=False,
+    )
+    reporter.reward(1.0, amount=1, duration_ms=50)
+    reporter.close()
+    assert device.delivered == 1
+    assert device.closed is False
+
+
 # ---------------------------------------------------------------- wiring
 def test_reward_config_validation() -> None:
     ExperimentConfig(reward="test").validate()
@@ -95,8 +125,7 @@ def test_reward_config_validation() -> None:
         ExperimentConfig(reward="magic").validate()
     with pytest.raises(ValueError, match="reward_amount"):
         ExperimentConfig(reward="test", reward_amount=999).validate()
-    with pytest.raises(ValueError, match="reward_command"):
-        ExperimentConfig(reward="test", reward_command="{bogus}").validate()
+
     with pytest.raises(ValueError, match="reward_port"):
         ExperimentConfig(reward="serial", reward_port="  ").validate()
 
@@ -115,11 +144,12 @@ def test_cli_and_form_expose_reward_options() -> None:
     )
     assert load_config(parser.parse_args([])).reward == "serial"
     names = {field["name"] for field in form_schema()}
+    # The panel exposes the reward choices and schedule; port, baud rate and
+    # the command template belong to the device dialog / TOML file.
     assert {
         "reward",
-        "reward_port",
-        "reward_baud",
+        "reward_policy",
         "reward_amount",
         "reward_duration_ms",
-        "reward_command",
     } <= names
+    assert {"reward_port", "reward_baud"}.isdisjoint(names)

@@ -74,12 +74,21 @@ class WebGridApp:
         self.stimuli.configure_intro_texts(config)
         self.renderer = Renderer(self.win, self.layout, self.stimuli)
         self.input = InputReader(self.win, self.layout, config)
+        # A device connected from the web panel is shared by every session; it
+        # is only used in serial mode (test/off keep their own behaviour).
+        panel_device = (
+            getattr(self.monitor, "reward_sink", None)
+            if config.reward == "serial"
+            else None
+        )
         self.reporter = Reporter(
             config,
             self.layout,
             recorder=recorder,
             marker_sink=marker_sink,
             monitor=self.monitor,
+            reward_sink=panel_device,
+            own_reward_sink=False,
         )
         # "When to reward" is a strategy of its own, independent of how the
         # pulse is delivered (serial / test / off).

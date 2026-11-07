@@ -46,6 +46,9 @@
   .lsl-row { display: grid; grid-template-columns: 1fr 92px auto; gap: 8px; align-items: center; }
   .lsl-row input { padding: 5px 7px; border: 1px solid var(--line); border-radius: 7px;
                    font: inherit; width: 100%; }
+  .device-row { display: flex; align-items: center; gap: 10px; }
+  .device-row .lsl-status { flex: 1; margin: 0; }
+  .device-row button { white-space: nowrap; }
   .lsl-status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px;
                 font-variant-numeric: tabular-nums; }
   .lsl-status.on { color: #1c7c3a; font-weight: 600; }
@@ -202,6 +205,26 @@
   </div>
 </main>
 
+<dialog id="rewardDialog">
+  <form method="dialog" id="rewardForm">
+    <h2 style="margin-top:0">连接奖励设备</h2>
+    <div class="field" style="grid-template-columns: 90px 1fr">
+      <label for="rewardPortInput">串口</label>
+      <input id="rewardPortInput" type="text" list="rewardPortList" placeholder="COM3">
+    </div>
+    <datalist id="rewardPortList"></datalist>
+    <div class="field" style="grid-template-columns: 90px 1fr">
+      <label for="rewardBaudInput">波特率</label>
+      <input id="rewardBaudInput" type="number" min="300" max="2000000" step="1" value="9600">
+    </div>
+    <div id="rewardDialogHint" class="hint" style="margin:6px 0"></div>
+    <div class="actions">
+      <button type="button" class="primary" id="rewardDoConnect">连接</button>
+      <button type="button" id="rewardCancel">取消</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
 "use strict";
 const PHASES = {
@@ -228,8 +251,11 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g,
   (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 
 // ------------------------------------------------------------ parameter form
+let formOptions = {};
+
 function buildForm(cfg) {
   schema = cfg.schema;
+  formOptions = cfg.options || {};
   document.body.classList.toggle("readonly", !cfg.control);
   const form = $("form");
   form.textContent = "";
@@ -242,9 +268,49 @@ function buildForm(cfg) {
     legend.textContent = group;
     box.appendChild(legend);
     for (const f of fields) box.appendChild(buildField(f, values[f.name]));
+    if (group === "奖励设备") box.appendChild(buildDeviceTools());
     form.appendChild(box);
   }
   updateButtons();
+  const modeSelect = $("f_reward");
+  if (modeSelect) modeSelect.addEventListener("change", renderRewardDevice);
+  renderRewardDevice();
+}
+
+function buildDeviceTools() {
+  const wrap = document.createElement("div");
+  wrap.className = "device-tools";
+  const row = document.createElement("div");
+  row.className = "device-row";
+  const text = document.createElement("span");
+  text.id = "rewardDeviceText";
+  text.className = "lsl-status";
+  text.textContent = "未连接";
+  const connect = document.createElement("button");
+  connect.type = "button";
+  connect.id = "rewardConnectBtn";
+  connect.textContent = "连接…";
+  connect.addEventListener("click", openRewardDialog);
+  const disconnect = document.createElement("button");
+  disconnect.type = "button";
+  disconnect.id = "rewardDisconnectBtn";
+  disconnect.textContent = "断开";
+  disconnect.addEventListener("click", disconnectRewardDevice);
+  const test = document.createElement("button");
+  test.type = "button";
+  test.id = "testRewardBtn";
+  test.textContent = "测试一次";
+  test.addEventListener("click", testReward);
+  row.appendChild(text);
+  row.appendChild(connect);
+  row.appendChild(disconnect);
+  row.appendChild(test);
+  const msg = document.createElement("div");
+  msg.id = "rewardDeviceMsg";
+  msg.className = "hint";
+  wrap.appendChild(row);
+  wrap.appendChild(msg);
+  return wrap;
 }
 
 function buildField(field, value) {
@@ -282,12 +348,37 @@ function buildField(field, value) {
     else if (field.type === "float") input.step = field.step ?? 0.1;
     input.value = value ?? "";
   }
+  // Detected serial ports are shown as a hint; the port itself is set in the
+  // configuration file, so there is no input field for it.
   input.id = "f_" + field.name;
   input.dataset.name = field.name;
   input.dataset.type = field.type;
   wrap.appendChild(label);
   wrap.appendChild(input);
   return wrap;
+}
+
+async function testReward() {
+  const msg = $("rewardDeviceMsg");
+  const button = $("testRewardBtn");
+  button.disabled = true;
+  msg.textContent = "发送中…";
+  // Serial port / baud rate are not part of the form: they come from the
+  // connection (or the configuration file for a dry run).
+  const payload = collect();
+  try {
+    const response = await fetch("/api/reward/test", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || response.statusText);
+    msg.textContent = `已发送：${data.command}（${data.sink}${data.port ? " " + data.port : ""}）`;
+  } catch (err) {
+    msg.textContent = "失败：" + err.message;
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function collect() {
@@ -362,6 +453,112 @@ async function loadForm() {
     }
   } catch (err) {
     message("无法读取参数： " + err.message);
+  }
+}
+
+// ------------------------------------------------------------ reward device
+let rewardDevice = {connected: false, port: "", baud: 0, sent: 0, ports: []};
+
+function rewardMode() {
+  const select = $("f_reward");
+  return select ? select.value : "serial";
+}
+
+function renderRewardDevice() {
+  const text = $("rewardDeviceText");
+  const connectBtn = $("rewardConnectBtn");
+  const disconnectBtn = $("rewardDisconnectBtn");
+  const testBtn = $("testRewardBtn");
+  if (!text || !connectBtn || !disconnectBtn) return;  // form not built yet
+  const mode = rewardMode();
+  connectBtn.textContent = rewardDevice.connected ? "重新连接…" : "连接…";
+  disconnectBtn.disabled = !rewardDevice.connected;
+  // test/off never touch the serial port, so the port is only relevant (and
+  // only shown) in serial mode.
+  connectBtn.disabled = mode !== "serial";
+  if (testBtn) testBtn.disabled = mode === "off";
+  if (mode === "off") {
+    text.className = "lsl-status";
+    text.textContent = "奖励已关闭，不发送";
+    return;
+  }
+  if (mode === "test") {
+    text.className = "lsl-status";
+    text.textContent = "test 模式：只写入 reward_out.txt，不使用串口";
+    return;
+  }
+  if (rewardDevice.error && !rewardDevice.connected) {
+    text.className = "lsl-status err";
+    text.textContent = "连接失败：" + rewardDevice.error;
+    return;
+  }
+  if (!rewardDevice.connected) {
+    text.className = "lsl-status";
+    text.textContent = "未连接";
+    return;
+  }
+  text.className = "lsl-status on";
+  text.textContent = `已连接 ${rewardDevice.port} @ ${rewardDevice.baud} baud` +
+    ` · 已发送 ${rewardDevice.sent} 次` +
+    (rewardDevice.errors ? ` · 失败 ${rewardDevice.errors} 次` : "");
+}
+
+function openRewardDialog() {
+  const dialog = $("rewardDialog");
+  $("rewardPortInput").value = rewardDevice.port || "";
+  $("rewardBaudInput").value = rewardDevice.baud || 9600;
+  const list = $("rewardPortList");
+  list.textContent = "";
+  for (const port of rewardDevice.ports || []) {
+    const option = document.createElement("option");
+    option.value = port.device ?? port;
+    if (port.description) option.label = port.description;
+    list.appendChild(option);
+  }
+  $("rewardDialogHint").textContent = (rewardDevice.ports || []).length
+    ? "检测到：" + rewardDevice.ports.map((p) => p.device ?? p).join(", ")
+    : "没有检测到串口，请确认 USB 已插好";
+  $("rewardDeviceMsg").textContent = "";
+  dialog.showModal();
+}
+
+async function connectRewardDevice() {
+  const port = $("rewardPortInput").value.trim();
+  const baud = parseInt($("rewardBaudInput").value, 10);
+
+  if (!port) {
+    $("rewardDialogHint").textContent = "请填写串口";
+    return;
+  }
+  $("rewardDoConnect").disabled = true;
+  try {
+    const response = await fetch("/api/reward/connect", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({port: port, baud: baud})
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || response.statusText);
+    rewardDevice = data;
+    $("rewardDialog").close();
+    $("rewardDeviceMsg").textContent =
+      `已连接 ${data.port} @ ${data.baud} baud，实验期间所有奖励都走这个设备`;
+  } catch (err) {
+    $("rewardDialogHint").textContent = "连接失败：" + err.message;
+  } finally {
+    $("rewardDoConnect").disabled = false;
+    renderRewardDevice();
+  }
+}
+
+async function disconnectRewardDevice() {
+  try {
+    const response = await fetch("/api/reward/disconnect", {method: "POST"});
+    rewardDevice = await response.json();
+    $("rewardDeviceMsg").textContent = "已断开串口";
+  } catch (err) {
+    $("rewardDeviceMsg").textContent = "断开失败：" + err.message;
+  } finally {
+    renderRewardDevice();
   }
 }
 
@@ -545,7 +742,14 @@ function renderTexts() {
     ["反馈 / Trial 间休息", `${fmt(cfg.feedback)} s / ${fmt(cfg.iti)} s`],
     ["Block 间休息", `${fmt(cfg.block_rest, 1)} s`],
     ["LSL 标记", cfg.lsl ? cfg.lsl_stream : "关闭"],
-    ["奖励", cfg.reward === "serial" ? `串口 ${cfg.reward_port} @ ${cfg.reward_baud}` : (cfg.reward || "off")],
+    ["奖励",
+      cfg.reward === "serial"
+        ? (rewardDevice.connected
+            ? `串口 ${rewardDevice.port} @ ${rewardDevice.baud}`
+            : "串口（未连接）")
+        : cfg.reward === "test" ? "test（不占用串口）"
+        : cfg.reward === "off" ? "关闭"
+        : "–"],
     ["帧率", s.fps ? `${fmt(s.fps, 0)} fps` : "–"],
     ["数据目录", s.data_dir || "–"],
     ["错误", s.error || "–"],
@@ -620,6 +824,10 @@ function apply(msg) {
     renderLsl();
     if (lsl.enabled && !$("lslName").value) $("lslName").value = lsl.stream;
   }
+  if (msg.reward_device) {
+    rewardDevice = msg.reward_device;
+    renderRewardDevice();
+  }
   appendLogs(msg.logs);
   if (previousStatus !== status) updateButtons();
   renderTexts();
@@ -652,6 +860,10 @@ function frame(now) {
 $("start").addEventListener("click", startRun);
 $("stop").addEventListener("click", stopRun);
 $("lslBtn").addEventListener("click", toggleLsl);
+// The reward-device buttons live inside the form (rebuilt with it), so their
+// listeners are attached in buildDeviceTools().
+$("rewardDoConnect").addEventListener("click", connectRewardDevice);
+$("rewardCancel").addEventListener("click", () => $("rewardDialog").close());
 window.addEventListener("resize", () => drawRt());
 loadForm();
 connect();
