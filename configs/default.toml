@@ -52,6 +52,16 @@ lsl_state = false           # true = publish the state stream as soon as the pan
 lsl_state_stream = "WebGridState"
 lsl_state_rate = 10.0       # snapshots per second
 
+# --- reward ---------------------------------------------------------------
+reward = "serial"           # delivery: serial | test | off
+reward_policy = "per_hit"   # schedule: per_hit | ratio | none
+reward_ratio = 2            # N for the "ratio" policy (every N-th hit)
+reward_port = "COM3"        # Arduino serial port
+reward_baud = 9600
+reward_amount = 1           # reward units per payout (0 = no reward)
+reward_duration_ms = 50     # pulse length passed to the Arduino
+reward_command = "R {amount} {duration_ms}\n"
+
 # --- web control panel -----------------------------------------------------
 dashboard = true            # start the web panel (parameters + start + live view)
 dashboard_host = "127.0.0.1"  # "0.0.0.0" lets other computers on the LAN connect

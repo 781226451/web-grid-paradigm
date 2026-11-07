@@ -274,17 +274,99 @@ MATLAB（`lsl_loadlib`）、Unity、C#、C++ 等任何 LSL 客户端都能同样
 
 目标出现标记在 `win.flip()` 返回之后发送，反应时也从该 flip 的时间戳计算。UDP 标记存在系统网络延迟；对严格 EEG 同步要求高的实验建议使用 LSL，或把标记输出扩展到并行口/采集卡。
 
+## 奖励系统（双策略）
+
+奖励被拆成两个互不影响的策略轴：
+
+| 轴 | 决定什么 | 选项 | 由谁实现 |
+| --- | --- | --- | --- |
+| **发放策略** `--reward-policy` | **什么时候给、给多少** | `per_hit`（默认，每次命中）/ `ratio`（每 N 次命中，FR-n）/ `none`（从不） | [reward/policy.py](<src/web_grid_paradigm/reward/policy.py>) |
+| **交付策略** `--reward` | **怎么送出去** | `serial`（默认，串口给 Arduino）/ `test`（写文件不发硬件）/ `off`（丢弃） | [reward/sink.py](<src/web_grid_paradigm/reward/sink.py>) |
+
+两个模块**互不依赖**：`policy` 只产出 `Reward(amount, duration_ms, reason)`，`sink` 只负责把它送出去；两者唯一汇合点是 `runner`/`reporter`。因此可以单独替换任一侧，也可以单独 import 使用：
+
+```python
+from web_grid_paradigm.reward.policy import build_reward_policy
+from web_grid_paradigm.reward.sink import build_reward_sink
+```
+
+两者任意组合，例如“每 3 次命中给一次、但先不接硬件”：
+
+```powershell
+uv run webgrid --reward test --reward-policy ratio --reward-ratio 3
+```
+
+| 发放策略 | 行为 |
+| --- | --- |
+| `per_hit` | 每次 trial **命中**（点中目标且按键正确，或 dwell 达标）立即发一次 |
+| `ratio` | 命中累计到第 N 次才发（`--reward-ratio N`）；误点/超时不计数、不发 |
+| `none` | 从不发（纯行为实验） |
+
+误点、超时、block/会话结束都**不**发奖励；奖励时间戳就是该 trial 结束（点击或停留达成）的时刻，写在 `rewards.csv` 的 `monotonic_s` 里。策略是纯函数式的：只看到已结束的 trial，返回“发不发、发多少”，自己维护计数器（每场会话重置）。
+
+| 交付策略 | 说明 |
+| --- | --- |
+| `serial`（默认） | 每次奖励通过串口给 Arduino 发一行 ASCII 指令 |
+| `test` | 不发硬件，把**将要发送的原始字节**写入会话目录的 `reward_out.txt` 并打日志——接硬件前用它验证协议 |
+| `off` | 丢弃奖励，同时不写 `rewards.csv`（不虚报奖励） |
+
+默认串口参数：`COM3`、9600 波特；串口打不开时会**自动降级为 `test` 并报 ERROR**，实验照常跑完（不会因为没插 Arduino 丢掉会话）。
+
+```powershell
+# 接到真实 Arduino
+uv run webgrid --reward serial --reward-port COM3 --reward-baud 9600
+
+# 没有硬件时先验证协议（推荐先用这个跑一遍）
+uv run webgrid --reward test
+```
+
+**串口协议**（默认指令模板 `R {amount} {duration_ms}\n`）：
+
+```
+R 1 50
+```
+
+即每个命中发送 `R` + 奖励量 + 脉冲毫秒数 + 换行。`{amount}` 与 `{duration_ms}` 可自行调整模板，例如只发一个字节 `"1"`：
+
+```powershell
+uv run webgrid --reward serial --reward-command "1"
+```
+
+Arduino 侧最小示例：
+
+```cpp
+void setup() { Serial.begin(9600); pinMode(REWARD_PIN, OUTPUT); }
+void loop() {
+  if (!Serial.available()) return;
+  String line = Serial.readStringUntil('\n');      // "R 1 50"
+  int amount = 1, ms = 50;
+  if (sscanf(line.c_str(), "R %d %d", &amount, &ms) == 2) {
+    digitalWrite(REWARD_PIN, HIGH); delay(ms); digitalWrite(REWARD_PIN, LOW);
+  }
+}
+```
+
+说明：
+
+- 奖励在 trial 命中时由**发放策略**决定是否触发，再由**交付策略**送出；`reward_amount = 0` 也等于关闭。
+- 串口写入在**独立线程**里完成，渲染循环不会因为 UART 阻塞而掉帧。
+- 每次奖励都会写 `rewards.csv` 和 `events.csv`（事件名 `reward`），两个文件互为校验；`test` 模式还多一份 `reward_out.txt` 保存原始字节。
+- 网页控制台有“奖励”参数组（通道、串口、波特率、发放策略、N、奖励量、脉冲时长、指令模板），实时面板显示**奖励次数 / 累计奖励量 / 当前通道与策略**。
+- 新增发放策略只需实现 `on_trial()`（返回 `Reward` 或 `None`）并注册进 `POLICIES`；新增交付方式只需实现 `deliver()` / `close()`。
+
 ## 数据文件
 
 ```text
 data/
 └── sub-01/
     └── ses-20261107-140000/
-        ├── config.json    # 全部参数、Python/PsychoPy 版本、平台
-        ├── events.csv     # 事件日志：session/target/click/hit/timeout...
-        ├── trials.csv     # 每个目标一行（命中或超时）
-        ├── summary.json   # 汇总指标 + 配置快照 + 版本
-        └── session.log    # loguru 运行日志（DEBUG 级）
+        ├── config.json      # 全部参数、Python/PsychoPy 版本、平台
+        ├── events.csv       # 事件日志：session/target/click/hit/reward/timeout...
+        ├── trials.csv       # 每个目标一行（命中或超时）
+        ├── rewards.csv      # 每次奖励一行（amount/duration/reason/sink）
+        ├── reward_out.txt   # 仅 reward=test：原始的串口字节
+        ├── summary.json     # 汇总指标 + 配置快照 + 版本
+        └── session.log      # loguru 运行日志（DEBUG 级）
 ```
 
 - CSV 为 UTF-8 with BOM，方便 Excel 直接打开中文；JSON 为 UTF-8。
@@ -336,6 +418,14 @@ data/
 | `--lsl-state` | 关 | 控制台启动时就开始推送 LSL 状态流 |
 | `--lsl-state-stream` | `WebGridState` | 状态流名称 |
 | `--lsl-state-rate` | 10 | 状态流推送频率（Hz，0.5–100） |
+| `--reward` | `serial` | 交付策略：`serial` / `test` / `off` |
+| `--reward-policy` | `per_hit` | 发放策略：`per_hit` / `ratio` / `none` |
+| `--reward-ratio` | 2 | `ratio` 策略的 N（每 N 次命中给一次） |
+| `--reward-port` | `COM3` | Arduino 串口 |
+| `--reward-baud` | 9600 | 串口波特率 |
+| `--reward-amount` | 1 | 每次命中的奖励量（0 = 不发） |
+| `--reward-duration-ms` | 50 | 奖励脉冲时长（毫秒） |
+| `--reward-command` | `R {amount} {duration_ms}\n` | 串口指令模板 |
 | `--debug` | 关 | 调试：DEBUG 日志、完整堆栈 |
 | `--log-file` | 空 | 额外写一份滚动日志文件（每个会话目录总会有 `session.log`） |
 | `--instructions` | 关 | 显示人用指导语页；动物实验保持关闭 |
@@ -384,6 +474,9 @@ src/web_grid_paradigm/
 ├── reporter.py          # 所有输出：CSV、事件标记、面板状态
 ├── runner.py            # 会话编排：窗口、block 流程、主循环
 ├── markers.py           # 事件码、UDP 标记、fan-out
+├── reward/              # 奖励子系统：两个独立模块
+│   ├── policy.py        # 何时给：per_hit / ratio / none（返回 Reward 决策）
+│   └── sink.py          # 怎么送：serial / test / off（把决策送到硬件）
 ├── lsl.py               # LSL 出口（事件标记 / 状态流）、liblsl 配置
 ├── recorder.py          # CSV/JSON 数据写入
 ├── log.py               # loguru 配置、PsychoPy 日志桥接

@@ -157,7 +157,10 @@
         <div class="kpi"><div class="v" id="kRate">–</div><div class="l">命中率</div></div>
         <div class="kpi"><div class="v" id="kRt">–</div><div class="l">平均 RT (s)</div></div>
         <div class="kpi"><div class="v" id="kBps">–</div><div class="l">本 block BPS</div></div>
+        <div class="kpi"><div class="v" id="kRewards">0</div><div class="l">奖励次数</div></div>
+        <div class="kpi"><div class="v" id="kRewardTotal">0</div><div class="l">累计奖励量</div></div>
       </div>
+      <div id="rewardMode" class="meta" style="margin-top:8px"></div>
     </section>
 
     <section class="card">
@@ -527,6 +530,13 @@ function renderTexts() {
   $("kRate").textContent = trials.length ? Math.round(100 * hits.length / trials.length) + "%" : "–";
   $("kRt").textContent = hits.length ? fmt(hits.reduce((a, t) => a + t.rt, 0) / hits.length) : "–";
   $("kBps").textContent = fmt(s.block_bps);
+  $("kRewards").textContent = s.reward_count ?? 0;
+  $("kRewardTotal").textContent = s.reward_total ?? 0;
+  $("rewardMode").textContent = s.reward_mode
+    ? `奖励通道：${s.reward_mode === "serial" ? "串口" : s.reward_mode === "test" ? "测试（写文件，不发串口）" : "关闭"}` +
+      ` · 策略：${({per_hit: "每次命中", ratio: `每 ${cfg.reward_ratio ?? 2} 次命中`, none: "不发放"})[s.reward_policy] || s.reward_policy || "–"}` +
+      ` · 每次 ${cfg.reward_amount ?? 0} 单位 / ${cfg.reward_duration_ms ?? 0} ms`
+    : "";
 
   const info = [
     ["Grid", s.grid ? `${s.grid.rows} × ${s.grid.cols}` : "–"],
@@ -535,6 +545,7 @@ function renderTexts() {
     ["反馈 / Trial 间休息", `${fmt(cfg.feedback)} s / ${fmt(cfg.iti)} s`],
     ["Block 间休息", `${fmt(cfg.block_rest, 1)} s`],
     ["LSL 标记", cfg.lsl ? cfg.lsl_stream : "关闭"],
+    ["奖励", cfg.reward === "serial" ? `串口 ${cfg.reward_port} @ ${cfg.reward_baud}` : (cfg.reward || "off")],
     ["帧率", s.fps ? `${fmt(s.fps, 0)} fps` : "–"],
     ["数据目录", s.data_dir || "–"],
     ["错误", s.error || "–"],

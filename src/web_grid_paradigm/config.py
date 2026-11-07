@@ -77,6 +77,18 @@ class ExperimentConfig:
     lsl_state_stream: str = "WebGridState"
     lsl_state_rate: float = 10.0  # snapshots per second
 
+    # --- reward -----------------------------------------------------------
+    # Two orthogonal strategies: reward_policy decides *when*, reward decides
+    # *how* the pulse reaches the hardware.
+    reward: str = "serial"  # serial | test | off
+    reward_policy: str = "per_hit"  # per_hit | ratio | none
+    reward_ratio: int = 2  # used by the "ratio" policy (FR-n)
+    reward_port: str = "COM3"
+    reward_baud: int = 9600
+    reward_amount: int = 1  # units handed out per hit
+    reward_duration_ms: int = 50  # pulse length passed to the Arduino
+    reward_command: str = "R {amount} {duration_ms}\n"
+
     # --- live web dashboard -----------------------------------------------
     dashboard: bool = True
     dashboard_host: str = "127.0.0.1"  # "0.0.0.0" = reachable from the LAN
@@ -181,6 +193,28 @@ class ExperimentConfig:
             raise ValueError("dashboard_port must be between 0 and 65535")
         if not self.dashboard_host.strip():
             raise ValueError("dashboard_host must not be empty")
+        if self.reward not in ("serial", "test", "off"):
+            raise ValueError("reward must be one of ('serial', 'test', 'off')")
+        if self.reward_policy not in ("per_hit", "ratio", "none"):
+            raise ValueError("reward_policy must be one of ('per_hit', 'ratio', 'none')")
+        if not 1 <= self.reward_ratio <= 100:
+            raise ValueError("reward_ratio must be between 1 and 100")
+        if self.reward == "serial" and not self.reward_port.strip():
+            raise ValueError("reward_port must not be empty in serial mode")
+        if not 300 <= self.reward_baud <= 2_000_000:
+            raise ValueError("reward_baud must be between 300 and 2000000")
+        if not 0 <= self.reward_amount <= 255:
+            raise ValueError("reward_amount must be between 0 and 255")
+        if not 0 <= self.reward_duration_ms <= 5000:
+            raise ValueError("reward_duration_ms must be between 0 and 5000")
+        if not self.reward_command.strip():
+            raise ValueError("reward_command must not be empty")
+        try:
+            self.reward_command.format(amount=1, duration_ms=50)
+        except (KeyError, IndexError, ValueError) as exc:
+            raise ValueError(
+                "reward_command may only use {amount} and {duration_ms}"
+            ) from exc
 
     # ------------------------------------------------------------------
     @property

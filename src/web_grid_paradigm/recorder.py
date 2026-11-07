@@ -55,6 +55,20 @@ _TRIAL_FIELDS = [
 ]
 
 
+_REWARD_FIELDS = [
+    "subject",
+    "session_id",
+    "block",
+    "trial_index",
+    "utc",
+    "monotonic_s",
+    "amount",
+    "duration_ms",
+    "reason",
+    "sink",
+]
+
+
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds")
 
@@ -92,16 +106,23 @@ class SessionRecorder:
 
         self.events_path = self.dir / "events.csv"
         self.trials_path = self.dir / "trials.csv"
+        self.rewards_path = self.dir / "rewards.csv"
         self.summary_path = self.dir / "summary.json"
 
         self._events_file = self.events_path.open("w", newline="", encoding="utf-8-sig")
         self._trials_file = self.trials_path.open("w", newline="", encoding="utf-8-sig")
+        self._rewards_file = self.rewards_path.open(
+            "w", newline="", encoding="utf-8-sig"
+        )
         self._events = csv.DictWriter(self._events_file, fieldnames=_EVENT_FIELDS)
         self._trials = csv.DictWriter(self._trials_file, fieldnames=_TRIAL_FIELDS)
+        self._rewards = csv.DictWriter(self._rewards_file, fieldnames=_REWARD_FIELDS)
         self._events.writeheader()
         self._trials.writeheader()
+        self._rewards.writeheader()
         self._events_file.flush()
         self._trials_file.flush()
+        self._rewards_file.flush()
         self._closed = False
         self.closed_utc = ""
         self.block = 1  # current block, written into every row
@@ -190,6 +211,35 @@ class SessionRecorder:
         )
         self._trials_file.flush()
 
+    def reward(
+        self,
+        t: float,
+        *,
+        amount: int,
+        duration_ms: int,
+        reason: str = "",
+        trial_index: int | None = None,
+        sink: str = "",
+    ) -> None:
+        """One row per delivered reward pulse."""
+        if self._closed:
+            return
+        self._rewards.writerow(
+            {
+                "subject": self.config.subject,
+                "session_id": self.session_id,
+                "block": self.block,
+                "trial_index": trial_index if trial_index is not None else "",
+                "utc": _utc_now(),
+                "monotonic_s": f"{t:.6f}",
+                "amount": amount,
+                "duration_ms": duration_ms,
+                "reason": reason,
+                "sink": sink,
+            }
+        )
+        self._rewards_file.flush()
+
     def write_summary(self, summary: dict[str, Any]) -> Path:
         self.closed_utc = _utc_now()
         payload = {
@@ -213,6 +263,7 @@ class SessionRecorder:
         self._closed = True
         self._events_file.close()
         self._trials_file.close()
+        self._rewards_file.close()
 
     def __enter__(self) -> Self:
         return self

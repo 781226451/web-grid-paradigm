@@ -28,6 +28,7 @@ from .markers import (
 )
 from .monitor import NullMonitor, SessionMonitor
 from .recorder import SessionRecorder
+from .reward.sink import RewardSink, build_reward_sink
 from .session import ClickEvent, Target, TrialResult
 
 
@@ -41,12 +42,24 @@ class Reporter:
         recorder: SessionRecorder | None = None,
         marker_sink: MarkerSink | None = None,
         monitor: SessionMonitor | None = None,
+        reward_sink: RewardSink | None = None,
     ) -> None:
         self.cfg = config
         self.layout = layout
         self.rec = recorder
         self.markers = marker_sink or NullMarkerSink()
         self.monitor = monitor or NullMonitor()
+        self.rewards = reward_sink or build_reward_sink(
+            config, recorder.dir if recorder is not None else None
+        )
+        self.reward_count = 0
+        self.reward_total = 0
+        self.monitor.update(
+            reward_mode=self.rewards.name,
+            reward_policy=config.reward_policy,
+            reward_count=0,
+            reward_total=0,
+        )
 
     # ------------------------------------------------------------------
     # session / block lifecycle
@@ -276,6 +289,56 @@ class Reporter:
     # ------------------------------------------------------------------
     # end of session
     # ------------------------------------------------------------------
+    # reward
+    # ------------------------------------------------------------------
+    def reward(
+        self,
+        now: float,
+        *,
+        amount: int,
+        duration_ms: int,
+        reason: str = "hit",
+        trial_index: int | None = None,
+    ) -> None:
+        """Deliver one reward pulse and record it everywhere.
+
+        The strategy decides how the pulse leaves the machine; this method
+        guarantees the CSV row, the marker/event trail and the panel counters
+        stay consistent even when the hardware write fails.
+        """
+        if self.rewards.name == "off":
+            # Nothing is delivered, so nothing is claimed in the data either.
+            return
+        self.rewards.deliver(amount, duration_ms, reason)
+        self.reward_count += 1
+        self.reward_total += int(amount)
+        if self.rec is not None:
+            self.rec.reward(
+                now,
+                amount=int(amount),
+                duration_ms=int(duration_ms),
+                reason=reason,
+                trial_index=trial_index,
+                sink=self.rewards.name,
+            )
+        self._event(
+            "reward",
+            now,
+            target_index=trial_index,
+            detail={
+                "amount": int(amount),
+                "duration_ms": int(duration_ms),
+                "reason": reason,
+                "sink": self.rewards.name,
+            },
+        )
+        self.monitor.update(
+            reward_mode=self.rewards.name,
+            reward_count=self.reward_count,
+            reward_total=self.reward_total,
+        )
+
+    # ------------------------------------------------------------------
     def session_end(self, now: float, summary: dict[str, Any], *, aborted: bool) -> None:
         if self.rec is not None:
             self.rec.write_summary(summary)
@@ -318,6 +381,10 @@ class Reporter:
             self.markers.close()
         except Exception:  # noqa: BLE001 - teardown must not fail
             logger.exception("error closing event markers")
+        try:
+            self.rewards.close()
+        except Exception:  # noqa: BLE001 - teardown must not fail
+            logger.exception("error closing the reward sink")
 
     # ------------------------------------------------------------------
     def _event(

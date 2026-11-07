@@ -25,6 +25,7 @@ from .markers import MarkerSink, build_marker_sink
 from .monitor import NullMonitor, SessionMonitor
 from .renderer import Renderer
 from .reporter import Reporter
+from .reward.policy import build_reward_policy
 from .scoring import SessionStats, merge_stats
 from .session import FrameOutcome, Phase, SessionEngine, Target
 from .stimuli import Stimuli
@@ -80,6 +81,9 @@ class WebGridApp:
             marker_sink=marker_sink,
             monitor=self.monitor,
         )
+        # "When to reward" is a strategy of its own, independent of how the
+        # pulse is delivered (serial / test / off).
+        self.reward_policy = build_reward_policy(config)
 
         # One engine per block; the shared RNG keeps blocks reproducible but
         # gives each block a different target sequence.
@@ -373,6 +377,17 @@ class WebGridApp:
                 self.renderer.flash_miss(click.cell, click.time)
         if outcome.trial is not None:
             self.reporter.trial(outcome.trial, block=self.block)
+            decision = self.reward_policy.on_trial(
+                outcome.trial, block=self.block, config=self.cfg
+            )
+            if decision is not None:
+                self.reporter.reward(
+                    outcome.trial.offset,
+                    amount=decision.amount,
+                    duration_ms=decision.duration_ms,
+                    reason=decision.reason,
+                    trial_index=outcome.trial.index,
+                )
             self._pending_feedback_start = True
 
     def _log_iti_start(self, now: float) -> None:

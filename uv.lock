@@ -3957,6 +3957,7 @@ dependencies = [
     { name = "loguru" },
     { name = "psychopy" },
     { name = "pylsl" },
+    { name = "pyserial" },
 ]
 
 [package.dev-dependencies]
@@ -3969,6 +3970,7 @@ requires-dist = [
     { name = "loguru", specifier = ">=0.7" },
     { name = "psychopy", specifier = ">=2026.2.5" },
     { name = "pylsl", specifier = ">=1.16" },
+    { name = "pyserial", specifier = ">=3.5" },
 ]
 
 [package.metadata.requires-dev]

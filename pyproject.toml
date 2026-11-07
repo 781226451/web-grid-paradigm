@@ -11,6 +11,7 @@ dependencies = [
     "loguru>=0.7",
     "psychopy>=2026.2.5",
     "pylsl>=1.16",
+    "pyserial>=3.5",
 ]
 
 [project.scripts]

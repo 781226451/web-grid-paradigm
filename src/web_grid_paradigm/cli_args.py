@@ -204,6 +204,35 @@ def build_parser() -> argparse.ArgumentParser:
         "--lsl-state-rate", type=float, help="LSL state pushes per second (default 10)"
     )
 
+    reward = parser.add_argument_group("reward")
+    reward.add_argument(
+        "--reward",
+        choices=("serial", "test", "off"),
+        help="reward strategy (default: serial); 'test' writes the bytes to "
+        "reward_out.txt instead of a serial port",
+    )
+    reward.add_argument("--reward-port", help="serial port (default: COM3)")
+    reward.add_argument(
+        "--reward-policy",
+        choices=("per_hit", "ratio", "none"),
+        help="when to reward (default: per_hit): every hit, every N-th hit, "
+        "or never",
+    )
+    reward.add_argument(
+        "--reward-ratio", type=int, help="N for the 'ratio' policy (default: 2)"
+    )
+    reward.add_argument("--reward-baud", type=int, help="serial baud rate (default 9600)")
+    reward.add_argument(
+        "--reward-amount", type=int, help="reward units per hit (default: 1)"
+    )
+    reward.add_argument(
+        "--reward-duration-ms", type=int, help="pulse length in ms (default: 50)"
+    )
+    reward.add_argument(
+        "--reward-command",
+        help="wire command template (default: 'R {amount} {duration_ms}\\n')",
+    )
+
     dash = parser.add_argument_group("web dashboard")
     dash.add_argument(
         "--no-dashboard",
@@ -291,6 +320,14 @@ def load_config(args: argparse.Namespace) -> ExperimentConfig:
         "screen": "screen",
         "marker_udp": "marker_udp",
         "lsl_stream": "lsl_stream",
+        "reward": "reward",
+        "reward_policy": "reward_policy",
+        "reward_ratio": "reward_ratio",
+        "reward_port": "reward_port",
+        "reward_baud": "reward_baud",
+        "reward_amount": "reward_amount",
+        "reward_duration_ms": "reward_duration_ms",
+        "reward_command": "reward_command",
         "lsl_state_stream": "lsl_state_stream",
         "lsl_state_rate": "lsl_state_rate",
         "dashboard_port": "dashboard_port",
