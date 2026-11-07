@@ -3,6 +3,14 @@
 控制台的 Vue 重构版本。构建产物写入 `src/web_grid_paradigm/panel/static/`，由 Python
 控制台在 `/app/` 下提供（Phase 0–3）；Phase 4 会切到根路径 `/`，旧的单文件页面届时下线。
 
+## 进度
+
+- **Phase 0（已完成）**：Vite + Vue + Naive UI 脚手架、`/app/` 静态路由、类型化 API 封装。
+- **Phase 1（已完成）**：只读监控——网格 canvas（目标/光标/dwell 进度/误点闪红）、
+  进度条、KPI、反应时图、Block 结果、最近 trial、日志；数据全部来自 `/events` 的 SSE 增量。
+- Phase 2（下一步）：SchemaForm + 启动/中止。
+- Phase 3：奖励设备连接弹窗、LSL 控制；Phase 4：切换根路径、旧页面下线、E2E。
+
 ## 命令
 
 ```powershell

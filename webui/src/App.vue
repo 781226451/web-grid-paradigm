@@ -1,31 +1,69 @@
 <script setup lang="ts">
-import { NAlert, NButton, NCard, NConfigProvider, NDescriptions, NDescriptionsItem, NTag, zhCN, dateZhCN } from "naive-ui";
-import { onMounted, ref } from "vue";
+import {
+  NAlert,
+  NCard,
+  NConfigProvider,
+  NDescriptions,
+  NDescriptionsItem,
+  NTag,
+  dateZhCN,
+  zhCN,
+} from "naive-ui";
+import { computed, onBeforeUnmount, onMounted } from "vue";
 
-import { fetchConfig, fetchState, type Snapshot } from "@/api";
+import BlockTable from "@/components/BlockTable.vue";
+import GridCanvas from "@/components/GridCanvas.vue";
+import KpiCards from "@/components/KpiCards.vue";
+import LogPanel from "@/components/LogPanel.vue";
+import ProgressCard from "@/components/ProgressCard.vue";
+import RtChart from "@/components/RtChart.vue";
+import TrialTable from "@/components/TrialTable.vue";
+import { fmt, phaseLabel } from "@/lib/format";
+import { connect, disconnect, station } from "@/stores/station";
 
-const snapshot = ref<Snapshot | null>(null);
-const fields = ref<number>(0);
-const error = ref<string>("");
-const loading = ref<boolean>(false);
+const cfg = computed(() => station.state.config ?? {});
+const phase = computed(() => phaseLabel(station.state.phase, station.status));
+const tagType = computed(() => {
+  const value = String(station.state.phase ?? "");
+  if (station.status === "idle") return "default";
+  if (value === "done" || value === "finished") return "info";
+  if (station.state.aborted) return "error";
+  return "success";
+});
 
-async function refresh(): Promise<void> {
-  loading.value = true;
-  error.value = "";
-  try {
-    snapshot.value = await fetchState();
-    const config = await fetchConfig();
-    const schema = config.schema;
-    fields.value = Array.isArray(schema) ? schema.length : 0;
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : String(err);
-    snapshot.value = null;
-  } finally {
-    loading.value = false;
-  }
-}
+const where = computed(() =>
+  station.state.subject
+    ? `${station.state.subject} · ses-${station.state.session_id ?? ""}`
+    : "",
+);
 
-onMounted(refresh);
+const info = computed(() => {
+  const config = cfg.value;
+  const reward =
+    config.reward === "serial"
+      ? station.rewardDevice?.connected
+        ? `串口 ${station.rewardDevice.port} @ ${station.rewardDevice.baud}`
+        : "串口（未连接）"
+      : config.reward === "test"
+        ? "test（不占用串口）"
+        : config.reward === "off"
+          ? "关闭"
+          : "–";
+  return [
+    ["Grid", station.state.grid ? `${station.state.grid.rows} × ${station.state.grid.cols}` : "–"],
+    ["Block × Trial", `${config.blocks ?? 1} × ${config.targets ?? 0}`],
+    ["输入 / 选择", `${config.input ?? "–"} / ${config.selection ?? "–"}`],
+    ["反馈 / Trial 间休息", `${fmt(config.feedback)} s / ${fmt(config.iti)} s`],
+    ["Block 间休息", `${fmt(config.block_rest, 1)} s`],
+    ["LSL 标记", config.lsl ? String(config.lsl_stream ?? "") : "关闭"],
+    ["奖励", reward],
+    ["数据目录", String(station.state.data_dir ?? "–")],
+    ["错误", String(station.state.error ?? "–")],
+  ];
+});
+
+onMounted(connect);
+onBeforeUnmount(disconnect);
 </script>
 
 <template>
@@ -33,30 +71,53 @@ onMounted(refresh);
     <div class="page">
       <header class="bar">
         <h1>BCI Web-Grid 控制台</h1>
-        <n-tag v-if="snapshot" :type="snapshot.status === 'idle' ? 'default' : 'success'" round>
-          {{ snapshot.status }}
-        </n-tag>
+        <n-tag :type="tagType" round size="small">{{ phase }}</n-tag>
+        <span class="where">{{ where }}</span>
         <span class="spacer" />
-        <n-button size="small" :loading="loading" @click="refresh">刷新</n-button>
+        <n-tag size="small" :type="station.connected ? 'success' : 'error'" round>
+          {{ station.connected ? "已连接" : "未连接" }}
+        </n-tag>
       </header>
 
-      <n-alert v-if="error" type="error" title="无法连接控制台服务" closable>
-        {{ error }}
+      <n-alert v-if="station.error" type="warning" closable @close="station.error = ''">
+        {{ station.error }}
       </n-alert>
 
-      <n-card title="Phase 0 · 脚手架自检" :bordered="true">
-        <n-descriptions v-if="snapshot" :column="2" label-placement="left">
-          <n-descriptions-item label="运行状态">{{ snapshot.status }}</n-descriptions-item>
-          <n-descriptions-item label="可控制">{{ snapshot.control ? "是" : "只读" }}</n-descriptions-item>
-          <n-descriptions-item label="当前阶段">{{ snapshot.state.phase ?? "—" }}</n-descriptions-item>
-          <n-descriptions-item label="表单字段数">{{ fields }}</n-descriptions-item>
-        </n-descriptions>
-        <p class="hint">
-          这一页只是脚手架自检：Vue 3 + TypeScript + Vite + Naive UI 已经能构建、能被 Python
-          控制台在 <code>/app/</code> 下提供，并能读到 <code>/api/state</code> 与 <code>/api/config</code>。
-          后续 Phase 1 会替换成完整监控界面。
-        </p>
-      </n-card>
+      <main class="layout">
+        <section class="col left">
+          <n-card title="实时网格" size="small">
+            <GridCanvas />
+          </n-card>
+          <n-card title="会话信息" size="small">
+            <n-descriptions :column="1" label-placement="left" size="small">
+              <n-descriptions-item v-for="[label, value] in info" :key="label" :label="label">
+                {{ value }}
+              </n-descriptions-item>
+            </n-descriptions>
+          </n-card>
+        </section>
+
+        <section class="col right">
+          <n-card title="进度" size="small">
+            <ProgressCard />
+          </n-card>
+          <n-card title="本次运行表现" size="small">
+            <KpiCards />
+          </n-card>
+          <n-card title="反应时（每个 trial；红色 = 超时）" size="small">
+            <RtChart />
+          </n-card>
+          <n-card title="Block 结果" size="small">
+            <BlockTable />
+          </n-card>
+          <n-card title="最近 trial" size="small">
+            <TrialTable />
+          </n-card>
+          <n-card title="日志" size="small">
+            <LogPanel />
+          </n-card>
+        </section>
+      </main>
     </div>
   </n-config-provider>
 </template>
@@ -65,8 +126,8 @@ onMounted(refresh);
 .page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px 20px 24px;
+  gap: 14px;
+  padding: 14px 20px 24px;
 }
 
 .bar {
@@ -80,19 +141,32 @@ onMounted(refresh);
   margin: 0;
 }
 
+.where {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .spacer {
   flex: 1;
 }
 
-.hint {
-  color: var(--muted);
-  font-size: 13px;
-  margin: 12px 0 0;
+.layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) 1fr;
+  gap: 16px;
+  align-items: start;
 }
 
-code {
-  background: var(--bg);
-  border-radius: 4px;
-  padding: 1px 4px;
+@media (max-width: 1000px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
 }
 </style>
