@@ -8,10 +8,10 @@ import urllib.request
 
 import pytest
 
-from web_grid_paradigm.cli import _load_config, build_parser
+from web_grid_paradigm.cli_args import build_parser, load_config
 from web_grid_paradigm.config import ExperimentConfig
-from web_grid_paradigm.station import (
-    NullView,
+from web_grid_paradigm.monitor import NullMonitor
+from web_grid_paradigm.panel import (
     SessionView,
     coerce_params,
     form_schema,
@@ -20,7 +20,7 @@ from web_grid_paradigm.station import (
 
 
 def make_station(**kwargs) -> Station:  # noqa: F821 - imported lazily below
-    from web_grid_paradigm.station import Station
+    from web_grid_paradigm.panel import Station
 
     station = Station("127.0.0.1", 0, **kwargs)
     station.attach_logs()
@@ -221,8 +221,8 @@ def test_port_in_use_falls_back(station) -> None:
     assert start_station("127.0.0.1", station.port) is None
 
 
-def test_null_view_is_inert() -> None:
-    view = NullView()
+def test_null_monitor_is_inert() -> None:
+    view = NullMonitor()
     view.update(phase="run")
     view.cursor(1.0, 2.0, fps=60)
     view.add_trial({})
@@ -234,13 +234,13 @@ def test_null_view_is_inert() -> None:
 # ---------------------------------------------------------------- CLI wiring
 def test_cli_defaults_to_the_web_panel() -> None:
     parser = build_parser()
-    config = _load_config(parser.parse_args([]))
+    config = load_config(parser.parse_args([]))
     assert config.dashboard is True
     assert config.dashboard_port == 8765
     assert config.dashboard_open is True
-    assert _load_config(parser.parse_args(["--no-dashboard"])).dashboard is False
-    assert _load_config(parser.parse_args(["--no-open-dashboard"])).dashboard_open is False
-    assert _load_config(parser.parse_args(["--run-now"])).dashboard is True
+    assert load_config(parser.parse_args(["--no-dashboard"])).dashboard is False
+    assert load_config(parser.parse_args(["--no-open-dashboard"])).dashboard_open is False
+    assert load_config(parser.parse_args(["--run-now"])).dashboard is True
 
 
 def test_lsl_state_stream_lives_only_during_a_run(station) -> None:

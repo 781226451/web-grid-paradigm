@@ -363,23 +363,40 @@ uv run pytest
 uv run webgrid --screenshot docs/preview.png   # 视觉检查
 ```
 
-项目结构：
+项目结构（按职责分层：核心逻辑不依赖 PsychoPy，渲染层不依赖网页层）：
 
 ```text
 src/web_grid_paradigm/
-├── cli.py               # 命令行、配置合并
-├── config.py            # 参数与校验、TOML 读取
+├── cli.py               # 入口：main / _run / _serve / _preview
+├── cli_args.py          # 命令行参数定义、配置合并（TOML+CLI）
+├── config.py            # 参数与校验、TOML 读写
 ├── geometry.py          # 网格布局、像素/归一化坐标、目标洗牌袋
 ├── i18n.py              # 中英文 UI 文案
+├── session.py           # 试次状态机（纯 Python）
+├── scoring.py           # BPS/NTPM 统计、跨 block 合并
 ├── inputs.py            # UDP 光标源、autopilot（纯 Python）
-├── markers.py           # UDP/LSL 事件标记
-├── psychopy_runner.py   # PsychoPy 窗口、渲染、主循环
+├── input_router.py      # 鼠标/键盘/UDP/autopilot → 光标与点击
+├── monitor.py           # 监控协议 + 空实现（核心不依赖网页层）
+├── palette.py           # 颜色
+├── window.py            # PsychoPy 窗口创建
+├── stimuli.py           # 所有视觉刺激对象（一次性构建）
+├── renderer.py          # 逐帧绘制 + 误点/光标反馈
+├── reporter.py          # 所有输出：CSV、事件标记、面板状态
+├── runner.py            # 会话编排：窗口、block 流程、主循环
+├── markers.py           # 事件码、UDP 标记、fan-out
+├── lsl.py               # LSL 出口（事件标记 / 状态流）、liblsl 配置
 ├── recorder.py          # CSV/JSON 数据写入
-├── scoring.py           # BPS/NTPM 统计
-└── session.py           # 试次状态机（纯 Python）
+├── log.py               # loguru 配置、PsychoPy 日志桥接
+└── panel/               # Web 控制台
+    ├── __init__.py      # 对外导出
+    ├── schema.py        # 参数表单描述与校验
+    ├── state.py         # 运行队列、实时快照、SessionView
+    ├── server.py        # HTTP 路由、SSE、页面资源
+    ├── lsl_state.py     # LSL 状态流推送线程
+    └── dashboard.html   # 页面（内联 CSS/JS，无外部依赖）
 ```
 
-`geometry`、`scoring`、`session`、`inputs` 不依赖 PsychoPy，因此单元测试无需打开窗口。
+依赖方向：`config/geometry/scoring/session` 不依赖 PsychoPy；`runner` 只依赖 `monitor` 协议，不依赖 `panel`；`panel` 依赖 `runner` 提供的 `SessionView` 语义。因此 `geometry`、`scoring`、`session`、`inputs`、`panel/schema` 的单元测试无需打开窗口。
 
 ## 注意事项
 

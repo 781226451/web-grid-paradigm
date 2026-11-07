@@ -1,0 +1,111 @@
+"""Parameter form: the single source of truth for the page and validation.
+
+The page renders itself from :func:`form_schema`; submitted values are
+converted and validated by :func:`coerce_params` before a run may start.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from ..config import ExperimentConfig
+
+# ----------------------------------------------------------------------
+# Parameter form (single source of truth for the page and for validation)
+# ----------------------------------------------------------------------
+_FORM: list[dict[str, Any]] = [
+    # session
+    {"name": "subject", "label": "被试", "type": "text", "group": "会话"},
+    {"name": "session", "label": "会话标签", "type": "text", "group": "会话",
+     "hint": "留空 = 当前时间戳"},
+    {"name": "output_dir", "label": "数据目录", "type": "text", "group": "会话"},
+    # design
+    {"name": "blocks", "label": "Block 数", "type": "int", "min": 1, "max": 100,
+     "group": "实验设计"},
+    {"name": "targets", "label": "每个 Block 的 Trial 数", "type": "int",
+     "min": 1, "max": 10000, "group": "实验设计"},
+    {"name": "rows", "label": "Grid 行数", "type": "int", "min": 2, "max": 40,
+     "group": "实验设计"},
+    {"name": "cols", "label": "Grid 列数", "type": "int", "min": 2, "max": 40,
+     "group": "实验设计"},
+    {"name": "iti", "label": "Trial 间休息 (s)", "type": "float", "min": 0,
+     "max": 60, "step": 0.5, "group": "实验设计", "hint": "0 = 无"},
+    {"name": "block_rest", "label": "Block 间休息 (s)", "type": "float",
+     "min": 0, "max": 600, "step": 5, "group": "实验设计"},
+    # task
+    {"name": "selection", "label": "选择方式", "type": "choice",
+     "options": ["click", "dwell"], "group": "任务"},
+    {"name": "dwell_time", "label": "停留时长 (s)", "type": "float", "min": 0.1,
+     "max": 10, "step": 0.1, "group": "任务", "hint": "仅 dwell 模式"},
+    {"name": "click_types", "label": "点击类型数", "type": "int", "min": 1,
+     "max": 3, "group": "任务"},
+    {"name": "feedback", "label": "反馈时长 (s)", "type": "float", "min": 0,
+     "max": 5, "step": 0.05, "group": "任务"},
+    {"name": "trial_timeout", "label": "单 Trial 超时 (s)", "type": "float",
+     "min": 0, "max": 600, "step": 1, "group": "任务", "hint": "0 = 关闭"},
+    {"name": "max_seconds", "label": "单 Block 时间上限 (s)", "type": "float",
+     "min": 0, "max": 36000, "step": 30, "group": "任务", "hint": "0 = 关闭"},
+    {"name": "countdown_seconds", "label": "倒计时 (s)", "type": "float",
+     "min": 0, "max": 10, "step": 0.5, "group": "任务"},
+    {"name": "seed", "label": "随机种子", "type": "int", "min": 0,
+     "max": 2147483647, "group": "任务"},
+    # input
+    {"name": "input", "label": "输入方式", "type": "choice",
+     "options": ["mouse", "keyboard", "udp", "demo"], "group": "输入"},
+    {"name": "udp_host", "label": "UDP 地址", "type": "text", "group": "输入"},
+    {"name": "udp_port", "label": "UDP 端口", "type": "int", "min": 1,
+     "max": 65535, "group": "输入"},
+    {"name": "smoothing", "label": "平滑 (0–0.95)", "type": "float", "min": 0,
+     "max": 0.95, "step": 0.05, "group": "输入"},
+    # display
+    {"name": "fullscreen", "label": "全屏运行", "type": "bool", "group": "显示"},
+    {"name": "window_width", "label": "窗口宽", "type": "int", "min": 640,
+     "max": 7680, "group": "显示"},
+    {"name": "window_height", "label": "窗口高", "type": "int", "min": 480,
+     "max": 4320, "group": "显示"},
+    {"name": "skip_instructions", "label": "跳过指导语", "type": "bool",
+     "group": "显示"},
+    {"name": "auto_exit", "label": "结束后自动关闭", "type": "bool", "group": "显示"},
+    # markers / LSL
+    {"name": "lsl", "label": "发布 LSL 标记", "type": "bool", "group": "标记"},
+    {"name": "lsl_stream", "label": "标记流名称", "type": "text", "group": "标记"},
+    {"name": "marker_udp", "label": "UDP 标记 (host:port)", "type": "text",
+     "group": "标记"},
+]
+_FORM_BY_NAME = {field["name"]: field for field in _FORM}
+_FORM_GROUPS = ["会话", "实验设计", "任务", "输入", "显示", "标记"]
+
+
+def form_schema() -> list[dict[str, Any]]:
+    """Field descriptions, in display order, with their group."""
+    return [dict(field) for field in _FORM]
+
+
+def coerce_params(payload: dict[str, Any], base: ExperimentConfig) -> ExperimentConfig:
+    """Build a validated config from form values layered over ``base``."""
+    unknown = sorted(set(payload) - set(_FORM_BY_NAME))
+    if unknown:
+        raise ValueError(f"未知参数: {', '.join(unknown)}")
+    values: dict[str, Any] = {}
+    for name, raw in payload.items():
+        field = _FORM_BY_NAME[name]
+        kind = field["type"]
+        try:
+            if kind == "bool":
+                values[name] = bool(raw)
+            elif kind == "int":
+                values[name] = int(raw)
+            elif kind == "float":
+                values[name] = float(raw)
+            elif kind == "choice":
+                text = str(raw)
+                if text not in field["options"]:
+                    raise ValueError(f"{field['label']} 必须是 {field['options']}")
+                values[name] = text
+            else:
+                values[name] = str(raw).strip()
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{field['label']}: {exc}") from exc
+    config = ExperimentConfig(**{**base.to_dict(), **values})
+    config.validate()
+    return config

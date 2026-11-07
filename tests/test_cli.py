@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from web_grid_paradigm.cli import _load_config, build_parser
+from web_grid_paradigm.cli_args import build_parser, load_config
 from web_grid_paradigm.i18n import STRINGS, Strings
 
 
@@ -25,7 +25,7 @@ def test_cli_overrides_config() -> None:
             "127.0.0.1:9001",
         ]
     )
-    config = _load_config(args)
+    config = load_config(args)
     assert config.input == "udp"
     assert (config.rows, config.cols) == (6, 7)
     assert config.targets == 12
@@ -40,14 +40,14 @@ def test_config_file_then_cli_override(tmp_path: Path) -> None:
     path.write_text("subject = 'from-file'\nrows = 10\n", encoding="utf-8")
     parser = build_parser()
     args = parser.parse_args(["--config", str(path), "--rows", "5"])
-    config = _load_config(args)
+    config = load_config(args)
     assert config.subject == "from-file"
     assert config.rows == 5
 
 
 def test_blocks_trials_and_grid_options() -> None:
     parser = build_parser()
-    config = _load_config(
+    config = load_config(
         parser.parse_args(
             ["--blocks", "3", "--trials", "20", "--rows", "8", "--cols", "6",
              "--block-rest", "5"]
@@ -57,7 +57,7 @@ def test_blocks_trials_and_grid_options() -> None:
     assert config.block_rest == 5
     assert config.total_trials == 60
     # --targets stays as an alias of --trials
-    assert _load_config(parser.parse_args(["--targets", "7"])).targets == 7
+    assert load_config(parser.parse_args(["--targets", "7"])).targets == 7
 
 
 def test_i18n_tables_have_the_same_keys_and_format() -> None:
@@ -71,9 +71,9 @@ def test_i18n_tables_have_the_same_keys_and_format() -> None:
 
 def test_iti_option_and_validation() -> None:
     parser = build_parser()
-    assert _load_config(parser.parse_args(["--iti", "1.5"])).iti == 1.5
-    assert _load_config(parser.parse_args([])).iti == 0.0
+    assert load_config(parser.parse_args(["--iti", "1.5"])).iti == 1.5
+    assert load_config(parser.parse_args([])).iti == 0.0
     import pytest
 
     with pytest.raises(ValueError, match="iti"):
-        _load_config(parser.parse_args(["--iti", "-1"]))
+        load_config(parser.parse_args(["--iti", "-1"]))

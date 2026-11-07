@@ -1,178 +1,28 @@
-"""Web control panel: enter parameters, start a session, watch it live.
+"""Panel state: the run queue, the live snapshot and the per-run view.
 
-One process, one URL.  The HTTP server runs in a daemon thread; the main
-thread waits for a start request, runs the PsychoPy session, and then waits
-again, so the page can start another session without restarting anything.
-
-Endpoints:
-
-======  ==================================================================
-GET     ``/``            the page (parameter form + live monitoring)
-GET     ``/events``      Server-Sent Events stream (live updates)
-GET     ``/api/state``   full JSON snapshot (scripts, debugging)
-GET     ``/api/config``  form schema, defaults and the last used values
-POST    ``/api/start``   validate the submitted parameters and start a run
-POST    ``/api/stop``    abort the running session (same as pressing Esc)
-======  ==================================================================
-
-The render loop only ever touches in-memory state (lock + dict assignment);
-serialisation and socket writes happen in the server threads, so monitoring
-never disturbs stimulus timing.
+The HTTP server (see :mod:`.server`) only reads and writes this object; the
+render loop talks to it through :class:`SessionView`.  Everything is guarded
+by one condition variable, so the render loop never blocks on the network.
 """
 
 from __future__ import annotations
 
 import json
 import socket
-import sys
 import threading
 import time
 import webbrowser
 from collections import deque
 from collections.abc import Callable
 from datetime import UTC, datetime
-from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from importlib import resources
 from typing import Any
 
 from loguru import logger
 
-from .config import ExperimentConfig
-
-# ----------------------------------------------------------------------
-# Parameter form (single source of truth for the page and for validation)
-# ----------------------------------------------------------------------
-_FORM: list[dict[str, Any]] = [
-    # session
-    {"name": "subject", "label": "被试", "type": "text", "group": "会话"},
-    {"name": "session", "label": "会话标签", "type": "text", "group": "会话",
-     "hint": "留空 = 当前时间戳"},
-    {"name": "output_dir", "label": "数据目录", "type": "text", "group": "会话"},
-    # design
-    {"name": "blocks", "label": "Block 数", "type": "int", "min": 1, "max": 100,
-     "group": "实验设计"},
-    {"name": "targets", "label": "每个 Block 的 Trial 数", "type": "int",
-     "min": 1, "max": 10000, "group": "实验设计"},
-    {"name": "rows", "label": "Grid 行数", "type": "int", "min": 2, "max": 40,
-     "group": "实验设计"},
-    {"name": "cols", "label": "Grid 列数", "type": "int", "min": 2, "max": 40,
-     "group": "实验设计"},
-    {"name": "iti", "label": "Trial 间休息 (s)", "type": "float", "min": 0,
-     "max": 60, "step": 0.5, "group": "实验设计", "hint": "0 = 无"},
-    {"name": "block_rest", "label": "Block 间休息 (s)", "type": "float",
-     "min": 0, "max": 600, "step": 5, "group": "实验设计"},
-    # task
-    {"name": "selection", "label": "选择方式", "type": "choice",
-     "options": ["click", "dwell"], "group": "任务"},
-    {"name": "dwell_time", "label": "停留时长 (s)", "type": "float", "min": 0.1,
-     "max": 10, "step": 0.1, "group": "任务", "hint": "仅 dwell 模式"},
-    {"name": "click_types", "label": "点击类型数", "type": "int", "min": 1,
-     "max": 3, "group": "任务"},
-    {"name": "feedback", "label": "反馈时长 (s)", "type": "float", "min": 0,
-     "max": 5, "step": 0.05, "group": "任务"},
-    {"name": "trial_timeout", "label": "单 Trial 超时 (s)", "type": "float",
-     "min": 0, "max": 600, "step": 1, "group": "任务", "hint": "0 = 关闭"},
-    {"name": "max_seconds", "label": "单 Block 时间上限 (s)", "type": "float",
-     "min": 0, "max": 36000, "step": 30, "group": "任务", "hint": "0 = 关闭"},
-    {"name": "countdown_seconds", "label": "倒计时 (s)", "type": "float",
-     "min": 0, "max": 10, "step": 0.5, "group": "任务"},
-    {"name": "seed", "label": "随机种子", "type": "int", "min": 0,
-     "max": 2147483647, "group": "任务"},
-    # input
-    {"name": "input", "label": "输入方式", "type": "choice",
-     "options": ["mouse", "keyboard", "udp", "demo"], "group": "输入"},
-    {"name": "udp_host", "label": "UDP 地址", "type": "text", "group": "输入"},
-    {"name": "udp_port", "label": "UDP 端口", "type": "int", "min": 1,
-     "max": 65535, "group": "输入"},
-    {"name": "smoothing", "label": "平滑 (0–0.95)", "type": "float", "min": 0,
-     "max": 0.95, "step": 0.05, "group": "输入"},
-    # display
-    {"name": "fullscreen", "label": "全屏运行", "type": "bool", "group": "显示"},
-    {"name": "window_width", "label": "窗口宽", "type": "int", "min": 640,
-     "max": 7680, "group": "显示"},
-    {"name": "window_height", "label": "窗口高", "type": "int", "min": 480,
-     "max": 4320, "group": "显示"},
-    {"name": "skip_instructions", "label": "跳过指导语", "type": "bool",
-     "group": "显示"},
-    {"name": "auto_exit", "label": "结束后自动关闭", "type": "bool", "group": "显示"},
-    # markers / LSL
-    {"name": "lsl", "label": "发布 LSL 标记", "type": "bool", "group": "标记"},
-    {"name": "lsl_stream", "label": "标记流名称", "type": "text", "group": "标记"},
-    {"name": "marker_udp", "label": "UDP 标记 (host:port)", "type": "text",
-     "group": "标记"},
-]
-_FORM_BY_NAME = {field["name"]: field for field in _FORM}
-_FORM_GROUPS = ["会话", "实验设计", "任务", "输入", "显示", "标记"]
-
-
-def form_schema() -> list[dict[str, Any]]:
-    """Field descriptions, in display order, with their group."""
-    return [dict(field) for field in _FORM]
-
-
-def coerce_params(payload: dict[str, Any], base: ExperimentConfig) -> ExperimentConfig:
-    """Build a validated config from form values layered over ``base``."""
-    unknown = sorted(set(payload) - set(_FORM_BY_NAME))
-    if unknown:
-        raise ValueError(f"未知参数: {', '.join(unknown)}")
-    values: dict[str, Any] = {}
-    for name, raw in payload.items():
-        field = _FORM_BY_NAME[name]
-        kind = field["type"]
-        try:
-            if kind == "bool":
-                values[name] = bool(raw)
-            elif kind == "int":
-                values[name] = int(raw)
-            elif kind == "float":
-                values[name] = float(raw)
-            elif kind == "choice":
-                text = str(raw)
-                if text not in field["options"]:
-                    raise ValueError(f"{field['label']} 必须是 {field['options']}")
-                values[name] = text
-            else:
-                values[name] = str(raw).strip()
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{field['label']}: {exc}") from exc
-    config = ExperimentConfig(**{**base.to_dict(), **values})
-    config.validate()
-    return config
-
-
-class NullView:
-    """Monitoring sink used when no web panel is attached."""
-
-    stop_requested = False
-
-    def update(self, **fields: Any) -> None:
-        return None
-
-    def cursor(self, x_px: float, y_px: float, fps: float | None = None) -> None:
-        return None
-
-    def add_trial(self, row: dict[str, Any]) -> None:
-        return None
-
-    def set_blocks(self, blocks: list[dict[str, Any]]) -> None:
-        return None
-
-    def close(self) -> None:
-        return None
-
-
-class _Server(ThreadingHTTPServer):
-    daemon_threads = True
-    # http.server enables SO_REUSEADDR, which on Windows lets a second process
-    # bind the same port and silently steal connections; an exclusive bind
-    # makes a port clash fail loudly instead.
-    allow_reuse_address = sys.platform != "win32"
-
-    def server_bind(self) -> None:
-        if sys.platform == "win32" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
-            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-        super().server_bind()
+from ..config import ExperimentConfig
+from .lsl_state import LslStatePublisher
+from .schema import _FORM_BY_NAME, _FORM_GROUPS, coerce_params, form_schema
+from .server import _make_handler, _Server
 
 
 class Station:
@@ -674,67 +524,6 @@ class Station:
         self._server.server_close()
 
 
-class LslStatePublisher:
-    """Background thread that pushes :meth:`Station.lsl_snapshot` over LSL."""
-
-    def __init__(self, station: Station, stream_name: str, rate: float) -> None:
-        from .markers import LslStateOutlet
-
-        self.station = station
-        self.stream_name = stream_name
-        self.rate = float(rate)
-        self.outlet = LslStateOutlet(stream_name)
-        self.sent = 0
-        self.error: str | None = None
-        self._stop = threading.Event()
-        self._thread = threading.Thread(
-            target=self._loop, name="webgrid-lsl-state", daemon=True
-        )
-
-    def start(self) -> None:
-        self._thread.start()
-
-    def push_once(self, *, final: bool = False) -> None:
-        self.outlet.push(self.station.lsl_snapshot(final=final))
-        self.sent = self.outlet.sent
-
-    def _loop(self) -> None:
-        period = 1.0 / self.rate
-        while not self._stop.wait(period):
-            try:
-                self.push_once()
-                self.error = None
-            except Exception as exc:  # noqa: BLE001 - keep publishing
-                self.error = f"{type(exc).__name__}: {exc}"
-                logger.warning("LSL state push failed: {}", exc)
-                time.sleep(1.0)
-
-    def status(self) -> dict[str, Any]:
-        return {
-            "enabled": True,
-            "live": True,
-            "stream": self.stream_name,
-            "rate": self.rate,
-            "sent": self.sent,
-            "consumers": self.outlet.consumers(),
-            "error": self.error,
-        }
-
-    def stop(self, *, final_sample: bool = False) -> None:
-        self._stop.set()
-        if self._thread.is_alive():
-            self._thread.join(timeout=2.0)
-        if final_sample:
-            try:
-                self.push_once(final=True)
-            except Exception as exc:  # noqa: BLE001 - closing anyway
-                logger.debug("final LSL state push failed: {}", exc)
-        try:
-            self.outlet.close()
-        except Exception as exc:  # noqa: BLE001 - teardown must not fail
-            logger.debug("could not close the LSL state outlet: {}", exc)
-
-
 class SessionView:
     """Per-run monitoring handle handed to the renderer."""
 
@@ -760,137 +549,3 @@ class SessionView:
 
     def close(self) -> None:
         return None
-
-
-# ----------------------------------------------------------------------
-# HTTP plumbing
-# ----------------------------------------------------------------------
-def _page() -> bytes:
-    return (
-        resources.files("web_grid_paradigm").joinpath("dashboard.html").read_bytes()
-    )
-
-
-def _make_handler(station: Station) -> type[BaseHTTPRequestHandler]:
-    class Handler(BaseHTTPRequestHandler):
-        server_version = "webgrid-station"
-
-        def do_GET(self) -> None:
-            path = self.path.split("?", 1)[0]
-            try:
-                if path in ("/", "/index.html"):
-                    self._send(HTTPStatus.OK, _page(), "text/html; charset=utf-8")
-                elif path == "/api/state":
-                    self._json(HTTPStatus.OK, station.snapshot())
-                elif path == "/api/config":
-                    self._json(HTTPStatus.OK, station.config_payload())
-                elif path == "/events":
-                    self._events()
-                else:
-                    self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
-            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
-                return  # browser tab closed
-
-        def do_POST(self) -> None:
-            path = self.path.split("?", 1)[0]
-            try:
-                if path == "/api/start":
-                    payload = self._read_json()
-                    self._json(HTTPStatus.OK, {"ok": True, "config": station.start(payload)})
-                elif path == "/api/stop":
-                    stopped = station.request_stop()
-                    self._json(HTTPStatus.OK, {"ok": True, "stopping": stopped})
-                elif path == "/api/lsl":
-                    payload = self._read_json()
-                    if payload.get("enabled", True):
-                        status = station.start_lsl_state(
-                            payload.get("stream"), payload.get("rate")
-                        )
-                    else:
-                        status = station.stop_lsl_state()
-                    self._json(HTTPStatus.OK, status)
-                else:
-                    self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
-            except (TypeError, ValueError) as exc:
-                self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
-            except RuntimeError as exc:
-                self._json(HTTPStatus.CONFLICT, {"error": str(exc)})
-
-        def _read_json(self) -> dict[str, Any]:
-            length = int(self.headers.get("Content-Length") or 0)
-            raw = self.rfile.read(length) if length else b"{}"
-            try:
-                payload = json.loads(raw or b"{}")
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"无效的 JSON: {exc}") from exc
-            if not isinstance(payload, dict):
-                raise TypeError("请求体必须是 JSON 对象")
-            return payload
-
-        def _events(self) -> None:
-            self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", "text/event-stream")
-            self.send_header("Cache-Control", "no-cache")
-            self.send_header("X-Accel-Buffering", "no")
-            self.end_headers()
-
-            def write(data: bytes) -> None:
-                self.wfile.write(data)
-                self.wfile.flush()
-
-            station.stream(write)
-
-        def _json(self, status: HTTPStatus, payload: dict[str, Any]) -> None:
-            body = json.dumps(payload, ensure_ascii=False, default=str).encode()
-            self._send(status, body, "application/json; charset=utf-8")
-
-        def _send(self, status: HTTPStatus, body: bytes, content_type: str) -> None:
-            self.send_response(status)
-            self.send_header("Content-Type", content_type)
-            self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            self.wfile.write(body)
-
-        def log_message(self, format: str, *args: Any) -> None:
-            logger.trace("station http: " + format, *args)
-
-    return Handler
-
-
-def start_station(
-    host: str,
-    port: int,
-    *,
-    base_config: ExperimentConfig | None = None,
-    control: bool = True,
-    open_browser: bool = False,
-) -> Station | None:
-    """Start the panel; on failure log a warning and return ``None``."""
-    try:
-        station = Station(
-            host,
-            port,
-            base_config=base_config,
-            control=control,
-            open_browser=open_browser,
-        )
-    except OSError as exc:
-        logger.warning(
-            "web panel not started on {}:{} ({}); the session can still run "
-            "from the command line",
-            host,
-            port,
-            exc,
-        )
-        return None
-    station.attach_logs()
-    logger.info("web control panel: {}", station.url)
-    if host in ("0.0.0.0", "::"):
-        logger.warning("the web panel is reachable from other computers")
-    if base_config is not None and base_config.lsl_state:
-        try:
-            station.start_lsl_state()
-        except Exception as exc:  # noqa: BLE001 - the panel still works
-            logger.warning("could not start the LSL state stream: {}", exc)
-    return station

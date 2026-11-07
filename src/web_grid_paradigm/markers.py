@@ -4,28 +4,22 @@ Markers are intentionally optional: a behavioural session must still run on a
 laptop with no amplifier attached.  Choose ``--marker-udp host:port`` and/or
 ``--lsl``; every code below is sent with the label and, for UDP, the PsychoPy
 monotonic timestamp.
+
+The transports themselves live in :mod:`web_grid_paradigm.lsl` (LSL) and here
+(UDP); this module defines the event codes and the fan-out policy.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import socket
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any, Protocol
 
 from loguru import logger
 
 from .config import ExperimentConfig
-
-# liblsl prints verbose INFO lines to the console unless configured; ship a
-# config that keeps only errors.  An explicit LSLAPICFG still wins.
-_LSL_CFG = Path(__file__).with_name("lsl_api.cfg")
-if _LSL_CFG.exists():
-    os.environ.setdefault("LSLAPICFG", str(_LSL_CFG))
-
-import pylsl  # must follow the LSLAPICFG default above
+from .lsl import LslMarkerSink
 
 SESSION_START = 1
 SESSION_END = 2
@@ -95,74 +89,6 @@ class UdpMarkerSink:
 
     def close(self) -> None:
         self._sock.close()
-
-
-class LslMarkerSink:
-    """Numeric marker stream readable by LabRecorder / OpenViBE / MNE-LSL."""
-
-    def __init__(self, stream_name: str) -> None:
-        info = pylsl.StreamInfo(
-            name=stream_name,
-            type="Markers",
-            channel_count=1,
-            nominal_srate=0,
-            channel_format="int32",
-            source_id="webgrid-markers",
-        )
-        desc = info.desc()
-        desc.append_child_value("manufacturer", "web-grid-paradigm")
-        self._outlet = pylsl.StreamOutlet(info)
-        logger.debug("LSL marker outlet {!r} created", stream_name)
-
-    def send(
-        self, code: int, *, t: float | None = None, detail: dict[str, Any] | None = None
-    ) -> None:
-        # LSL timestamps belong to the LSL clock, so let pylsl stamp locally
-        # rather than passing PsychoPy's monotonic clock.
-        self._outlet.push_sample([int(code)])
-
-    def close(self) -> None:
-        return None
-
-
-class LslStateOutlet:
-    """JSON state stream: one string channel per snapshot.
-
-    Unlike the integer event markers, this stream reports the *current* state
-    (phase, block/trial progress, target cell, scores) so any LSL client can
-    follow the paradigm without decoding event codes.
-    """
-
-    def __init__(self, stream_name: str = "WebGridState") -> None:
-        info = pylsl.StreamInfo(
-            name=stream_name,
-            type="WebGrid",
-            channel_count=1,
-            nominal_srate=0,
-            channel_format="string",
-            source_id="webgrid-state",
-        )
-        desc = info.desc()
-        desc.append_child_value("manufacturer", "web-grid-paradigm")
-        desc.append_child_value("content", "JSON paradigm state, 1 channel")
-        self._outlet = pylsl.StreamOutlet(info)
-        self.stream_name = stream_name
-        self.sent = 0
-        logger.info("LSL state stream {!r} started", stream_name)
-
-    def push(self, payload: dict[str, Any]) -> None:
-        self._outlet.push_sample([json.dumps(payload, ensure_ascii=False, default=str)])
-        self.sent += 1
-
-    def consumers(self) -> int:
-        try:
-            return int(self._outlet.have_consumers())
-        except Exception:  # noqa: BLE001 - liblsl quirk, not worth failing over
-            return 0
-
-    def close(self) -> None:
-        logger.info("LSL state stream {!r} stopped", self.stream_name)
-        self._outlet = None  # type: ignore[assignment]
 
 
 class FanoutMarkerSink:
