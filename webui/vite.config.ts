@@ -3,10 +3,10 @@ import { fileURLToPath, URL } from "node:url";
 import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "vite";
 
-// The bundle is served by the Python control panel under /app/ (Phase 0-3);
-// Phase 4 switches the root path and this base becomes "/".
+// The bundle is served by the Python control panel at the root path; the old
+// hand-written page stays reachable at /legacy.
 export default defineConfig({
-  base: "/app/",
+  base: "/",
   plugins: [vue()],
   resolve: {
     alias: {

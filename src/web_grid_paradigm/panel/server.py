@@ -35,11 +35,13 @@ class _Server(ThreadingHTTPServer):
 # ----------------------------------------------------------------------
 # HTTP plumbing
 # ----------------------------------------------------------------------
-STATIC_PREFIX = "/app/"
+# The Vue bundle owns the root path; the hand-written panel moved to /legacy.
+STATIC_PREFIX = "/assets/"
+LEGACY_PATH = "/legacy"
 
 
-def _page() -> bytes:
-    """The hand-written panel (kept as ``/`` until the rewrite reaches parity)."""
+def _legacy_page() -> bytes:
+    """The hand-written panel, kept at /legacy as a fallback."""
     return (
         resources.files("web_grid_paradigm.panel").joinpath("dashboard.html").read_bytes()
     )
@@ -49,7 +51,7 @@ def _static_file(relative: str) -> bytes | None:
     """Read a file from the built Vue app (``panel/static``).
 
     Returns ``None`` for unknown paths and for anything trying to escape the
-    bundle directory.  ``relative`` is the path after ``/app/``.
+    bundle directory.
     """
     parts = [part for part in relative.split("/") if part not in ("", ".", "..")]
     if not parts:
@@ -82,23 +84,25 @@ def _make_handler(station: Station) -> type[BaseHTTPRequestHandler]:
         def do_GET(self) -> None:
             path = self.path.split("?", 1)[0]
             try:
-                if path == "/app":
-                    self.send_response(HTTPStatus.FOUND)
-                    self.send_header("Location", STATIC_PREFIX)
-                    self.end_headers()
+                if path in ("/", "/index.html"):
+                    self._send(
+                        HTTPStatus.OK,
+                        _static_file("index.html") or b"missing bundle",
+                        "text/html; charset=utf-8",
+                    )
                 elif path.startswith(STATIC_PREFIX):
                     relative = path[len(STATIC_PREFIX) :]
-                    body = _static_file(relative)
+                    body = _static_file(f"assets/{relative}")
                     if body is None:
                         self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
                     else:
-                        self._send(
-                            HTTPStatus.OK,
-                            body,
-                            _content_type(relative or "index.html"),
-                        )
-                elif path in ("/", "/index.html"):
-                    self._send(HTTPStatus.OK, _page(), "text/html; charset=utf-8")
+                        self._send(HTTPStatus.OK, body, _content_type(relative))
+                elif path in ("/app", "/app/"):
+                    self.send_response(HTTPStatus.FOUND)
+                    self.send_header("Location", "/")
+                    self.end_headers()
+                elif path == LEGACY_PATH:
+                    self._send(HTTPStatus.OK, _legacy_page(), "text/html; charset=utf-8")
                 elif path == "/api/state":
                     self._json(HTTPStatus.OK, station.snapshot())
                 elif path == "/api/config":

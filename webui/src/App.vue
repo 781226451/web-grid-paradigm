@@ -12,7 +12,9 @@ import {
 import { computed, onBeforeUnmount, onMounted } from "vue";
 
 import BlockTable from "@/components/BlockTable.vue";
+import ConfigPanel from "@/components/ConfigPanel.vue";
 import GridCanvas from "@/components/GridCanvas.vue";
+import LslCard from "@/components/LslCard.vue";
 import KpiCards from "@/components/KpiCards.vue";
 import LogPanel from "@/components/LogPanel.vue";
 import ProgressCard from "@/components/ProgressCard.vue";
@@ -85,6 +87,7 @@ onBeforeUnmount(disconnect);
 
       <main class="layout">
         <section class="col left">
+          <ConfigPanel />
           <n-card title="实时网格" size="small">
             <GridCanvas />
           </n-card>
@@ -98,6 +101,7 @@ onBeforeUnmount(disconnect);
         </section>
 
         <section class="col right">
+          <LslCard />
           <n-card title="进度" size="small">
             <ProgressCard />
           </n-card>
