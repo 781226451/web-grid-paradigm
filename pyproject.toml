@@ -1,0 +1,29 @@
+[project]
+name = "web-grid-paradigm"
+version = "0.1.0"
+description = "PsychoPy implementation of a BCI web-grid target-selection paradigm"
+readme = "README.md"
+authors = [
+    { name = "songle", email = "songle0389@lglab.ac.cn" }
+]
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "psychopy>=2026.2.5",
+]
+
+[project.optional-dependencies]
+lsl = ["pylsl>=1.16"]
+
+[project.scripts]
+webgrid = "web_grid_paradigm.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[build-system]
+requires = ["uv_build>=0.13.5,<0.14.0"]
+build-backend = "uv_build"

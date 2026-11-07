@@ -1,0 +1,25 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Experiment data and local scratch
+data/
+debug.log
+*.log
+
+# Test and tool caches
+.pytest_cache/
+pytest-of-songle/
+.ruff_cache/
+.idea/
+.uv-cache/
+
+# Local screenshots (docs/preview.png is kept)
+_smoke*.png
