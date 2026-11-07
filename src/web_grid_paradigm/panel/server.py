@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 import socket
 import sys
 from http import HTTPStatus
@@ -34,10 +35,44 @@ class _Server(ThreadingHTTPServer):
 # ----------------------------------------------------------------------
 # HTTP plumbing
 # ----------------------------------------------------------------------
+STATIC_PREFIX = "/app/"
+
+
 def _page() -> bytes:
+    """The hand-written panel (kept as ``/`` until the rewrite reaches parity)."""
     return (
         resources.files("web_grid_paradigm.panel").joinpath("dashboard.html").read_bytes()
     )
+
+
+def _static_file(relative: str) -> bytes | None:
+    """Read a file from the built Vue app (``panel/static``).
+
+    Returns ``None`` for unknown paths and for anything trying to escape the
+    bundle directory.  ``relative`` is the path after ``/app/``.
+    """
+    parts = [part for part in relative.split("/") if part not in ("", ".", "..")]
+    if not parts:
+        parts = ["index.html"]
+    root = resources.files("web_grid_paradigm.panel").joinpath("static")
+    candidate = root
+    for part in parts:
+        candidate = candidate.joinpath(part)
+    if not candidate.is_file():
+        return None
+    return candidate.read_bytes()
+
+
+def _content_type(name: str) -> str:
+    guessed, _ = mimetypes.guess_type(name)
+    if guessed is None:
+        return "application/octet-stream"
+    if guessed.startswith("text/") or guessed in (
+        "application/javascript",
+        "application/json",
+    ):
+        return f"{guessed}; charset=utf-8"
+    return guessed
 
 
 def _make_handler(station: Station) -> type[BaseHTTPRequestHandler]:
@@ -47,7 +82,22 @@ def _make_handler(station: Station) -> type[BaseHTTPRequestHandler]:
         def do_GET(self) -> None:
             path = self.path.split("?", 1)[0]
             try:
-                if path in ("/", "/index.html"):
+                if path == "/app":
+                    self.send_response(HTTPStatus.FOUND)
+                    self.send_header("Location", STATIC_PREFIX)
+                    self.end_headers()
+                elif path.startswith(STATIC_PREFIX):
+                    relative = path[len(STATIC_PREFIX) :]
+                    body = _static_file(relative)
+                    if body is None:
+                        self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
+                    else:
+                        self._send(
+                            HTTPStatus.OK,
+                            body,
+                            _content_type(relative or "index.html"),
+                        )
+                elif path in ("/", "/index.html"):
                     self._send(HTTPStatus.OK, _page(), "text/html; charset=utf-8")
                 elif path == "/api/state":
                     self._json(HTTPStatus.OK, station.snapshot())
