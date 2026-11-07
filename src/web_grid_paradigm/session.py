@@ -22,6 +22,7 @@ class Phase(str, Enum):
     READY = "ready"
     RUNNING = "running"
     FEEDBACK = "feedback"
+    ITI = "iti"  # inter-trial interval: no target on screen
     DONE = "done"
 
 
@@ -74,7 +75,12 @@ class SessionEngine:
     """Drives one block of target-selection trials."""
 
     def __init__(
-        self, config: ExperimentConfig, layout: Layout, rng: random.Random | None = None
+        self,
+        config: ExperimentConfig,
+        layout: Layout,
+        rng: random.Random | None = None,
+        *,
+        avoid_first: Cell | None = None,
     ) -> None:
         self.config = config
         self.layout = layout
@@ -84,6 +90,7 @@ class SessionEngine:
         self.session_start: float | None = None
         self.session_end: float | None = None
         self.feedback_until = 0.0
+        self.iti_until = 0.0
         self.aborted = False
 
         self._rng = rng or random.Random()
@@ -94,7 +101,8 @@ class SessionEngine:
         self._dwell_s = 0.0
         self._trial_misclicks = 0
         self._last_update: float | None = None
-        self._last_cell: Cell | None = None
+        # A new block must not open on the cell the previous block ended on.
+        self._last_cell: Cell | None = avoid_first
 
     # ------------------------------------------------------------------
     # lifecycle
@@ -263,24 +271,44 @@ class SessionEngine:
         x_px: float | None = None,
         y_px: float | None = None,
     ) -> Target | None:
-        """End the feedback interval and start the next trial if one is due."""
-        if self.phase is not Phase.FEEDBACK or self.target is None:
+        """Move on after feedback: into the ITI, then to the next trial.
+
+        Sequence between two trials: FEEDBACK -> ITI (``config.iti`` s, skipped
+        when 0) -> next target.  No ITI follows the last trial of a block.
+        Returns the new target, or ``None`` while still waiting / when done.
+        """
+        if self.target is None:
             return None
-        if now < self.feedback_until:
+        if self.phase is Phase.FEEDBACK:
+            if now < self.feedback_until:
+                return None
+            if self._block_over(now):
+                self._end(now)
+                return None
+            if self.config.iti > 0:
+                self.phase = Phase.ITI
+                self.iti_until = now + self.config.iti
+                return None
+        elif self.phase is Phase.ITI:
+            if now < self.iti_until:
+                return None
+            if self._block_over(now):
+                self._end(now)
+                return None
+        else:
             return None
+        if x_px is not None and y_px is not None:
+            self._current_px = (float(x_px), float(y_px))
+        return self._start_target(now, *self._current_px)
+
+    def _block_over(self, now: float) -> bool:
         if (
             self.config.max_seconds > 0
             and self.session_start is not None
             and now - self.session_start >= self.config.max_seconds
         ):
-            self._end(now)
-            return None
-        if self.stats.attempts >= self.config.targets:
-            self._end(now)
-            return None
-        if x_px is not None and y_px is not None:
-            self._current_px = (float(x_px), float(y_px))
-        return self._start_target(now, *self._current_px)
+            return True
+        return self.stats.attempts >= self.config.targets
 
     def _end(self, now: float) -> None:
         self.phase = Phase.DONE

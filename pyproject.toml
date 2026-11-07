@@ -8,11 +8,10 @@ authors = [
 ]
 requires-python = ">=3.11,<3.12"
 dependencies = [
+    "loguru>=0.7",
     "psychopy>=2026.2.5",
+    "pylsl>=1.16",
 ]
-
-[project.optional-dependencies]
-lsl = ["pylsl>=1.16"]
 
 [project.scripts]
 webgrid = "web_grid_paradigm.cli:main"

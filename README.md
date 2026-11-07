@@ -18,39 +18,37 @@ uv sync
 uv run webgrid --version
 ```
 
-可选 LSL 标记（需要额外安装 `pylsl`）：
+`pylsl`（LSL 标记）和 `loguru`（日志）已是默认依赖，`uv sync` 即可安装；监控/控制页面只用 Python 标准库，不需要额外组件。
+
+## 快速开始（Web 控制台）
+
+所有操作都在浏览器里完成：填参数 → 启动 → 实时监控。运行 `webgrid` 会启动本地控制台（默认 `http://127.0.0.1:8765/`，自动打开浏览器），在页面上点“启动实验”才开始，结束后可以直接改参数再跑一次，无需重启。
 
 ```powershell
-uv sync --extra lsl
+uv run webgrid                                   # 打开控制台，等你在页面上点启动
+uv run webgrid --config configs/default.toml     # 用配置文件预填参数
+uv run webgrid --no-open-dashboard               # 只启动服务、不自动开浏览器
 ```
 
-## 快速开始
+页面左侧是参数表（被试、block 数、每 block trial 数、grid 行列、trial 间休息、选择方式、输入源、LSL 等），右侧实时显示：网格中的当前目标与光标、block/trial 进度、命中/超时/误点/命中率/RT/BPS、反应时图、每个 block 的结果、最近 trial、历史运行和日志。“中止”按钮等同于按 Esc。
+
+![控制台](docs/dashboard.png)
+
+其它启动方式：
 
 ```powershell
-# 自动演示：无需鼠标，5 个目标后自动退出
-uv run webgrid --input demo --targets 5 --auto-exit
+# 不改参数，直接用命令行参数立即开始（仍可在页面上监控）
+uv run webgrid --run-now --input demo --targets 8 --auto-exit
 
-# 鼠标调试：移动鼠标，移动到蓝色目标后左键点击
-uv run webgrid --input mouse
-
-# 三键模式示例：蓝/橙/紫目标分别对应左/右/中键
-uv run webgrid --input mouse --click-types 3
-
-# 人用指导语页（默认关闭；动物实验不需要）
-uv run webgrid --input mouse --instructions
-
-# 只渲染一帧界面预览（预览始终窗口模式），不记录数据
-uv run webgrid --screenshot docs/preview.png
+# 完全不用网页
+uv run webgrid --no-dashboard --input udp --lsl
 ```
 
-默认全屏运行；本地调试可加 `--windowed`：
-
-```powershell
-uv run webgrid --input udp --udp-port 9000 --subject sub-01
-uv run webgrid --input mouse --windowed
-```
+点“启动实验”（或 `--run-now`）后，范式窗口立即进入倒计时并开始试次；需要和 EEG 对齐时勾选“发布 LSL 标记”（或 `--lsl`）。
 
 数据默认写入 `data/<subject>/ses-<timestamp>/`。
+
+命令行也支持全部参数，例如 `uv run webgrid --run-now --blocks 3 --trials 20 --rows 8 --cols 10`。
 
 ## 界面风格
 
@@ -190,17 +188,83 @@ uv run webgrid --input udp --marker-udp 127.0.0.1:9001
 ### LSL 标记
 
 ```powershell
-uv sync --extra lsl
 uv run webgrid --input udp --lsl --lsl-stream WebGridMarkers
 ```
 
-LSL 流为 `type="Markers"`、单通道 `cf_int32`、`nominal_srate=0`；适合 LabRecorder、OpenViBE、MNE-LSL 等。
+LSL 流为 `type="Markers"`、单通道 `int32`、`nominal_srate=0`；适合 LabRecorder、OpenViBE、MNE-LSL 等。
+
+### LSL 状态流（在网页上启动）
+
+事件码只描述“发生了什么”，状态流则持续推送“当前是什么状态”，其他 LSL 客户端不必解码事件码：
+
+1. 打开控制台页面，在右上角“LSL 状态流”卡片里确认流名（默认 `WebGridState`）和频率（默认 10 Hz）；
+2. 点“启动”后卡片显示 `已启用 · 实验开始时打开流，结束后关闭`；
+3. 点“停止”则彻底关掉，之后每次运行都不再发布。
+
+**生命周期：流只在实验运行期间存在，结束页一出现立即关闭。**
+
+| 时刻 | 流状态 |
+| --- | --- |
+| 已启用、实验未开始 | 不存在（不会产生任何数据） |
+| 点“启动实验” | 立即创建，按频率推送；样本 `status=running` |
+| **结束页出现的同一帧** | 补推最后一条样本（`phase=done`、`final=true`），随即关闭流；不等窗口关闭/数据收尾 |
+| 中止（Esc / 页面“中止”） | 同上，最后一条样本带 `final=true` |
+| 下一次运行 | 用同样的流名重新创建 |
+
+结束后不会再有任何数据；客户端在实验开始后 resolve 即可连上，实验结束时 `pull_sample` 会返回 `None`（流已结束）。
+
+⚠️ 如果同时用 LabRecorder 记录这个流，流消失会被视为该流结束（对应记录文件收尾）。需要连续记录时，请只录 EEG 的流，或把状态流的开关留到实验结束之后再关。
+
+也可以在启动时就自动启用（同样是“运行时才开流”）：
+
+```powershell
+uv run webgrid --lsl-state
+uv run webgrid --lsl-state --lsl-state-stream MyRig --lsl-state-rate 20
+```
+
+流属性：`name` 默认 `WebGridState`、`type="WebGrid"`、单通道 `string`、`nominal_srate=0`（不规则推送）。每个样本是一段 JSON：
+
+```json
+{
+  "schema": "webgrid.state/1", "utc": "2026-11-07T17:12:31.245+08:00",
+  "status": "running",              // idle | running | stopping
+  "phase": "run",                   // starting|intro|countdown|run|feedback|iti|rest|done
+  "subject": "sub-01", "session_id": "20261107-171124",
+  "blocks": 2, "trials_per_block": 6, "block": 1, "trial": 3,
+  "target": {"index": 3, "row": 5, "col": 6, "label": "r6c7", "button": 1},
+  "dwell_progress": 0.0, "elapsed_s": 2.5, "fps": 60.1,
+  "hits": 3, "timeouts": 0, "misclicks": 0,
+  "last_trial": {"block": 1, "trial": 3, "cell": "r6c7", "outcome": "hit", "rt": 0.135, "misclicks": 0, "path_efficiency": 1.0},
+  "event_markers": false,
+  "final": false                    // true = 最后一条，随后流关闭
+}
+```
+
+客户端示例（Python / pylsl）：
+
+```python
+import json, pylsl
+streams = pylsl.resolve_byprop("name", "WebGridState", timeout=10)  # 实验开始后
+inlet = pylsl.StreamInlet(streams[0]); inlet.open_stream()
+while True:
+    sample, ts = inlet.pull_sample(timeout=5)
+    if sample is None:      # 实验结束，流已关闭
+        break
+    state = json.loads(sample[0])
+    print(ts, state["status"], state["phase"], state["block"], state["trial"], state["target"])
+```
+
+MATLAB（`lsl_loadlib`）、Unity、C#、C++ 等任何 LSL 客户端都能同样读取，只是把字符串解析成 JSON。
+
+配置文件中对应 `lsl_state` / `lsl_state_stream` / `lsl_state_rate`。状态流由控制台进程发布（`--no-dashboard` 模式下没有），事件标记流仍由每次实验按 `--lsl` 决定。
 
 ### 事件码
 
 | code | event | 说明 |
 | ---: | --- | --- |
 | 1 | `session_start` | 第一个目标出现前 |
+| 3 | `block_start` | 每个 block 开始 |
+| 4 | `block_end` | 每个 block 结束（含中止时的未完成 block） |
 | 10 | `target_onset` | 新目标实际显示（`win.flip()` 之后） |
 | 20 | `hit` | 命中 |
 | 30 | `misclick` | 误点（目标继续） |
@@ -219,13 +283,17 @@ data/
         ├── config.json    # 全部参数、Python/PsychoPy 版本、平台
         ├── events.csv     # 事件日志：session/target/click/hit/timeout...
         ├── trials.csv     # 每个目标一行（命中或超时）
-        └── summary.json   # 汇总指标 + 配置快照 + 版本
+        ├── summary.json   # 汇总指标 + 配置快照 + 版本
+        └── session.log    # loguru 运行日志（DEBUG 级）
 ```
 
 - CSV 为 UTF-8 with BOM，方便 Excel 直接打开中文；JSON 为 UTF-8。
 - `events.csv` 同时记录 `monotonic_s`（PsychoPy 时钟）与 `utc`；便于和 EEG 记录做时间对齐。
 - `trials.csv` 字段包括：目标格 `target_row/target_col`、要求按键 `required_button`、`onset_s/offset_s/rt_s`、`outcome`、`misclicks`、`path_px/straight_px/path_efficiency` 等。
 - `path_efficiency = 直线距离 / 实际轨迹长度`，没有移动时为空白。
+- 多 block：`events.csv` 与 `trials.csv` 都有 `block` 列，`trial_index` 在每个 block 内从 1 开始；`summary.json` 的 `results.blocks` 为每个 block 的结果，顶层为全部 block 合计（NTPM/BPS 按 block 内时长计算，不含休息）。
+- 流程：倒计时 → block 1 → 空白休息 → 倒计时 → block 2 → …；各 block 目标序列不同但由 `seed` 决定、可复现。
+- 一个 block 内：目标 → 选中/超时 → 反馈（`--feedback`）→ trial 间休息（`--iti`，空网格）→ 下一个目标；最后一个 trial 之后不再休息，直接结束 block。`events.csv` 记录 `iti_start`；反应时仍从目标真正出现（flip）开始计时，不含休息时间。
 - 按 Esc 中止时仍会写出已产生的数据，`summary.json` 中 `aborted` 为 `true`。
 - 同一秒内重复启动会自动加 `-2`、`-3` 后缀，不覆盖已有数据。
 
@@ -237,13 +305,21 @@ data/
 | `--session` | 时间戳 | 会话标签 |
 | `--output-dir` | `data` | 数据根目录 |
 | `--rows`, `--cols` | 12, 12 | 网格尺寸（2–40，需足够分辨率） |
-| `--targets` | 40 | 呈现的目标数 |
-| `--max-seconds` | 300 | 时间上限；0 关闭 |
+| `--blocks` | 1 | block 数 |
+| `--trials`（别名 `--targets`） | 40 | 每个 block 的 trial（目标）数 |
+| `--block-rest` | 10 | block 之间的空白休息（秒） |
+| `--max-seconds` | 300 | 单个 block 的时间上限；0 关闭 |
+| `--run-now` | 关 | 用命令行参数立即开始（不等待页面上点启动） |
+| `--no-dashboard` | 关 | 不启动 Web 控制台，命令行直接跑一次 |
+| `--dashboard-port` | 8765 | 控制台端口（0 = 随机空闲端口） |
+| `--dashboard-host` | `127.0.0.1` | 绑定地址；`0.0.0.0` 允许局域网访问 |
+| `--no-open-dashboard` / `--open-dashboard` | 自动打开 | 是否自动打开浏览器 |
 | `--selection` | `click` | `click` 或 `dwell` |
 | `--dwell-time` | 1.0 | 停留选择时长（秒） |
 | `--trial-timeout` | 15 | 单目标超时；0 关闭 |
 | `--click-types` | 1 | 1–3；目标颜色/要求按键，同时影响计分 |
 | `--feedback` | 0.35 | 命中/超时反馈时长 |
+| `--iti` | 0 | trial 间休息（秒）：反馈之后只显示空网格和光标、不显示目标；0 为无 |
 | `--countdown-seconds` | 2.0 | 倒计时总时长 |
 | `--input` | `mouse` | `mouse` / `keyboard` / `udp` / `demo` |
 | `--udp-host`, `--udp-port` | `127.0.0.1`, 9000 | UDP 输入地址 |
@@ -255,7 +331,13 @@ data/
 | `--window-width/height` | 1280/800 | 窗口尺寸（`--windowed` 时生效） |
 | `--language` | `zh` | `zh` / `en` |
 | `--marker-udp` | 空 | 事件标记 UDP 地址 |
-| `--lsl` | 关 | 发布 LSL 标记流（需 `--extra lsl`） |
+| `--lsl` | 关 | 发布 LSL 事件标记流 |
+| `--lsl-stream` | `WebGridMarkers` | 事件标记流名称 |
+| `--lsl-state` | 关 | 控制台启动时就开始推送 LSL 状态流 |
+| `--lsl-state-stream` | `WebGridState` | 状态流名称 |
+| `--lsl-state-rate` | 10 | 状态流推送频率（Hz，0.5–100） |
+| `--debug` | 关 | 调试：DEBUG 日志、完整堆栈 |
+| `--log-file` | 空 | 额外写一份滚动日志文件（每个会话目录总会有 `session.log`） |
 | `--instructions` | 关 | 显示人用指导语页；动物实验保持关闭 |
 | `--no-instructions` | 开 | 跳过指导语（默认） |
 | `--auto-exit` | 关 | 空白结束屏 2.5 s 后自动关闭（演示/测试） |

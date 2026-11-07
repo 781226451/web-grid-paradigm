@@ -12,13 +12,16 @@ font = "Microsoft YaHei"
 # --- grid and task ---------------------------------------------------------
 rows = 12
 cols = 12
-targets = 40                # targets presented in this block
-max_seconds = 300.0         # safety limit; 0 disables
+blocks = 1                  # number of blocks
+targets = 40                # trials (targets) per block
+block_rest = 10.0           # blank rest between blocks, seconds
+max_seconds = 300.0         # per-block safety limit; 0 disables
 selection = "click"         # click | dwell
 dwell_time = 1.0            # seconds, used when selection = "dwell"
 trial_timeout = 15.0        # per-target timeout; 0 disables
 click_types = 1             # 1..3; target colour / required button, and score
 feedback = 0.35             # hit/timeout feedback interval in seconds
+iti = 0.0                   # inter-trial rest after feedback (empty grid); 0 = none
 countdown_seconds = 2.0
 seed = 20261107
 
@@ -41,5 +44,16 @@ auto_exit = false
 
 # --- event markers ---------------------------------------------------------
 marker_udp = ""             # e.g. "127.0.0.1:9001"; empty disables
-lsl = false                 # requires: uv sync --extra lsl
+lsl = false
 lsl_stream = "WebGridMarkers"
+
+# LSL state stream: started from the web panel (or automatically with --lsl-state)
+lsl_state = false           # true = publish the state stream as soon as the panel starts
+lsl_state_stream = "WebGridState"
+lsl_state_rate = 10.0       # snapshots per second
+
+# --- web control panel -----------------------------------------------------
+dashboard = true            # start the web panel (parameters + start + live view)
+dashboard_host = "127.0.0.1"  # "0.0.0.0" lets other computers on the LAN connect
+dashboard_port = 8765       # 0 = pick any free port (see the log for the URL)
+dashboard_open = true       # open the browser automatically

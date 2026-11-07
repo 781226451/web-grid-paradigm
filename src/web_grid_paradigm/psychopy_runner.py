@@ -2,20 +2,24 @@
 
 from __future__ import annotations
 
-import logging
 import platform
 import random
+import time
 from pathlib import Path
 from typing import Any
 
 import psychopy
+from loguru import logger
 from psychopy import core, event, visual
+from psychopy import logging as plog
 
 from .config import ExperimentConfig
 from .geometry import Cell, Layout
 from .i18n import Strings
 from .inputs import AutoPilot, UdpCursorSource
 from .markers import (
+    BLOCK_END,
+    BLOCK_START,
     HIT,
     MISCLICK,
     SESSION_ABORT,
@@ -28,9 +32,9 @@ from .markers import (
     build_marker_sink,
 )
 from .recorder import SessionRecorder
+from .scoring import SessionStats, merge_stats
 from .session import ClickEvent, FrameOutcome, Phase, SessionEngine, Target, TrialResult
-
-logger = logging.getLogger(__name__)
+from .station import NullView, SessionView
 
 # Palette — close to Neuralink's Webgrid: white canvas, black lines, one
 # saturated colour per click type.
@@ -56,10 +60,14 @@ class WebGridApp:
         config: ExperimentConfig,
         recorder: SessionRecorder | None = None,
         marker_sink: MarkerSink | None = None,
+        dashboard: SessionView | NullView | None = None,
     ) -> None:
         self.cfg = config
         self.rec = recorder
         self.markers = marker_sink or NullMarkerSink()
+        self.dash = dashboard or NullView()
+        self._fps = 0.0
+        self._next_publish = 0.0
         self.strings = Strings(config.language)
 
         window_size = (config.window_width, config.window_height)
@@ -84,6 +92,14 @@ class WebGridApp:
             checkTiming=False,
             title="BCI Web-Grid",
         )
+        # PsychoPy buffers its own log entries; emit window-setup messages now
+        # (routed to loguru by web_grid_paradigm.log) instead of at shutdown.
+        plog.flush()
+        logger.debug(
+            "window opened: size={} fullscreen={}",
+            tuple(int(v) for v in self.win.size),
+            config.fullscreen,
+        )
         width, height = (int(v) for v in self.win.size)
         try:
             self.layout = Layout.create(width, height, config.rows, config.cols)
@@ -101,8 +117,18 @@ class WebGridApp:
             else None
         )
 
-        self.engine = SessionEngine(config, self.layout, random.Random(config.seed))
-        self.state = "intro"  # intro | countdown | run | done
+        # One engine per block; the shared RNG keeps blocks reproducible but
+        # gives each block a different target sequence.
+        self._rng = random.Random(config.seed)
+        self.block = 1
+        self.engine = SessionEngine(config, self.layout, self._rng)
+        self._block_results: list[dict[str, Any]] = []
+        self._block_stats: list[tuple[SessionStats, float]] = []
+        self._block_closed = False
+        self._rest_until = 0.0
+        if self.rec is not None:
+            self.rec.block = self.block
+        self.state = "intro"  # wait | intro | countdown | run | rest | done
         self._cursor_px: tuple[float, float] = (0.0, 0.0)
         self._last_frame = core.getTime()
         self._done_at = 0.0
@@ -120,6 +146,7 @@ class WebGridApp:
 
         self._build_stimuli()
         self._configure_intro_texts()
+        self._dashboard_static()
         if self.rec is not None:
             self.rec.event(
                 "session_open",
@@ -337,7 +364,7 @@ class WebGridApp:
         except BaseException:
             try:
                 self._finalize(core.getTime(), aborted=True)
-            except Exception:  # pragma: no cover - never mask the original error
+            except Exception:  # noqa: BLE001  # pragma: no cover - never mask the original error
                 logger.exception("could not write the abort summary")
             raise
         finally:
@@ -386,10 +413,15 @@ class WebGridApp:
             now = core.getTime()
             dt = min(0.1, max(0.0, now - self._last_frame))
             self._last_frame = now
+            self._publish(now, dt)
             keys = event.getKeys()
 
-            if "escape" in keys:
-                if self.state in ("run", "countdown", "intro"):
+            if "escape" in keys or self.dash.stop_requested:
+                if self.dash.stop_requested:
+                    logger.warning("stop requested from the web panel; ending session")
+                else:
+                    logger.warning("escape pressed during '{}'; ending session", self.state)
+                if self.state in ("run", "countdown", "intro", "rest"):
                     self._finalize(now, aborted=True)
                 self._exit = True
                 break
@@ -408,6 +440,15 @@ class WebGridApp:
                 else:
                     self._poll_cursor_only(now)
                     self._draw_countdown(now)
+                    self.win.flip()
+                    continue
+
+            if self.state == "rest":
+                if now >= self._rest_until:
+                    self._next_block(now)
+                else:
+                    # Blank inter-block rest.
+                    self._poll_cursor_only(now)
                     self.win.flip()
                     continue
 
@@ -441,12 +482,19 @@ class WebGridApp:
     def _begin_countdown(self, now: float) -> None:
         self.state = "countdown"
         self.countdown_start = now
+        logger.info(
+            "block {}/{}: countdown started ({} s)",
+            self.block,
+            self.cfg.blocks,
+            self.cfg.countdown_seconds,
+        )
         if self.rec is not None:
-            self.rec.event(
-                "instructions_end",
-                now,
-                detail={"skipped": self.cfg.skip_instructions},
-            )
+            if self.block == 1:
+                self.rec.event(
+                    "instructions_end",
+                    now,
+                    detail={"skipped": self.cfg.skip_instructions},
+                )
             self.rec.event("countdown_start", now)
         if self.cfg.countdown_seconds <= 0:
             self._begin_run(now)
@@ -459,24 +507,184 @@ class WebGridApp:
         self._miss_until = 0.0
         self._prev_mouse = [bool(v) for v in self.mouse.getPressed()]
         self.engine.begin(now, *self._cursor_px)
-        self.markers.send(SESSION_START, t=now, detail={"subject": self.cfg.subject})
+        self._block_closed = False
+        logger.info(
+            "block {}/{} started: {} trials on a {}x{} grid",
+            self.block,
+            self.cfg.blocks,
+            self.cfg.targets,
+            self.cfg.rows,
+            self.cfg.cols,
+        )
+        if self.block == 1:
+            self.markers.send(
+                SESSION_START, t=now, detail={"subject": self.cfg.subject}
+            )
+        self.markers.send(BLOCK_START, t=now, detail={"block": self.block})
+        if self.rec is not None:
+            if self.block == 1:
+                self.rec.event(
+                    "run_start",
+                    now,
+                    detail={
+                        "rows": self.cfg.rows,
+                        "cols": self.cfg.cols,
+                        "blocks": self.cfg.blocks,
+                        "trials_per_block": self.cfg.targets,
+                        "click_types": self.cfg.click_types,
+                        "selection": self.cfg.selection,
+                    },
+                )
+            self.rec.event(
+                "block_start",
+                now,
+                detail={"block": self.block, "trials": self.cfg.targets},
+            )
+
+    def _close_block(self, now: float, *, aborted: bool) -> None:
+        """Record the current block's results once."""
+        if self._block_closed or self.engine.session_start is None:
+            return
+        self._block_closed = True
+        if aborted:
+            self.engine.abort(now)
+        result = self.engine.summary(now)
+        result["block"] = self.block
+        self._block_results.append(result)
+        self._block_stats.append((self.engine.stats, result["duration_s"]))
+        self.dash.set_blocks(self._block_results)
+        logger.info(
+            "block {}/{} {}: attempts={} hits={} misclicks={} bps={:.3f}",
+            self.block,
+            self.cfg.blocks,
+            "aborted" if aborted else "finished",
+            result["attempts"],
+            result["hits"],
+            result["misclicks"],
+            result["bps"],
+        )
+        self.markers.send(
+            BLOCK_END,
+            t=now,
+            detail={"block": self.block, "hits": result["hits"]},
+        )
         if self.rec is not None:
             self.rec.event(
-                "run_start",
+                "block_end",
                 now,
                 detail={
-                    "rows": self.cfg.rows,
-                    "cols": self.cfg.cols,
-                    "targets": self.cfg.targets,
-                    "click_types": self.cfg.click_types,
-                    "selection": self.cfg.selection,
+                    "block": self.block,
+                    "aborted": aborted,
+                    "attempts": result["attempts"],
+                    "hits": result["hits"],
+                    "misclicks": result["misclicks"],
+                    "bps": round(result["bps"], 4),
                 },
             )
 
+    def _end_block(self, now: float) -> None:
+        self._close_block(now, aborted=False)
+        if self.block >= self.cfg.blocks:
+            self._finalize(now, aborted=False)
+            return
+        self.state = "rest"
+        self._rest_until = now + self.cfg.block_rest
+        logger.info("rest {} s before block {}", self.cfg.block_rest, self.block + 1)
+        if self.rec is not None:
+            self.rec.event(
+                "rest_start", now, detail={"seconds": self.cfg.block_rest}
+            )
+
+    def _next_block(self, now: float) -> None:
+        self.block += 1
+        previous = self.engine.target.cell if self.engine.target else None
+        self.engine = SessionEngine(
+            self.cfg, self.layout, self._rng, avoid_first=previous
+        )
+        if self._auto is not None:
+            # Fresh autopilot state so a repeated target is still clicked.
+            self._auto = AutoPilot(self.cfg.demo_speed, self._auto_position())
+        if self.rec is not None:
+            self.rec.block = self.block
+        self._begin_countdown(now)
+
+    # ------------------------------------------------------------------
+    # live dashboard
+    # ------------------------------------------------------------------
+    PUBLISH_INTERVAL = 1 / 30  # cursor/state updates sent at most 30 Hz
+
+    def _publish(self, now: float, dt: float) -> None:
+        """Push the current state to the dashboard (cheap; rate limited)."""
+        if dt > 0:
+            self._fps = 0.9 * self._fps + 0.1 / dt if self._fps else 1 / dt
+        if now < self._next_publish:
+            return
+        self._next_publish = now + self.PUBLISH_INTERVAL
+        engine = self.engine
+        phase = self.state
+        if phase == "run":
+            if engine.phase is Phase.FEEDBACK:
+                phase = "feedback"
+            elif engine.phase is Phase.ITI:
+                phase = "iti"
+        target = engine.target
+        target_info = (
+            {
+                "row": target.cell.row,
+                "col": target.cell.col,
+                "label": target.cell.label,
+                "button": target.required_button,
+                "index": target.index,
+            }
+            if target is not None and phase in ("run", "feedback", "iti")
+            else None
+        )
+        block_elapsed = engine.elapsed(now) if engine.session_start is not None else None
+        self.dash.update(
+            phase=phase,
+            block=self.block,
+            trials_done=engine.stats.attempts,
+            target=target_info,
+            dwell_progress=round(engine.dwell_progress, 3),
+            block_elapsed=round(block_elapsed, 2) if block_elapsed is not None else None,
+            block_bps=(
+                round(engine.summary(now)["bps"], 3)
+                if engine.stats.attempts
+                else None
+            ),
+            flash_until=(
+                time.time() + (self._cursor_flash_until - now)
+                if self._cursor_flash_until > now
+                else None
+            ),
+            aborted=engine.aborted and self.state == "done",
+        )
+        self.dash.cursor(*self._cursor_px, fps=self._fps)
+
+    def _dashboard_static(self) -> None:
+        """One-off session info for the dashboard."""
+        layout = self.layout
+        self.dash.update(
+            subject=self.cfg.subject,
+            session_id=self.rec.session_id if self.rec else self.cfg.session_id,
+            data_dir=str(self.rec.dir) if self.rec else "",
+            config=self.cfg.to_dict(),
+            grid={
+                "rows": layout.rows,
+                "cols": layout.cols,
+                "left": layout.left,
+                "top": layout.top,
+                "pitch": layout.pitch,
+                "line": layout.line,
+            },
+        )
+
+    def _auto_position(self) -> tuple[float, float]:
+        return self.layout.px_to_norm(*self._cursor_px)
+
     def _run_frame(self, now: float, dt: float, keys: list[str]) -> None:
         if self.engine.phase is Phase.DONE:
-            self._finalize(now, aborted=False)
-            self._draw_done()
+            self._end_block(now)
             self.win.flip()
             return
 
@@ -484,13 +692,14 @@ class WebGridApp:
             self.engine.phase is Phase.FEEDBACK
             and not self._pending_feedback_start
             and now >= self.engine.feedback_until
-        ):
+        ) or (self.engine.phase is Phase.ITI and now >= self.engine.iti_until):
             target = self.engine.advance(now, *self._cursor_px)
             if self.engine.phase is Phase.DONE:
-                self._finalize(now, aborted=False)
-                self._draw_done()
+                self._end_block(now)
                 self.win.flip()
                 return
+            if self.engine.phase is Phase.ITI:
+                self._log_iti_start(now)
             if target is not None:
                 self._pending_target_onset = True
 
@@ -498,8 +707,8 @@ class WebGridApp:
             x, y, clicks = self._read_input(now, dt, keys)
             outcome = self.engine.update(now, x, y, clicks)
             self._handle_outcome(outcome)
-        elif self.engine.phase is Phase.FEEDBACK:
-            # Keep the devices fresh during feedback (especially the mouse
+        elif self.engine.phase in (Phase.FEEDBACK, Phase.ITI):
+            # Keep the devices fresh during feedback/ITI (especially the mouse
             # button edges) but discard any click.
             self._read_input(now, dt, keys)
 
@@ -512,6 +721,21 @@ class WebGridApp:
         if self._pending_feedback_start:
             self.engine.feedback_until = flip_time + self.cfg.feedback
             self._pending_feedback_start = False
+
+    def _log_iti_start(self, now: float) -> None:
+        logger.debug(
+            "block {} ITI {} s after trial {}",
+            self.block,
+            self.cfg.iti,
+            self.engine.stats.attempts,
+        )
+        if self.rec is not None:
+            self.rec.event(
+                "iti_start",
+                now,
+                target_index=self.engine.stats.attempts,
+                detail={"seconds": self.cfg.iti},
+            )
 
     def _handle_outcome(self, outcome: FrameOutcome) -> None:
         for click in outcome.clicks:
@@ -541,6 +765,13 @@ class WebGridApp:
                     "required_button": target.required_button if target else None,
                 },
             )
+        logger.debug(
+            "{} button={} cell={} correct={}",
+            name,
+            click.button,
+            click.cell.label if click.cell else None,
+            click.correct,
+        )
         if self.cfg.selection == "dwell":
             # Clicks are only recorded during dwell mode; they do not select.
             return
@@ -559,6 +790,32 @@ class WebGridApp:
                 self._miss_until = click.time + 0.2
 
     def _log_trial(self, trial: TrialResult) -> None:
+        self.dash.add_trial(
+            {
+                "block": self.block,
+                "trial": trial.index,
+                "cell": trial.cell.label,
+                "outcome": trial.outcome,
+                "reason": trial.reason,
+                "rt": round(trial.rt, 4),
+                "misclicks": trial.misclicks,
+                "path_efficiency": (
+                    round(trial.path_efficiency, 4)
+                    if trial.path_efficiency is not None
+                    else None
+                ),
+            }
+        )
+        logger.info(
+            "block {} trial {}/{} {} cell={} rt={:.3f}s misclicks={}",
+            self.block,
+            trial.index,
+            self.cfg.targets,
+            trial.outcome,
+            trial.cell.label,
+            trial.rt,
+            trial.misclicks,
+        )
         if self.rec is not None:
             self.rec.trial(trial)
             self.rec.event(
@@ -582,6 +839,7 @@ class WebGridApp:
             HIT if trial.correct else TIMEOUT,
             t=trial.offset,
             detail={
+                "block": self.block,
                 "target_index": trial.index,
                 "row": trial.cell.row + 1,
                 "col": trial.cell.col + 1,
@@ -596,6 +854,14 @@ class WebGridApp:
         if target is None:
             return
         self.engine.retime_onset(flip_time)
+        logger.debug(
+            "block {} target {} onset cell={} button={} t={:.4f}",
+            self.block,
+            target.index,
+            target.cell.label,
+            target.required_button,
+            flip_time,
+        )
         if self.rec is not None:
             x_norm, y_norm = self.layout.px_to_norm(*self._cursor_px)
             self.rec.event(
@@ -615,6 +881,7 @@ class WebGridApp:
             TARGET_ONSET,
             t=flip_time,
             detail={
+                "block": self.block,
                 "target_index": target.index,
                 "row": target.cell.row + 1,
                 "col": target.cell.col + 1,
@@ -721,7 +988,8 @@ class WebGridApp:
 
     def _draw_run(self, now: float) -> None:
         self.grid_bg.draw()
-        target = self.engine.target
+        # During the inter-trial interval only the empty grid and cursor show.
+        target = self.engine.target if self.engine.phase is not Phase.ITI else None
         cursor_cell = self.layout.cell_at_px(*self._cursor_px)
 
         if target is not None:
@@ -773,9 +1041,22 @@ class WebGridApp:
         if self._finalized:
             return
         self._finalized = True
-        if self.engine.phase is not Phase.DONE or aborted:
-            self.engine.abort(now)
-        summary = self.engine.summary(now)
+        # An abort mid-block records the partial block; aborting during the
+        # wait/countdown before a block starts records nothing for it.
+        self._close_block(now, aborted=aborted)
+        summary = merge_stats(
+            self._block_stats, self.cfg.n_cells, self.cfg.click_types
+        )
+        summary.update(
+            {
+                "blocks_planned": self.cfg.blocks,
+                "blocks_completed": sum(
+                    1 for b in self._block_results if not b["aborted"]
+                ),
+                "trials_per_block": self.cfg.targets,
+                "blocks": self._block_results,
+            }
+        )
         summary.update(
             {
                 "subject": self.cfg.subject,
@@ -809,8 +1090,27 @@ class WebGridApp:
             t=now,
             detail={"attempts": summary["attempts"], "hits": summary["hits"]},
         )
+        logger.info(
+            "session {}: blocks={}/{} attempts={} hits={} misclicks={} bps={:.3f}",
+            "aborted" if aborted else "finished",
+            summary["blocks_completed"],
+            self.cfg.blocks,
+            summary["attempts"],
+            summary["hits"],
+            summary["misclicks"],
+            summary["bps"],
+        )
         if self.rec is not None:
-            print(f"[webgrid] saved {self.rec.dir}")
+            logger.success("saved {}", self.rec.dir)
+        self.dash.update(
+            phase="done",
+            aborted=bool(aborted),
+            target=None,
+            session_summary={
+                k: summary[k]
+                for k in ("attempts", "hits", "misclicks", "timeouts", "bps", "duration_s")
+            },
+        )
 
     def _cleanup(self) -> None:
         if self._closed:
@@ -820,7 +1120,7 @@ class WebGridApp:
             self._udp.close()
         try:
             self.markers.close()
-        except Exception:
+        except Exception:  # noqa: BLE001 - logged via logger.exception
             logger.exception("error closing event markers")
         try:
             self.win.setMouseVisible(True)
@@ -828,20 +1128,27 @@ class WebGridApp:
             logger.debug("could not restore the operating-system cursor")
         try:
             self.win.close()
-        except Exception:  # pragma: no cover
+        except Exception:  # noqa: BLE001  # pragma: no cover
             logger.exception("error closing the PsychoPy window")
         if self.rec is not None:
             self.rec.close()
 
 
 def run_experiment(
-    config: ExperimentConfig, recorder: SessionRecorder
+    config: ExperimentConfig,
+    recorder: SessionRecorder,
+    dashboard: SessionView | NullView | None = None,
 ) -> dict[str, Any]:
     """Run one session and return its summary."""
     config.validate()
     marker_sink = build_marker_sink(config)
     try:
-        app = WebGridApp(config, recorder=recorder, marker_sink=marker_sink)
+        app = WebGridApp(
+            config,
+            recorder=recorder,
+            marker_sink=marker_sink,
+            dashboard=dashboard,
+        )
     except BaseException:
         marker_sink.close()
         raise

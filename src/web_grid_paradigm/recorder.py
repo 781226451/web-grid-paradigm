@@ -20,6 +20,7 @@ _EVENT_FIELDS = [
     "utc",
     "monotonic_s",
     "event",
+    "block",
     "target_index",
     "cell",
     "row",
@@ -33,6 +34,7 @@ _EVENT_FIELDS = [
 _TRIAL_FIELDS = [
     "subject",
     "session_id",
+    "block",
     "trial_index",
     "target_cell",
     "target_row",
@@ -102,6 +104,7 @@ class SessionRecorder:
         self._trials_file.flush()
         self._closed = False
         self.closed_utc = ""
+        self.block = 1  # current block, written into every row
 
     @staticmethod
     def _allocate_dir(preferred: Path) -> Path:
@@ -141,6 +144,7 @@ class SessionRecorder:
                 "utc": _utc_now(),
                 "monotonic_s": f"{t:.6f}",
                 "event": name,
+                "block": self.block,
                 "target_index": target_index if target_index is not None else "",
                 "cell": cell.label if cell else "",
                 "row": cell.row + 1 if cell else "",
@@ -160,6 +164,7 @@ class SessionRecorder:
             {
                 "subject": self.config.subject,
                 "session_id": self.session_id,
+                "block": self.block,
                 "trial_index": result.index,
                 "target_cell": result.cell.label,
                 "target_row": result.cell.row + 1,

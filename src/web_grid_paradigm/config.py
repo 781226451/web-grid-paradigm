@@ -37,13 +37,16 @@ class ExperimentConfig:
     # --- grid / task ------------------------------------------------------
     rows: int = 12
     cols: int = 12
-    targets: int = 40
-    max_seconds: float = 300.0
+    blocks: int = 1  # number of blocks in the session
+    targets: int = 40  # trials (targets) per block
+    block_rest: float = 10.0  # blank rest between blocks, seconds
+    max_seconds: float = 300.0  # per-block time limit; 0 disables
     selection: str = "click"  # click | dwell
     dwell_time: float = 1.0
     trial_timeout: float = 15.0  # 0 disables the per-target timeout
     click_types: int = 1  # 1..3: target colour / required button + score
     feedback: float = 0.35
+    iti: float = 0.0  # inter-trial rest (blank grid, no target) after feedback
     countdown_seconds: float = 2.0
     seed: int = 20261107
 
@@ -68,6 +71,17 @@ class ExperimentConfig:
     marker_udp: str = ""  # "host:port"; empty disables UDP markers
     lsl: bool = False
     lsl_stream: str = "WebGridMarkers"
+
+    # --- LSL state stream (started from the web panel) -------------------
+    lsl_state: bool = False  # publish the state stream automatically
+    lsl_state_stream: str = "WebGridState"
+    lsl_state_rate: float = 10.0  # snapshots per second
+
+    # --- live web dashboard -----------------------------------------------
+    dashboard: bool = True
+    dashboard_host: str = "127.0.0.1"  # "0.0.0.0" = reachable from the LAN
+    dashboard_port: int = 8765
+    dashboard_open: bool = True  # open a browser tab automatically
 
     def __post_init__(self) -> None:
         if isinstance(self.output_dir, str):
@@ -114,8 +128,12 @@ class ExperimentConfig:
             raise ValueError("rows must be between 2 and 40")
         if not 2 <= self.cols <= 40:
             raise ValueError("cols must be between 2 and 40")
+        if not 1 <= self.blocks <= 100:
+            raise ValueError("blocks must be between 1 and 100")
         if self.targets < 1:
-            raise ValueError("targets must be >= 1")
+            raise ValueError("targets (trials per block) must be >= 1")
+        if not 0 <= self.block_rest <= 600:
+            raise ValueError("block_rest must be between 0 and 600 s")
         if self.max_seconds < 0:
             raise ValueError("max_seconds must be >= 0")
         if self.selection not in _SELECTION_MODES:
@@ -131,6 +149,8 @@ class ExperimentConfig:
             raise ValueError("click_types must be between 1 and 3")
         if not 0 <= self.feedback <= 5:
             raise ValueError("feedback must be between 0 and 5 s")
+        if not 0 <= self.iti <= 60:
+            raise ValueError("iti must be between 0 and 60 s")
         if not 0 <= self.countdown_seconds <= 10:
             raise ValueError("countdown_seconds must be between 0 and 10 s")
         if self.input not in _INPUT_MODES:
@@ -151,6 +171,16 @@ class ExperimentConfig:
                 raise ValueError("marker_udp must look like '127.0.0.1:9001'")
         if not self.lsl_stream.strip():
             raise ValueError("lsl_stream must not be empty")
+        if not self.lsl_state_stream.strip():
+            raise ValueError("lsl_state_stream must not be empty")
+        if not 0.5 <= self.lsl_state_rate <= 100:
+            raise ValueError("lsl_state_rate must be between 0.5 and 100 Hz")
+        if self.lsl_state_stream == self.lsl_stream:
+            raise ValueError("lsl_state_stream must differ from lsl_stream")
+        if not 0 <= self.dashboard_port <= 65535:
+            raise ValueError("dashboard_port must be between 0 and 65535")
+        if not self.dashboard_host.strip():
+            raise ValueError("dashboard_host must not be empty")
 
     # ------------------------------------------------------------------
     @property
@@ -165,7 +195,35 @@ class ExperimentConfig:
     def n_cells(self) -> int:
         return self.rows * self.cols
 
+    @property
+    def total_trials(self) -> int:
+        return self.blocks * self.targets
+
     def to_dict(self) -> dict[str, Any]:
         data = dataclasses.asdict(self)
         data["output_dir"] = str(self.output_dir)
         return data
+
+    def to_toml(self) -> str:
+        """Serialise every field as a flat TOML document (``from_toml`` reads it)."""
+        lines = ["# BCI Web-Grid configuration", ""]
+        for name, value in self.to_dict().items():
+            lines.append(f"{name} = {_toml_value(value)}")
+        return "\n".join(lines) + "\n"
+
+    def save_toml(self, path: str | Path) -> Path:
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(self.to_toml(), encoding="utf-8")
+        return path
+
+
+def _toml_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        return repr(value)
+    text = str(value).replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{text}"'

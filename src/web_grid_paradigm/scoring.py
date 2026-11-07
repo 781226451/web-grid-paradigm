@@ -107,3 +107,24 @@ class SessionStats:
             "mean_path_efficiency": self.mean_path_efficiency,
             "aborted": self.aborted,
         }
+
+
+def merge_stats(
+    blocks: list[tuple[SessionStats, float]], n_cells: int, click_types: int = 1
+) -> dict:
+    """Session totals over ``(stats, duration_s)`` blocks.
+
+    Rates are computed on the summed in-block time, so inter-block rests do
+    not lower NTPM/BPS.
+    """
+    total = SessionStats()
+    duration = 0.0
+    for stats, block_duration in blocks:
+        total.hits += stats.hits
+        total.misclicks += stats.misclicks
+        total.timeouts += stats.timeouts
+        total.aborted = total.aborted or stats.aborted
+        total.durations.extend(stats.durations)
+        total.path_efficiencies.extend(stats.path_efficiencies)
+        duration += block_duration
+    return total.summary(duration, n_cells, click_types)

@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BCI Web-Grid 控制台</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --card: #fff; --line: #e3e3e8; --text: #1d1d1f; --muted: #6e6e73;
+    --blue: #0a84ff; --orange: #ff9500; --purple: #af52de; --red: #ff3b30; --green: #34c759;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+         background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+           padding: 12px 20px; background: var(--card); border-bottom: 1px solid var(--line);
+           position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 17px; margin: 0; }
+  .badge { padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 600;
+           background: #e8e8ed; color: var(--muted); }
+  .badge.run, .badge.stopping { background: #e3f6e8; color: #1c7c3a; }
+  .badge.wait, .badge.countdown, .badge.rest, .badge.iti, .badge.feedback,
+  .badge.starting, .badge.finishing, .badge.intro { background: #fff4e0; color: #9a5b00; }
+  .badge.done { background: #e6f0ff; color: #0058c4; }
+  .badge.aborted, .badge.offline, .badge.failed { background: #ffe8e6; color: #c4261d; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .spacer { flex: 1; }
+  main { display: grid; grid-template-columns: minmax(320px, 400px) 1fr; gap: 16px;
+         padding: 16px 20px; align-items: start; }
+  @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+          padding: 14px 16px; }
+  .card h2 { font-size: 14px; margin: 0 0 10px; color: var(--muted); font-weight: 600; }
+  .stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  fieldset { border: 0; margin: 0 0 10px; padding: 0; }
+  fieldset legend { font-size: 12px; font-weight: 700; color: var(--muted);
+                    text-transform: none; padding: 8px 0 4px; letter-spacing: .02em; }
+  .field { display: grid; grid-template-columns: 1fr 150px; gap: 8px; align-items: center;
+           padding: 2px 0; }
+  .field label { font-size: 13px; color: var(--text); }
+  .field .hint { display: block; font-size: 11px; color: var(--muted); }
+  .field input[type=text], .field input[type=number], .field select {
+    width: 100%; padding: 5px 7px; border: 1px solid var(--line); border-radius: 7px;
+    font: inherit; background: #fff; }
+  .field input[type=checkbox] { justify-self: start; width: 18px; height: 18px; }
+  .lsl-row { display: grid; grid-template-columns: 1fr 92px auto; gap: 8px; align-items: center; }
+  .lsl-row input { padding: 5px 7px; border: 1px solid var(--line); border-radius: 7px;
+                   font: inherit; width: 100%; }
+  .lsl-status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px;
+                font-variant-numeric: tabular-nums; }
+  .lsl-status.on { color: #1c7c3a; font-weight: 600; }
+  .lsl-status.err { color: var(--red); }
+  .actions { display: flex; gap: 10px; margin-top: 10px; position: sticky; bottom: 0;
+             background: linear-gradient(#fff0, #fff 35%); padding: 12px 0 2px; }
+  button { font: inherit; border-radius: 9px; padding: 8px 16px; border: 1px solid var(--line);
+           background: #fff; cursor: pointer; }
+  button.primary { background: var(--blue); border-color: var(--blue); color: #fff;
+                   font-weight: 600; }
+  button.danger { background: var(--red); border-color: var(--red); color: #fff; font-weight: 600; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  #formMsg { font-size: 13px; margin-top: 8px; min-height: 18px; color: var(--red); }
+  #formMsg.ok { color: #1c7c3a; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+  .kpi { background: var(--bg); border-radius: 10px; padding: 10px 12px; }
+  .kpi .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .kpi .l { font-size: 12px; color: var(--muted); }
+  .bar { height: 8px; background: var(--bg); border-radius: 99px; overflow: hidden; margin: 6px 0 2px; }
+  .bar > div { height: 100%; background: var(--blue); width: 0; transition: width .3s; }
+  .row { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
+  canvas { width: 100%; display: block; }
+  #grid { aspect-ratio: 1 / 1; border-radius: 6px; max-height: 46vh; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child, th:nth-child(3), td:nth-child(3) { text-align: left; }
+  thead th { position: sticky; top: 0; background: var(--card); color: var(--muted); font-weight: 600; }
+  .scroll { max-height: 260px; overflow: auto; }
+  .hit { color: #1c7c3a; font-weight: 600; } .timeout { color: var(--red); font-weight: 600; }
+  #logs { font: 12px/1.5 Consolas, "Cascadia Mono", monospace; background: #1d1d1f; color: #e6e6e6;
+          border-radius: 8px; padding: 8px 10px; height: 180px; overflow: auto;
+          white-space: pre-wrap; margin: 0; }
+  .lv-WARNING { color: #ffcc66; } .lv-ERROR, .lv-CRITICAL { color: #ff7b72; }
+  .lv-SUCCESS { color: #7ee787; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+              margin-right: 4px; vertical-align: -1px; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; font-size: 13px; }
+  dt { color: var(--muted); } dd { margin: 0; word-break: break-all; }
+  .readonly-only { display: none; }
+  body.readonly .control-only { display: none; }
+  body.readonly .readonly-only { display: block; }
+</style>
+</head>
+<body>
+<header>
+  <h1>BCI Web-Grid 控制台</h1>
+  <span id="phase" class="badge offline">连接中…</span>
+  <span id="where" class="meta"></span>
+  <span class="spacer"></span>
+  <span id="conn" class="meta"></span>
+</header>
+
+<main>
+  <div class="stack">
+    <section class="card control-only">
+      <h2>实验参数</h2>
+      <form id="form" autocomplete="off"></form>
+      <div class="actions">
+        <button type="button" id="start" class="primary">启动实验</button>
+        <button type="button" id="stop" class="danger" disabled>中止</button>
+      </div>
+      <div id="formMsg"></div>
+    </section>
+
+    <section class="card">
+      <h2>实时网格</h2>
+      <canvas id="grid"></canvas>
+      <div class="legend">
+        <span><i style="background:var(--blue)"></i>当前目标</span>
+        <span><i style="background:#d9d9de"></i>trial 间 / 反馈</span>
+        <span><i style="background:var(--red)"></i>光标闪红 = 误点</span>
+        <span><i style="background:#111;border-radius:50%"></i>光标</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>会话信息</h2>
+      <dl id="info"></dl>
+    </section>
+  </div>
+
+  <div class="stack">
+    <section class="card">
+      <h2>LSL 状态流（供其他 LSL 客户端读取）</h2>
+      <div class="lsl-row">
+        <input id="lslName" type="text" placeholder="WebGridState" title="LSL 流名称">
+        <input id="lslRate" type="number" min="0.5" max="100" step="1" title="推送频率 (Hz)">
+        <button id="lslBtn" type="button">启动</button>
+      </div>
+      <div id="lslMsg" class="lsl-status">未启动</div>
+    </section>
+
+    <section class="card">
+      <h2>进度</h2>
+      <div class="row"><span id="blockText">Block –</span><span id="trialText">Trial –</span></div>
+      <div class="bar"><div id="blockBar"></div></div>
+      <div class="row"><span>本 block</span><span id="elapsed"></span></div>
+      <div class="bar"><div id="totalBar" style="background:var(--green)"></div></div>
+      <div class="row"><span>全部 trial</span><span id="totalText"></span></div>
+    </section>
+
+    <section class="card">
+      <h2>本次运行表现</h2>
+      <div class="kpis">
+        <div class="kpi"><div class="v" id="kHits">0</div><div class="l">命中</div></div>
+        <div class="kpi"><div class="v" id="kTimeouts">0</div><div class="l">超时</div></div>
+        <div class="kpi"><div class="v" id="kMis">0</div><div class="l">误点</div></div>
+        <div class="kpi"><div class="v" id="kRate">–</div><div class="l">命中率</div></div>
+        <div class="kpi"><div class="v" id="kRt">–</div><div class="l">平均 RT (s)</div></div>
+        <div class="kpi"><div class="v" id="kBps">–</div><div class="l">本 block BPS</div></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>反应时（每个 trial；红色 = 超时）</h2>
+      <canvas id="rtChart" height="150"></canvas>
+    </section>
+
+    <section class="card">
+      <h2>Block 结果</h2>
+      <div class="scroll" style="max-height: 180px">
+        <table><thead><tr><th>Block</th><th>尝试</th><th>命中</th><th>状态</th><th>误点</th>
+          <th>平均 RT</th><th>BPS</th></tr></thead>
+        <tbody id="blockRows"><tr><td colspan="7" style="text-align:left;color:var(--muted)">尚无完成的 block</td></tr></tbody></table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>最近 trial</h2>
+      <div class="scroll">
+        <table><thead><tr><th>Block</th><th>Trial</th><th>格子</th><th>结果</th>
+          <th>RT (s)</th><th>误点</th><th>路径效率</th></tr></thead>
+        <tbody id="trialRows"></tbody></table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>历史运行</h2>
+      <div class="scroll" style="max-height: 180px">
+        <table><thead><tr><th>#</th><th>被试</th><th>Block×Trial</th><th>Grid</th>
+          <th>命中/尝试</th><th>BPS</th><th>状态</th></tr></thead>
+        <tbody id="runRows"><tr><td colspan="7" style="text-align:left;color:var(--muted)">尚无记录</td></tr></tbody></table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>日志</h2>
+      <pre id="logs"></pre>
+    </section>
+  </div>
+</main>
+
+<script>
+"use strict";
+const PHASES = {
+  starting: "启动中", intro: "指导语", countdown: "倒计时",
+  run: "运行中", feedback: "反馈", iti: "trial 间休息", rest: "block 间休息",
+  done: "已结束", aborted: "已中止", stopping: "正在中止", finishing: "收尾中…"
+};
+const BUTTON_COLORS = {1: "#0a84ff", 2: "#ff9500", 3: "#af52de"};
+const $ = (id) => document.getElementById(id);
+
+let state = {};
+let trials = [];
+let blocks = [];
+let runs = [];
+let status = "idle";
+let serverOffset = 0;
+let statePhaseAt = 0;
+let schema = [];
+let lsl = {enabled: false, stream: "", rate: 0, sent: 0, consumers: 0, error: null};
+let lslValuesLoaded = false;
+
+const fmt = (v, d = 2) => (v === null || v === undefined || Number.isNaN(v)) ? "–" : Number(v).toFixed(d);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g,
+  (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+
+// ------------------------------------------------------------ parameter form
+function buildForm(cfg) {
+  schema = cfg.schema;
+  document.body.classList.toggle("readonly", !cfg.control);
+  const form = $("form");
+  form.textContent = "";
+  const values = cfg.values || {};
+  for (const group of cfg.groups) {
+    const fields = schema.filter((f) => f.group === group);
+    if (!fields.length) continue;
+    const box = document.createElement("fieldset");
+    const legend = document.createElement("legend");
+    legend.textContent = group;
+    box.appendChild(legend);
+    for (const f of fields) box.appendChild(buildField(f, values[f.name]));
+    form.appendChild(box);
+  }
+  updateButtons();
+}
+
+function buildField(field, value) {
+  const wrap = document.createElement("div");
+  wrap.className = "field";
+  const label = document.createElement("label");
+  label.textContent = field.label;
+  label.htmlFor = "f_" + field.name;
+  if (field.hint) {
+    const hint = document.createElement("span");
+    hint.className = "hint";
+    hint.textContent = field.hint;
+    label.appendChild(hint);
+  }
+  let input;
+  if (field.type === "bool") {
+    input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = Boolean(value);
+  } else if (field.type === "choice") {
+    input = document.createElement("select");
+    for (const option of field.options) {
+      const o = document.createElement("option");
+      o.value = option;
+      o.textContent = option;
+      input.appendChild(o);
+    }
+    input.value = value ?? field.options[0];
+  } else {
+    input = document.createElement("input");
+    input.type = (field.type === "text") ? "text" : "number";
+    if (field.min !== undefined) input.min = field.min;
+    if (field.max !== undefined) input.max = field.max;
+    if (field.type === "int") input.step = 1;
+    else if (field.type === "float") input.step = field.step ?? 0.1;
+    input.value = value ?? "";
+  }
+  input.id = "f_" + field.name;
+  input.dataset.name = field.name;
+  input.dataset.type = field.type;
+  wrap.appendChild(label);
+  wrap.appendChild(input);
+  return wrap;
+}
+
+function collect() {
+  const payload = {};
+  for (const input of document.querySelectorAll("#form [data-name]")) {
+    const name = input.dataset.name;
+    const kind = input.dataset.type;
+    if (kind === "bool") payload[name] = input.checked;
+    else if (kind === "int") payload[name] = input.value === "" ? 0 : parseInt(input.value, 10);
+    else if (kind === "float") payload[name] = input.value === "" ? 0 : parseFloat(input.value);
+    else payload[name] = input.value;
+  }
+  return payload;
+}
+
+function setBusy(busy) {
+  for (const input of document.querySelectorAll("#form [data-name]")) input.disabled = busy;
+  $("start").disabled = busy;
+  $("stop").disabled = !busy || status === "stopping";
+}
+
+function updateButtons() {
+  const busy = status !== "idle";
+  setBusy(busy);
+  $("stop").disabled = !busy || status === "stopping";
+}
+
+function message(text, ok = false) {
+  const box = $("formMsg");
+  box.textContent = text;
+  box.className = ok ? "ok" : "";
+}
+
+async function startRun() {
+  message("");
+  $("start").disabled = true;
+  try {
+    const response = await fetch("/api/start", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(collect())
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || response.statusText);
+    message("已启动，正在打开实验窗口…", true);
+  } catch (err) {
+    message("无法启动：" + err.message);
+  } finally {
+    updateButtons();
+  }
+}
+
+async function stopRun() {
+  try {
+    const response = await fetch("/api/stop", {method: "POST"});
+    const data = await response.json();
+    message(data.stopping ? "已请求中止（等同按 Esc）" : "当前没有运行中的实验", true);
+  } catch (err) {
+    message("中止失败：" + err.message);
+  }
+}
+
+async function loadForm() {
+  try {
+    const response = await fetch("/api/config");
+    const cfg = await response.json();
+    buildForm(cfg);
+    const base = cfg.base_config || {};
+    if (!lslValuesLoaded) {
+      $("lslName").value = base.lsl_state_stream || "WebGridState";
+      $("lslRate").value = base.lsl_state_rate || 10;
+      lslValuesLoaded = true;
+    }
+  } catch (err) {
+    message("无法读取参数： " + err.message);
+  }
+}
+
+// ------------------------------------------------------------ LSL state stream
+function renderLsl() {
+  const btn = $("lslBtn");
+  const msg = $("lslMsg");
+  btn.textContent = lsl.enabled ? "停止" : "启动";
+  $("lslName").disabled = lsl.enabled;
+  $("lslRate").disabled = lsl.enabled;
+  if (lsl.error) {
+    msg.className = "lsl-status err";
+    msg.textContent = "推送出错：" + lsl.error;
+    return;
+  }
+  if (!lsl.enabled) {
+    msg.className = "lsl-status";
+    msg.textContent = "未启用";
+    return;
+  }
+  if (!lsl.live) {
+    msg.className = "lsl-status";
+    msg.textContent = `已启用 · ${lsl.stream} · ${Number(lsl.rate).toFixed(0)} Hz` +
+      " · 实验开始时打开流，结束页出现时关闭";
+    return;
+  }
+  msg.className = "lsl-status on";
+  msg.textContent = `运行中 · ${lsl.stream} · ${Number(lsl.rate).toFixed(0)} Hz` +
+    ` · 客户端 ${lsl.consumers} · 已推送 ${lsl.sent} 条`;
+}
+
+async function toggleLsl() {
+  const enabling = !lsl.enabled;
+  $("lslBtn").disabled = true;
+  try {
+    const response = await fetch("/api/lsl", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        enabled: enabling,
+        stream: $("lslName").value,
+        rate: parseFloat($("lslRate").value) || 10
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || response.statusText);
+    lsl = data;
+  } catch (err) {
+    $("lslMsg").className = "lsl-status err";
+    $("lslMsg").textContent = "LSL 状态流操作失败：" + err.message;
+  } finally {
+    $("lslBtn").disabled = false;
+    renderLsl();
+  }
+}
+
+// ---------------------------------------------------------------- grid view
+function drawGrid() {
+  const canvas = $("grid");
+  const g = state.grid;
+  const size = canvas.clientWidth || 300;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = size * dpr; canvas.height = size * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size, size);
+  if (!g) {
+    ctx.fillStyle = "#6e6e73"; ctx.font = "13px sans-serif";
+    ctx.fillText("等待实验窗口…", 12, 24);
+    return;
+  }
+  const rows = g.rows, cols = g.cols;
+  const pad = 4;
+  const cell = (size - 2 * pad) / Math.max(rows, cols);
+  const ox = pad + (size - 2 * pad - cell * cols) / 2;
+  const oy = pad + (size - 2 * pad - cell * rows) / 2;
+  ctx.fillStyle = "#fff"; ctx.fillRect(ox, oy, cell * cols, cell * rows);
+
+  const t = state.target;
+  if (t) {
+    const active = state.phase === "run";
+    ctx.fillStyle = active ? (BUTTON_COLORS[t.button] || "#0a84ff") : "#d9d9de";
+    ctx.fillRect(ox + t.col * cell, oy + t.row * cell, cell, cell);
+    if (active && state.dwell_progress > 0.01) {
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(ox + t.col * cell + cell * 0.14, oy + (t.row + 1) * cell - cell * 0.18,
+                   cell * 0.72 * state.dwell_progress, Math.max(2, cell * 0.06));
+    }
+  }
+  ctx.strokeStyle = "#111"; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let c = 0; c <= cols; c++) { ctx.moveTo(ox + c * cell, oy); ctx.lineTo(ox + c * cell, oy + rows * cell); }
+  for (let r = 0; r <= rows; r++) { ctx.moveTo(ox, oy + r * cell); ctx.lineTo(ox + cols * cell, oy + r * cell); }
+  ctx.stroke();
+
+  if (state.cursor) {
+    const [x, y] = state.cursor;
+    const cx = ox + (x - g.left - g.line) / g.pitch * cell;
+    const cy = oy + (g.top - g.line - y) / g.pitch * cell;
+    const flash = state.flash_until && Date.now() / 1000 + serverOffset < state.flash_until;
+    ctx.beginPath(); ctx.arc(cx, cy, Math.max(4, cell * 0.16), 0, 2 * Math.PI);
+    ctx.fillStyle = flash ? "#ff3b30" : "#111"; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = "#fff"; ctx.stroke();
+  }
+}
+
+// ---------------------------------------------------------------- RT chart
+function drawRt() {
+  const canvas = $("rtChart");
+  const w = canvas.clientWidth || 400, h = 150, dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const data = trials.slice(-120);
+  ctx.fillStyle = "#6e6e73"; ctx.font = "11px sans-serif";
+  if (!data.length) { ctx.fillText("尚无 trial", 8, 20); return; }
+  const maxRt = Math.max(1, ...data.map((d) => d.rt));
+  const left = 34, bottom = h - 18, top = 8, plotW = w - left - 6, plotH = bottom - top;
+  ctx.strokeStyle = "#e3e3e8"; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = bottom - plotH * i / 4;
+    ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(w - 6, y); ctx.stroke();
+    ctx.fillText((maxRt * i / 4).toFixed(1), 2, y + 4);
+  }
+  const step = plotW / data.length;
+  const bw = Math.max(1, Math.min(18, step * 0.7));
+  data.forEach((d, i) => {
+    const x = left + i * step + (step - bw) / 2;
+    const bh = plotH * d.rt / maxRt;
+    ctx.fillStyle = d.outcome === "hit" ? "#0a84ff" : "#ff3b30";
+    ctx.fillRect(x, bottom - bh, bw, bh);
+    if (i > 0 && d.block !== data[i - 1].block) {
+      ctx.strokeStyle = "#6e6e73"; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(x - (step - bw) / 2, top); ctx.lineTo(x - (step - bw) / 2, bottom); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#6e6e73"; ctx.fillText("B" + d.block, x, h - 4);
+    }
+  });
+}
+
+// ---------------------------------------------------------------- panels
+function renderTexts() {
+  const s = state, cfg = s.config || {};
+  let phase = s.phase || "starting";
+  if (status === "stopping") phase = "stopping";
+  else if (s.aborted) phase = "aborted";
+  else if (s.phase === "done" && status === "running") phase = "finishing";
+  const badge = $("phase");
+  badge.textContent = PHASES[phase] || phase;
+  badge.className = "badge " + phase;
+  $("where").textContent = s.subject ? `${s.subject} · ses-${s.session_id}` : "";
+
+  const blocksTotal = cfg.blocks || 1, perBlock = cfg.targets || 0;
+  const done = s.trials_done || 0;
+  $("blockText").textContent = `Block ${s.block || "–"} / ${blocksTotal}`;
+  $("trialText").textContent = `Trial ${done} / ${perBlock}`;
+  $("blockBar").style.width = perBlock ? (100 * done / perBlock) + "%" : "0";
+  const totalPlanned = blocksTotal * perBlock;
+  $("totalBar").style.width = totalPlanned ? (100 * trials.length / totalPlanned) + "%" : "0";
+  $("totalText").textContent = `${trials.length} / ${totalPlanned}`;
+
+  const hits = trials.filter((t) => t.outcome === "hit");
+  $("kHits").textContent = hits.length;
+  $("kTimeouts").textContent = trials.length - hits.length;
+  $("kMis").textContent = trials.reduce((a, t) => a + (t.misclicks || 0), 0);
+  $("kRate").textContent = trials.length ? Math.round(100 * hits.length / trials.length) + "%" : "–";
+  $("kRt").textContent = hits.length ? fmt(hits.reduce((a, t) => a + t.rt, 0) / hits.length) : "–";
+  $("kBps").textContent = fmt(s.block_bps);
+
+  const info = [
+    ["Grid", s.grid ? `${s.grid.rows} × ${s.grid.cols}` : "–"],
+    ["Block × Trial", `${blocksTotal} × ${perBlock}`],
+    ["输入 / 选择", `${cfg.input || "–"} / ${cfg.selection || "–"}${cfg.selection === "dwell" ? ` (${cfg.dwell_time}s)` : ""}`],
+    ["反馈 / Trial 间休息", `${fmt(cfg.feedback)} s / ${fmt(cfg.iti)} s`],
+    ["Block 间休息", `${fmt(cfg.block_rest, 1)} s`],
+    ["LSL 标记", cfg.lsl ? cfg.lsl_stream : "关闭"],
+    ["帧率", s.fps ? `${fmt(s.fps, 0)} fps` : "–"],
+    ["数据目录", s.data_dir || "–"],
+    ["错误", s.error || "–"],
+  ];
+  $("info").innerHTML = info.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
+
+  $("blockRows").innerHTML = blocks.length ? blocks.map((b) => `<tr>
+      <td>${b.block}</td><td>${b.attempts}</td><td>${b.hits}</td>
+      <td style="text-align:left">${b.aborted ? '<span class="timeout">中止</span>' : "完成"}</td>
+      <td>${b.misclicks}</td><td>${fmt(b.mean_rt_s)}</td><td>${fmt(b.bps)}</td></tr>`).join("")
+    : '<tr><td colspan="7" style="text-align:left;color:var(--muted)">尚无完成的 block</td></tr>';
+
+  $("trialRows").innerHTML = trials.slice(-50).reverse().map((t) => `<tr>
+      <td>${t.block}</td><td>${t.trial}</td><td>${esc(t.cell)}</td>
+      <td class="${t.outcome}" style="text-align:right">${t.outcome === "hit" ? "命中" : "超时"}</td>
+      <td>${fmt(t.rt, 3)}</td><td>${t.misclicks}</td><td>${fmt(t.path_efficiency)}</td></tr>`).join("");
+
+  $("runRows").innerHTML = runs.length ? runs.slice().reverse().map((r) => `<tr>
+      <td>#${r.id}</td><td>${esc(r.subject)}</td>
+      <td style="text-align:left">${r.blocks} × ${r.trials_per_block}</td>
+      <td>${r.rows} × ${r.cols}</td>
+      <td>${r.hits ?? "–"} / ${r.attempts ?? "–"}</td>
+      <td>${fmt(r.bps)}</td>
+      <td style="text-align:right" class="${r.status === "finished" ? "hit" : "timeout"}">
+        ${({finished: "完成", aborted: "中止", stopped: "中止", failed: "失败"})[r.status] || r.status}</td>
+    </tr>`).join("")
+    : '<tr><td colspan="7" style="text-align:left;color:var(--muted)">尚无记录</td></tr>';
+}
+
+function renderElapsed() {
+  if (state.block_elapsed === undefined || state.block_elapsed === null) {
+    $("elapsed").textContent = ""; return;
+  }
+  let e = state.block_elapsed;
+  if (state.phase === "run" || state.phase === "feedback" || state.phase === "iti") {
+    e += (performance.now() - statePhaseAt) / 1000;
+  }
+  const limit = (state.config || {}).max_seconds;
+  $("elapsed").textContent = `${e.toFixed(1)} s${limit ? " / " + limit + " s" : ""}`;
+}
+
+function appendLogs(lines) {
+  if (!lines.length) return;
+  const pre = $("logs");
+  const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 4;
+  for (const line of lines) {
+    const span = document.createElement("span");
+    const m = line.match(/\|\s*(\w+)\s*\|/);
+    if (m) span.className = "lv-" + m[1];
+    span.textContent = line + "\n";
+    pre.appendChild(span);
+  }
+  while (pre.childNodes.length > 400) pre.removeChild(pre.firstChild);
+  if (atBottom) pre.scrollTop = pre.scrollHeight;
+}
+
+// ---------------------------------------------------------------- connection
+function apply(msg) {
+  serverOffset = msg.server_time - Date.now() / 1000;
+  if (msg.reset) { trials = []; $("logs").textContent = ""; }
+  const previousElapsed = state.block_elapsed;
+  const previousStatus = status;
+  state = msg.state;
+  status = msg.status;
+  if (state.block_elapsed !== previousElapsed) statePhaseAt = performance.now();
+  trials.length = msg.trial_offset;
+  trials.push(...msg.trials);
+  blocks = msg.blocks;
+  runs = msg.runs;
+  if (msg.lsl) {
+    lsl = msg.lsl;
+    renderLsl();
+    if (lsl.enabled && !$("lslName").value) $("lslName").value = lsl.stream;
+  }
+  appendLogs(msg.logs);
+  if (previousStatus !== status) updateButtons();
+  renderTexts();
+  if (msg.trials.length) drawRt();
+}
+
+function connect() {
+  const es = new EventSource("/events");
+  es.onopen = () => { $("conn").textContent = "已连接"; };
+  es.onmessage = (ev) => apply(JSON.parse(ev.data));
+  es.onerror = () => {
+    $("conn").textContent = "连接断开，重试中…";
+    if (status !== "idle") {
+      const b = $("phase"); b.textContent = "未连接"; b.className = "badge offline";
+    }
+  };
+}
+
+let lastFrame = performance.now();
+let fps = 0;
+function frame(now) {
+  const dt = (now - lastFrame) / 1000;
+  lastFrame = now;
+  if (dt > 0) fps = fps ? 0.9 * fps + 0.1 / dt : 1 / dt;
+  drawGrid();
+  renderElapsed();
+  requestAnimationFrame(frame);
+}
+
+$("start").addEventListener("click", startRun);
+$("stop").addEventListener("click", stopRun);
+$("lslBtn").addEventListener("click", toggleLsl);
+window.addEventListener("resize", () => drawRt());
+loadForm();
+connect();
+drawRt();
+renderLsl();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -4,18 +4,23 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
-import logging
-import sys
-import traceback
 from pathlib import Path
 from typing import Any
 
+from loguru import logger
+
 from . import __version__
 from .config import ExperimentConfig
+from .log import add_session_log, setup_logging
 from .recorder import SessionRecorder
 
 DESCRIPTION = """\
 BCI Web-Grid: a PsychoPy target-selection paradigm.
+
+By default `webgrid` opens a local web control panel: enter the parameters,
+press 启动实验, and watch the session live in the browser.  Use --run-now to
+start immediately with the command-line parameters, or --no-dashboard to run
+without the panel.
 
 A grid of cells is shown; one cell is highlighted.  Move the cursor onto it
 and select it (click or dwell).  Hits add a target, misclicks subtract one,
@@ -23,9 +28,14 @@ and throughput is reported in bits per second (BPS).
 """
 
 EPILOG = """\
+The session starts as soon as you press 启动实验 in the web panel (or run with
+--run-now); add --lsl to publish event markers over LSL.
+
 examples:
-  uv run webgrid --input demo --targets 8 --auto-exit
-  uv run webgrid --input mouse --windowed
+  uv run webgrid                       # open the web panel, set params, start
+  uv run webgrid --config configs/default.toml   # same, pre-filled
+  uv run webgrid --run-now --input demo --targets 8 --auto-exit
+  uv run webgrid --no-dashboard --input udp --lsl
   uv run webgrid --input udp --udp-port 9000 --marker-udp 127.0.0.1:9001
   uv run webgrid --screenshot docs/preview.png
 
@@ -46,6 +56,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--config", type=Path, metavar="FILE", help="load parameters from TOML"
     )
+    parser.add_argument(
+        "--run-now",
+        action="store_true",
+        help="start the session immediately with these parameters instead of "
+        "waiting for the web panel's 启动实验 button",
+    )
 
     session = parser.add_argument_group("session")
     session.add_argument("--subject", help="subject label (default: sub-01)")
@@ -60,13 +76,24 @@ def build_parser() -> argparse.ArgumentParser:
     grid = parser.add_argument_group("grid and task")
     grid.add_argument("--rows", type=int, help="grid rows (default: 12)")
     grid.add_argument("--cols", type=int, help="grid columns (default: 12)")
+    grid.add_argument("--blocks", type=int, help="number of blocks (default: 1)")
     grid.add_argument(
-        "--targets", type=int, help="number of targets to present (default: 40)"
+        "--trials",
+        "--targets",
+        dest="targets",
+        type=int,
+        help="trials (targets) per block (default: 40)",
+    )
+    grid.add_argument(
+        "--block-rest",
+        type=float,
+        metavar="S",
+        help="blank rest between blocks in seconds (default: 10)",
     )
     grid.add_argument(
         "--max-seconds",
         type=float,
-        help="optional session time limit (default: 300, 0 = off)",
+        help="optional per-block time limit (default: 300, 0 = off)",
     )
     grid.add_argument(
         "--selection", choices=("click", "dwell"), help="selection channel"
@@ -87,6 +114,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="1-3 click types; target colour + required button",
     )
     grid.add_argument("--feedback", type=float, metavar="S", help="feedback interval")
+    grid.add_argument(
+        "--iti",
+        type=float,
+        metavar="S",
+        help="inter-trial rest after feedback: empty grid, no target (default: 0)",
+    )
     grid.add_argument(
         "--countdown-seconds", type=float, metavar="S", help="countdown duration"
     )
@@ -160,6 +193,45 @@ def build_parser() -> argparse.ArgumentParser:
         "--lsl", action="store_true", default=None, help="publish an LSL marker stream"
     )
     markers.add_argument("--lsl-stream", help="LSL stream name")
+    markers.add_argument(
+        "--lsl-state",
+        action="store_true",
+        default=None,
+        help="start the LSL state stream together with the web panel",
+    )
+    markers.add_argument("--lsl-state-stream", help="LSL state stream name")
+    markers.add_argument(
+        "--lsl-state-rate", type=float, help="LSL state pushes per second (default 10)"
+    )
+
+    dash = parser.add_argument_group("web dashboard")
+    dash.add_argument(
+        "--no-dashboard",
+        action="store_true",
+        default=None,
+        help="do not start the live web dashboard",
+    )
+    dash.add_argument(
+        "--dashboard-port",
+        type=int,
+        help="dashboard port (default: 8765; 0 = pick a free port)",
+    )
+    dash.add_argument(
+        "--dashboard-host",
+        help="bind address (default: 127.0.0.1; 0.0.0.0 = allow other computers)",
+    )
+    dash.add_argument(
+        "--open-dashboard",
+        action="store_true",
+        default=None,
+        help="open the dashboard in the default browser",
+    )
+    dash.add_argument(
+        "--no-open-dashboard",
+        action="store_true",
+        default=None,
+        help="do not open a browser when the panel starts",
+    )
 
     dev = parser.add_argument_group("developer")
     dev.add_argument(
@@ -169,7 +241,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="render one trial frame to a PNG and exit (no data are recorded)",
     )
     dev.add_argument(
-        "--debug", action="store_true", help="print tracebacks and debug logs"
+        "--debug",
+        action="store_true",
+        help="debug mode: debug logs and full tracebacks",
+    )
+    dev.add_argument(
+        "--log-file",
+        type=Path,
+        metavar="FILE",
+        help="also write a rotating DEBUG log to FILE "
+        "(each session always gets session.log in its data directory)",
     )
     return parser
 
@@ -188,13 +269,16 @@ def _load_config(args: argparse.Namespace) -> ExperimentConfig:
         "seed": "seed",
         "rows": "rows",
         "cols": "cols",
+        "blocks": "blocks",
         "targets": "targets",
+        "block_rest": "block_rest",
         "max_seconds": "max_seconds",
         "selection": "selection",
         "dwell_time": "dwell_time",
         "trial_timeout": "trial_timeout",
         "click_types": "click_types",
         "feedback": "feedback",
+        "iti": "iti",
         "countdown_seconds": "countdown_seconds",
         "input": "input",
         "udp_host": "udp_host",
@@ -207,6 +291,10 @@ def _load_config(args: argparse.Namespace) -> ExperimentConfig:
         "screen": "screen",
         "marker_udp": "marker_udp",
         "lsl_stream": "lsl_stream",
+        "lsl_state_stream": "lsl_state_stream",
+        "lsl_state_rate": "lsl_state_rate",
+        "dashboard_port": "dashboard_port",
+        "dashboard_host": "dashboard_host",
     }
     for arg_name, field_name in fields.items():
         value = getattr(args, arg_name)
@@ -226,6 +314,14 @@ def _load_config(args: argparse.Namespace) -> ExperimentConfig:
         overrides["auto_exit"] = True
     if args.lsl:
         overrides["lsl"] = True
+    if args.lsl_state:
+        overrides["lsl_state"] = True
+    if args.no_dashboard:
+        overrides["dashboard"] = False
+    if args.open_dashboard:
+        overrides["dashboard_open"] = True
+    if args.no_open_dashboard:
+        overrides["dashboard_open"] = False
     config = dataclasses.replace(config, **overrides)
     config.validate()
     return config
@@ -242,60 +338,97 @@ def _preview(config: ExperimentConfig, path: Path) -> int:
         written = app.render_preview(path)
     finally:
         app.close()
-    print(f"[webgrid] preview written to {written}")
+    logger.info("preview written to {}", written)
     return 0
 
 
-def _run(config: ExperimentConfig) -> int:
+def _run(config: ExperimentConfig, view: Any = None) -> dict[str, Any]:
+    """Run one session; ``view`` receives live progress for the web panel."""
     import psychopy
 
     from .psychopy_runner import run_experiment
 
     recorder = SessionRecorder(config, psychopy_version=psychopy.__version__)
-    print(
-        f"[webgrid] subject={config.subject} session={recorder.session_id} "
-        f"grid={config.rows}x{config.cols} targets={config.targets} "
-        f"input={config.input} selection={config.selection}"
-    )
-    print(f"[webgrid] saving to {recorder.dir}")
-    if config.input == "udp":
-        print(
-            f"[webgrid] listening for BCI data on udp://{config.udp_host}:{config.udp_port}"
-        )
-    if config.marker_udp:
-        print(f"[webgrid] UDP markers -> {config.marker_udp}")
-    if config.lsl:
-        print(f"[webgrid] LSL marker stream: {config.lsl_stream}")
+    sink_id = add_session_log(recorder.dir)
     try:
-        run_experiment(config, recorder)
+        logger.info(
+            "subject={} session={} grid={}x{} blocks={} trials/block={} "
+            "input={} selection={}",
+            config.subject,
+            recorder.session_id,
+            config.rows,
+            config.cols,
+            config.blocks,
+            config.targets,
+            config.input,
+            config.selection,
+        )
+        logger.info("saving to {}", recorder.dir)
+        logger.debug("psychopy {} / config {}", psychopy.__version__, config.to_dict())
+        if config.input == "udp":
+            logger.info(
+                "listening for BCI data on udp://{}:{}", config.udp_host, config.udp_port
+            )
+        if config.marker_udp:
+            logger.info("UDP markers -> {}", config.marker_udp)
+        if config.lsl:
+            logger.info("LSL marker stream: {}", config.lsl_stream)
+        return run_experiment(config, recorder, dashboard=view)
     finally:
         recorder.close()
+        logger.remove(sink_id)
+
+
+def _serve(config: ExperimentConfig, *, run_now: bool) -> int:
+    """Start the web control panel and run whatever the page asks for."""
+    from .station import start_station
+
+    station = start_station(
+        config.dashboard_host,
+        config.dashboard_port,
+        base_config=config,
+        control=True,
+        open_browser=config.dashboard_open,
+    )
+    if station is None:
+        logger.warning("web panel unavailable; running once from the command line")
+        _run(config)
+        return 0
+    logger.info("open {} and press 启动实验 (Ctrl+C quits)", station.url)
+    try:
+        if run_now:
+            station.request_start(config, source="cli")
+        station.serve(lambda cfg, view: _run(cfg, view))
+    finally:
+        station.close()
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    logging.basicConfig(
-        level=logging.DEBUG if args.debug else logging.WARNING,
-        format="%(levelname)s %(name)s: %(message)s",
-    )
+    setup_logging(debug=args.debug, log_file=args.log_file)
+    logger.debug("webgrid {} started with argv={}", __version__, argv)
     try:
         config = _load_config(args)
     except Exception as exc:  # noqa: BLE001 - report any configuration problem
-        print(f"configuration error: {exc}", file=sys.stderr)
+        logger.error("configuration error: {}", exc)
         return 2
     try:
         if args.screenshot is not None:
             return _preview(config, args.screenshot)
-        return _run(config)
+        if not config.dashboard:
+            _run(config)
+            return 0
+        return _serve(config, run_now=args.run_now)
     except KeyboardInterrupt:
-        print("interrupted", file=sys.stderr)
+        logger.warning("interrupted")
         return 130
     except Exception as exc:  # noqa: BLE001 - top-level CLI error boundary
         if args.debug:
-            traceback.print_exc()
-        print(f"error: {exc}", file=sys.stderr)
+            logger.exception("error: {}", exc)
+        else:
+            logger.error("error: {}", exc)
         return 1
 
 

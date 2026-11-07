@@ -208,3 +208,49 @@ def test_abort_marks_summary() -> None:
     assert engine.phase is Phase.DONE
     assert summary["aborted"] is True
     assert summary["duration_s"] == pytest.approx(1.0)
+
+
+def test_new_block_does_not_repeat_previous_last_cell() -> None:
+    config = ExperimentConfig(rows=5, cols=7, targets=2, blocks=2)
+    layout = Layout.create(1280, 800, 5, 7)
+    for seed in range(200):
+        rng = random.Random(seed)
+        first = SessionEngine(config, layout, rng)
+        last = first.begin(0.0).cell
+        second = SessionEngine(config, layout, rng, avoid_first=last)
+        assert second.begin(0.0).cell != last
+
+
+def _hit(engine: SessionEngine, t: float) -> None:
+    x, y = centre(engine)
+    assert engine.update(t, x, y, [1]).trial is not None
+
+
+def test_iti_follows_feedback_before_next_target() -> None:
+    engine = make_engine(iti=1.0, feedback=0.2)
+    first = engine.begin(0.0)
+    _hit(engine, 0.5)  # feedback until 0.7
+    assert engine.advance(0.6) is None and engine.phase is Phase.FEEDBACK
+    assert engine.advance(0.7) is None
+    assert engine.phase is Phase.ITI
+    assert engine.iti_until == pytest.approx(1.7)
+    # Inputs during the ITI do nothing.
+    x, y = centre(engine, first.cell)
+    assert engine.update(1.0, x, y, [1]).trial is None
+    assert engine.advance(1.6) is None and engine.phase is Phase.ITI
+    nxt = engine.advance(1.7)
+    assert nxt is not None and nxt.index == 2
+    assert engine.phase is Phase.RUNNING
+
+
+def test_no_iti_after_last_trial_and_zero_iti_skips() -> None:
+    engine = make_engine(iti=1.0, targets=1)
+    engine.begin(0.0)
+    _hit(engine, 0.3)
+    engine.advance(10.0)
+    assert engine.phase is Phase.DONE
+
+    engine = make_engine(iti=0.0)
+    engine.begin(0.0)
+    _hit(engine, 0.3)
+    assert engine.advance(10.0) is not None  # straight to the next target

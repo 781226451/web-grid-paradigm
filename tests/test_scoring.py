@@ -4,7 +4,20 @@ import math
 
 import pytest
 
-from web_grid_paradigm.scoring import SessionStats, bits_per_target
+from web_grid_paradigm.scoring import SessionStats, bits_per_target, merge_stats
+
+
+def test_merge_stats_sums_blocks_on_in_block_time() -> None:
+    a = SessionStats(hits=3, misclicks=1, durations=[1.0, 2.0, 3.0])
+    b = SessionStats(hits=2, timeouts=1, durations=[4.0, 5.0])
+    merged = merge_stats([(a, 30.0), (b, 30.0)], n_cells=16)
+    assert merged["hits"] == 5
+    assert merged["misclicks"] == 1
+    assert merged["timeouts"] == 1
+    assert merged["attempts"] == 6
+    assert merged["duration_s"] == 60.0
+    assert merged["ntpm"] == pytest.approx(4.0)  # (5 - 1) per minute
+    assert merged["mean_rt_s"] == pytest.approx(3.0)
 
 
 def test_bits_per_target() -> None:

@@ -8,13 +8,12 @@ where PsychoPy's event objects are available.
 from __future__ import annotations
 
 import json
-import logging
 import math
 import socket
 from dataclasses import dataclass
 from typing import Any, Self
 
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +51,7 @@ class UdpCursorSource:
         self._sock.bind((host, port))
         self._sock.setblocking(False)
         self.port = self._sock.getsockname()[1]
+        logger.debug("UDP cursor source bound to {}:{}", host, self.port)
         self._x: float | None = None
         self._y: float | None = None
         self._held_button = 0
@@ -70,7 +70,7 @@ class UdpCursorSource:
             except BlockingIOError:
                 break
             except OSError as exc:  # pragma: no cover - socket teardown
-                logger.debug("UDP receive failed: %s", exc)
+                logger.debug("UDP receive failed: {}", exc)
                 break
             state = self._parse(payload, clicks)
             if state is not None:
@@ -114,7 +114,7 @@ class UdpCursorSource:
         if self._warned < 5:
             self._warned += 1
             logger.warning(
-                "ignored invalid BCI packet (%d so far)", self.invalid_packets
+                "ignored invalid BCI packet ({} so far)", self.invalid_packets
             )
 
     def close(self) -> None:
