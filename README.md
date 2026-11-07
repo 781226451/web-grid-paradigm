@@ -312,6 +312,5 @@ src/web_grid_paradigm/
 
 ## 参考
 
-- [运动想象 WebGrid 样式调研](docs/mi-webgrid-research.md)：MI 领域的网格/六边形/游戏化布局与设计建议
 - [Neuralink Webgrid](https://neuralink.com/webgrid/)：web-grid 任务与 BPS 计分说明
 - [PsychoPy 文档](https://www.psychopy.org/)
