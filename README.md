@@ -99,12 +99,15 @@ uv run webgrid --rows 10 --cols 10
 则：
 
 ```text
-每目标信息量 = log2(N × C)        （bit/target）
-NTPM          = net / duration_min （targets/min）
-BPS           = NTPM × log2(N × C) / 60
+每目标信息量 = log2(N × C)                       （bit/target）
+NTPM          = net / duration_min                （targets/min，可为负）
+BPS           = log2(N × C) × max(net, 0) / t     （bit/s）
 ```
 
-这与 web-grid 的信息传输率定义一致：网格越大、点击类型越多，每个正确选择携带的信息越多；误点会从净命中数中扣除。界面不显示 BPS/NTPM，`summary.json` 仍保留这些指标，供离线分析。
+`BPS` 采用 Nuyujukian et al. 2021（*Technical Report 01: GPT-BCIs*）Eqn. 2 的
+achieved-bitrate 定义：`B = log2(N) × max(S_c − S_i, 0) / t`。论文里写作 `log2(N − 1)`，
+是因为其中有一个符号是 delete 键；web-grid 没有 delete 键，因此直接使用 `log2(N)`。
+`max(…, 0)` 保证误点多于命中时 BPS 为 0，而不是负数（NTPM 仍保留原值，可为负，便于分析）。
 
 示例：12×12、`click_types=1`、120 s 内 20 次命中、1 次误点：
 

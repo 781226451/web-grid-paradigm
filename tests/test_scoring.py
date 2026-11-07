@@ -59,6 +59,23 @@ def test_negative_and_zero_duration() -> None:
     stats = SessionStats(hits=1, misclicks=3)
     assert stats.net_targets == -2
     assert stats.ntpm(60.0) < 0
-    assert stats.bps(60.0, 16) < 0
+    # Paper Eqn. 2 clamps the net count at zero: no negative bitrate.
+    assert stats.bps(60.0, 16) == 0.0
     assert stats.ntpm(0.0) == 0.0
     assert stats.bps(0.0, 16) == 0.0
+
+
+def test_bps_follows_the_achieved_bitrate_formula() -> None:
+    """B = log2(N) * max(correct - incorrect, 0) / t  (Technical Report 01, Eqn. 2)."""
+    stats = SessionStats(hits=8, misclicks=2)
+    # N = 16 -> log2(16) = 4 bits/selection, net = 6, t = 60 s.
+    assert stats.bps(60.0, 16) == pytest.approx(4 * 6 / 60)
+
+    # One misclick per hit: net is 0, so the rate clamps to zero.
+    stats = SessionStats(hits=4, misclicks=4)
+    assert stats.bps(30.0, 16) == 0.0
+
+    # Click types count as extra symbols: N = cells * click types.
+    stats = SessionStats(hits=3, misclicks=0)
+    assert stats.bps(10.0, 8, 2) == pytest.approx(3 * 4 / 10)
+

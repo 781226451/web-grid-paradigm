@@ -5,6 +5,12 @@ each selection carries ``log2(grid cells × click types)`` bits, and the
 throughput is the *net* number of correct selections per minute multiplied by
 those bits.  Misclicks subtract one target from the net count, which is why
 accuracy matters as much as speed.
+
+The achieved bitrate (BPS) follows Eqn. 2 of Shenoy, Willett, Nuyujukian &
+Henderson, "Performance Considerations for General-Purpose Typing BCIs,
+Including the Handwriting BCI", Stanford University Technical Report #01
+(v2.7, 20 May 2021): ``log2(N) * max(correct - incorrect, 0) / t`` (the
+report's ``log2(N - 1)`` accounts for a delete key, which this task has not).
 """
 
 from __future__ import annotations
@@ -86,8 +92,25 @@ class SessionStats:
         return self.net_targets / (duration_s / 60.0)
 
     def bps(self, duration_s: float, n_cells: int, click_types: int = 1) -> float:
-        """Net information-transfer rate in bits per second."""
-        return self.ntpm(duration_s) * bits_per_target(n_cells, click_types) / 60.0
+        """Achieved bitrate in bits per second.
+
+        Follows Eqn. 2 of Shenoy, Willett, Nuyujukian & Henderson,
+        *"Performance Considerations for General-Purpose Typing BCIs,
+        Including the Handwriting BCI"*, Stanford University Technical
+        Report #01 (v2.7, 20 May 2021)::
+
+            B = log2(N) * max(S_c - S_i, 0) / t
+
+        The report writes ``log2(N - 1)`` because one of the symbols of a
+        keyboard is the delete key; the web-grid task has no delete key, so
+        ``N = n_cells * click_types`` is used directly.  The ``max(..., 0)``
+        clamp reports 0 bits/s for a block with more misclicks than hits
+        instead of a negative rate.
+        """
+        if duration_s <= 0:
+            return 0.0
+        net = max(self.net_targets, 0)
+        return net * bits_per_target(n_cells, click_types) / duration_s
 
     # ------------------------------------------------------------------
     def summary(self, duration_s: float, n_cells: int, click_types: int = 1) -> dict:
