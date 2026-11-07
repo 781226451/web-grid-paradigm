@@ -44,6 +44,12 @@ cd webui; pnpm dev
 - 服务端 API 契约保持不变：`/api/state`、`/api/config`、`/events`(SSE)、
   `/api/start`、`/api/stop`、`/api/lsl`、`/api/reward/{connect,disconnect,test}`。
 - 表单继续由服务端 `/api/config` 的 `schema`/`groups` 驱动（`SchemaForm.vue`）。
+- 当前 block 的 BPS 由前端计算（`lib/metrics.ts`，与 `scoring.py` 同公式），
+  `useBlockMetrics()` 提供实时值；SSE 里的 `block_bps` 保留用于对照。
+- BPS 采用 Eqn. 2（Shenoy, Willett, Nuyujukian & Henderson, *Performance Considerations
+  for General-Purpose Typing BCIs, Including the Handwriting BCI*, Stanford Tech. Report #01, 2021）：
+  `log2(N) × max(命中 − 误点, 0) ÷ block 秒数`（无 delete 键，因此不减去 1）；误点多于命中时按
+  `max(…, 0)` 记为 0，`ntpm` 仍保留负值（`bps.spec.ts` 覆盖截断行为）。
 - 端到端测试会自己启动控制台（`playwright.config.ts` 的 `webServer`），使用系统安装的 Edge
   （`channel: "msedge"`），不需要下载浏览器：
 

@@ -2,8 +2,11 @@
 import { NProgress } from "naive-ui";
 import { computed } from "vue";
 
+import { useBlockMetrics } from "@/lib/blockMetrics";
 import { fmt } from "@/lib/format";
 import { station } from "@/stores/station";
+
+const { elapsed: elapsedSeconds, stats } = useBlockMetrics();
 
 const cfg = computed(() => station.state.config ?? {});
 const blocksTotal = computed(() => Number(cfg.value.blocks ?? 1));
@@ -19,14 +22,12 @@ const totalPercent = computed(() =>
 );
 
 const elapsed = computed(() => {
-  const base = station.state.block_elapsed;
-  if (base === null || base === undefined) {
+  const seconds = elapsedSeconds.value;
+  if (seconds === null) {
     return "";
   }
-  const running = ["run", "feedback", "iti"].includes(String(station.state.phase));
-  const extra = running ? (performance.now() - station.receivedAt) / 1000 : 0;
   const limit = Number(cfg.value.max_seconds ?? 0);
-  const text = `${(base + extra).toFixed(1)} s`;
+  const text = `${seconds.toFixed(1)} s`;
   return limit > 0 ? `${text} / ${limit} s` : text;
 });
 </script>
@@ -61,8 +62,8 @@ const elapsed = computed(() => {
     </div>
     <div class="meta">
       {{ fmt(station.state.fps, 0) }} fps
-      <template v-if="station.state.block_bps !== null && station.state.block_bps !== undefined">
-        · 本 block BPS {{ fmt(station.state.block_bps) }}
+      <template v-if="stats.bps !== null">
+        · 本 block {{ fmt(stats.bps) }} BPS
       </template>
     </div>
   </div>

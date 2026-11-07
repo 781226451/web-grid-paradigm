@@ -34,6 +34,13 @@ test("a short demo run completes and fills the tables", async ({ page }) => {
   const history = page.locator(".n-card", { hasText: "历史运行" });
   await expect(history.locator("table tbody tr")).toHaveCount(1);
   await expect(history.locator("table tbody tr")).toContainText("完成");
+
+  // The panel computes the block BPS itself; it must agree with the server.
+  const bpsText = await page.locator('[data-kpi="本 block BPS"] .value').textContent();
+  const bps = Number(bpsText);
+  const snapshot = await page.evaluate(async () => (await fetch("/api/state")).json());
+  expect(bps).toBeGreaterThan(0);
+  expect(Math.abs(bps - snapshot.state.block_bps)).toBeLessThan(0.05);
 });
 
 test("a rejected start keeps the form usable and shows the error", async ({ page }) => {
