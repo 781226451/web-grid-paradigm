@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from psychopy import visual
 
-from .core.geometry import Cell, Layout
-from .core.session import Phase, SessionEngine
+from ..core.geometry import Cell, Layout
+from ..core.session import Phase, SessionEngine
 from .palette import ACCENT, CURSOR, ERROR, TARGET_COLORS
 from .stimuli import Stimuli
 

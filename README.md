@@ -592,14 +592,15 @@ src/web_grid_paradigm/
 │   ├── monitor.py       # 监控协议 + 空实现（核心不依赖网页层）
 │   ├── scoring.py       # BPS/NTPM 统计、跨 block 合并
 │   └── session.py       # 试次状态机（纯 Python）
+├── presentation/        # PsychoPy 窗口、刺激、颜色与绘制
+│   ├── palette.py       # 颜色
+│   ├── window.py        # PsychoPy 窗口创建
+│   ├── stimuli.py       # 所有视觉刺激对象（一次性构建）
+│   └── renderer.py      # 逐帧绘制 + 误点/光标反馈
 ├── velocity_inputs/     # 输入策略：VelocitySource + 各设备实现
 │                        #   base/registry/integrator/mouse
 │                        #   demo/joystick/hall_protocol/lsl
 ├── input_router.py      # 输入门面：选策略 + 积分 + 目标注入
-├── palette.py           # 颜色
-├── window.py            # PsychoPy 窗口创建
-├── stimuli.py           # 所有视觉刺激对象（一次性构建）
-├── renderer.py          # 逐帧绘制 + 误点/光标反馈
 ├── reporter.py          # 所有输出：CSV、事件标记、面板状态
 ├── runner.py            # 会话编排：窗口、block 流程、主循环
 ├── markers.py           # 事件码、UDP 标记、fan-out
@@ -622,7 +623,7 @@ src/web_grid_paradigm/
 `src/web_grid_paradigm/panel/static/`，由控制台在根路径 `/` 提供。开发/构建见
 [webui/README.md](<webui/README.md>)。
 
-依赖方向：`core` 不依赖 PsychoPy，也不依赖 `velocity_inputs`/`panel`；`runner` 只依赖 `core.monitor` 协议，不依赖 `panel`；`panel` 依赖 `runner` 提供的 `SessionView` 语义。因此 `core`、`velocity_inputs`、`panel/schema` 的单元测试无需打开窗口。
+依赖方向：`core` 不依赖 PsychoPy；`presentation` 和 `velocity_inputs` 只依赖 `core`；`runner` 只依赖 `core.monitor` 协议，不依赖 `panel`；`panel` 依赖 `runner` 提供的 `SessionView` 语义。因此 `core`、`velocity_inputs`、`panel/schema` 的单元测试无需打开窗口。
 
 ## 注意事项
 

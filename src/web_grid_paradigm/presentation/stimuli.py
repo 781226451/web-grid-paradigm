@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from psychopy import visual
 
-from .core.config import ExperimentConfig
-from .core.geometry import Layout
-from .core.i18n import Strings
+from ..core.config import ExperimentConfig
+from ..core.geometry import Layout
+from ..core.i18n import Strings
 from .palette import (
     ACCENT,
     CURSOR,
