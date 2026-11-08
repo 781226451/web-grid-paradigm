@@ -568,6 +568,10 @@ data/
 uv run webgrid --config configs/default.toml --input joystick --joystick-port COM4
 ```
 
+## 旧配置不兼容
+
+`input = "udp"` / `"keyboard"` 以及 `udp_host`、`udp_port`、`smoothing`、`keyboard_step` 已全部移除，不做迁移。旧 TOML 加载时会直接报 unknown/invalid，需要按当前四种输入方式（`mouse` / `demo` / `joystick` / `lsl`）手工改写，并让解码器改为发布 LSL 速度流（见上面的“LSL 速度解码器”）。
+
 ## 测试与开发
 
 ```powershell

@@ -58,6 +58,37 @@ def test_unknown_toml_key_rejected(tmp_path: Path) -> None:
         ExperimentConfig.from_toml(path)
 
 
+def test_legacy_udp_toml_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "old.toml"
+    path.write_text(
+        """
+        input = "udp"
+        udp_host = "0.0.0.0"
+        udp_port = 9000
+        smoothing = 0.3
+        """,
+        encoding="utf-8",
+    )
+    # UDP is gone for good: neither its mode nor its settings are accepted.
+    with pytest.raises(ValueError, match="unknown configuration key"):
+        ExperimentConfig.from_toml(path)
+
+    path.write_text("input = 'udp'\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="input must be one of"):
+        ExperimentConfig.from_toml(path)
+
+
+def test_legacy_keyboard_toml_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "old.toml"
+    path.write_text("input = 'keyboard'\nkeyboard_step = 0.02\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="unknown configuration key"):
+        ExperimentConfig.from_toml(path)
+
+    path.write_text("input = 'keyboard'\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="input must be one of"):
+        ExperimentConfig.from_toml(path)
+
+
 @pytest.mark.parametrize(
     "overrides",
     [
