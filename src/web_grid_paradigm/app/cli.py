@@ -108,7 +108,7 @@ def _serve(
     )
     if station is None:
         logger.warning("web panel unavailable; running once from the command line")
-        _run(config)
+        _run(config, sources=sources)
         return 0
     logger.info("open {} and press 启动实验 (Ctrl+C quits)", station.url)
     try:
