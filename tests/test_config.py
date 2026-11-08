@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,34 @@ def test_defaults_are_valid() -> None:
     assert config.fullscreen is True
     assert config.data_dir.parts[-2] == "sub-01"
     assert config.data_dir.name.startswith("ses-")
+
+
+def test_default_toml_matches_config_fields_and_defaults() -> None:
+    project_root = Path(__file__).resolve().parents[1]
+    data = tomllib.loads(
+        (project_root / "configs" / "default.toml").read_text(encoding="utf-8")
+    )
+    fields = {field.name for field in dataclasses.fields(ExperimentConfig)}
+    assert set(data) == fields
+
+    defaults = ExperimentConfig()
+    for name in fields:
+        expected = getattr(defaults, name)
+        if name == "output_dir":
+            expected = str(expected)
+        assert data[name] == expected, name
+
+
+def test_reward_example_matches_supported_keys() -> None:
+    from web_grid_paradigm.app.cli_args import REWARD_KEYS
+
+    project_root = Path(__file__).resolve().parents[1]
+    data = tomllib.loads(
+        (project_root / "configs" / "reward.example.toml").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert set(data) == set(REWARD_KEYS)
 
 
 def test_toml_round_trip(tmp_path: Path) -> None:

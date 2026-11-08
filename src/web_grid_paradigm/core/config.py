@@ -70,7 +70,8 @@ class ExperimentConfig:
     # LSL velocity decoder (input = "lsl")
     lsl_velocity_stream: str = "WebGridVelocity"
     lsl_velocity_type: str = "Velocity"
-    lsl_velocity_timeout: float = 5.0  # resolve timeout, seconds
+    # total name+type resolve timeout, seconds
+    lsl_velocity_timeout: float = 5.0
     lsl_velocity_stale_after: float = 1.0
 
     # --- display ----------------------------------------------------------

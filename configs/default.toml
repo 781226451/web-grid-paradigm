@@ -1,7 +1,7 @@
 # BCI Web-Grid — example session configuration.
 #
 # Run with:  uv run webgrid --config configs/default.toml
-# Any command-line flag overrides the matching key here.
+# Command-line values override the matching key here when supplied.
 
 subject = "sub-01"
 session = ""                # empty -> local timestamp (YYYYMMDD-HHMMSS)

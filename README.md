@@ -54,7 +54,7 @@ uv run webgrid --input lsl --lsl-velocity-stream WebGridVelocity
 
 数据默认写入 `data/<subject>/ses-<timestamp>/`。
 
-命令行也支持全部参数，例如 `uv run webgrid --run-now --blocks 3 --trials 20 --rows 8 --cols 10`。
+命令行也支持对应的主要参数，例如 `uv run webgrid --run-now --blocks 3 --trials 20 --rows 8 --cols 10`。
 
 ## 界面风格
 
@@ -492,6 +492,7 @@ data/
 | `--subject` | `sub-01` | 被试标签，进入目录名 |
 | `--session` | 时间戳 | 会话标签 |
 | `--output-dir` | `data` | 数据根目录 |
+| `--seed` | `20261107` | 目标序列随机种子 |
 | `--rows`, `--cols` | 12, 12 | 网格尺寸（2–40，需足够分辨率） |
 | `--blocks` | 1 | block 数 |
 | `--trials`（别名 `--targets`） | 40 | 每个 block 的 trial（目标）数 |
@@ -527,7 +528,10 @@ data/
 | `--fullscreen` | 开 | 全屏（默认） |
 | `--windowed` | 关 | 强制窗口模式（调试） |
 | `--window-width/height` | 1280/800 | 窗口尺寸（`--windowed` 时生效） |
+| `--screen` | 0 | 显示器索引 |
+| `--show-cursor` | 关 | 显示操作系统光标（默认隐藏） |
 | `--language` | `zh` | `zh` / `en` |
+| `--font` | `Microsoft YaHei` | 文字字体 |
 | `--lsl` | 关 | 发布 LSL 事件标记流 |
 | `--lsl-stream` | `WebGridMarkers` | 事件标记流名称 |
 | `--lsl-state` | 关 | 控制台启动时就开始推送 LSL 状态流 |
@@ -547,7 +551,8 @@ data/
 | `--no-instructions` | 开 | 跳过指导语（默认） |
 | `--auto-exit` | 关 | 空白结束屏 2.5 s 后自动关闭（演示/测试） |
 
-配置文件示例见 [`configs/default.toml`](configs/default.toml)，命令行参数会覆盖文件中的同名字段：
+配置文件示例见 [`configs/default.toml`](configs/default.toml)，命令行参数会覆盖文件中的同名字段。  
+注意：`--auto-exit`、`--lsl`、`--lsl-state`、`--joystick-invert-x/y`、`--joystick-center` 目前只有开启方向；如果 TOML 中已设为 `true`，需要修改 TOML 关闭。例如：
 
 ```powershell
 uv run webgrid --config configs/default.toml --input joystick --joystick-port COM4

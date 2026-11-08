@@ -97,8 +97,9 @@ def normalize_axis(raw: int) -> float:
 class HallFrame:
     """One decoded joystick frame (raw values, as sent by the device).
 
-    ``button`` is kept for protocol completeness/checksum validation; the
-    paradigm itself is velocity-only and does not consume button events.
+    ``button`` is retained for checksum validation; the joystick source maps
+    its trigger edge to click 1 (see
+    :mod:`web_grid_paradigm.velocity_inputs.joystick`).
     """
 
     xx: int
