@@ -215,11 +215,11 @@ class ExperimentConfig:
         if self.lsl_velocity_stale_after <= 0:
             raise ValueError("lsl_velocity_stale_after must be > 0")
         if self.input == "lsl" and not (
-            self.lsl_velocity_stream.strip() or self.lsl_velocity_type.strip()
+            self.lsl_velocity_stream.strip() and self.lsl_velocity_type.strip()
         ):
             raise ValueError(
-                "lsl_velocity_stream or lsl_velocity_type must be set when "
-                "input = 'lsl'"
+                "lsl_velocity_stream and lsl_velocity_type must both be set "
+                "when input = 'lsl'"
             )
         if self.window_width < 640 or self.window_height < 480:
             raise ValueError("window must be at least 640x480")

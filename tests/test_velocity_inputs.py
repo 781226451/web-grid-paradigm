@@ -204,12 +204,34 @@ def test_lsl_strategy_reads_velocity_and_button_edges() -> None:
 def test_lsl_strategy_without_a_stream_fails_at_open(monkeypatch) -> None:
     import pylsl
 
-    monkeypatch.setattr(pylsl, "resolve_byprop", lambda *args, **kwargs: [])
+    predicates: list[str] = []
+
+    def resolve(predicate: str, **_kwargs):
+        predicates.append(predicate)
+        return []
+
+    monkeypatch.setattr(pylsl, "resolve_bypred", resolve)
     lsl = build_velocity_source(
         "lsl", options=LslVelocityOptions(resolve_timeout=0.05)
     )
     with pytest.raises(VelocitySourceUnavailable, match="no LSL velocity stream"):
         lsl.open()
+    assert predicates == ["name='WebGridVelocity' and type='Velocity'"]
+
+
+def test_lsl_options_require_both_name_and_type() -> None:
+    with pytest.raises(ValueError, match="both"):
+        LslVelocityOptions(stream_name="")
+    with pytest.raises(ValueError, match="both"):
+        LslVelocityOptions(stream_type="")
+
+
+def test_lsl_match_predicate_requires_and_trims_both() -> None:
+    from web_grid_paradigm.velocity_inputs.lsl import _match_predicate
+
+    assert _match_predicate(" WebGridVelocity ", " Velocity ") == (
+        "name='WebGridVelocity' and type='Velocity'"
+    )
 
 
 def test_data_model_defaults() -> None:

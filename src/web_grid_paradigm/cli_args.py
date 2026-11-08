@@ -191,17 +191,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     inp.add_argument(
         "--lsl-velocity-stream",
-        help="LSL stream name of the velocity decoder (default: WebGridVelocity)",
+        help="LSL stream name to match (default: WebGridVelocity)",
     )
     inp.add_argument(
         "--lsl-velocity-type",
-        help="LSL stream type fallback (default: Velocity)",
+        help="LSL stream type to match (default: Velocity)",
     )
     inp.add_argument(
         "--lsl-velocity-timeout",
         type=float,
         metavar="S",
-        help="LSL stream resolve timeout in seconds (default: 5)",
+        help="total LSL name+type resolve timeout in seconds (default: 5)",
     )
     inp.add_argument(
         "--lsl-velocity-stale-after",

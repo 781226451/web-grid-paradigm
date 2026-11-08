@@ -163,7 +163,7 @@ FF YYH YYL XXH XXL ZZH ZZL Button CH
 uv run webgrid --input lsl --lsl-velocity-stream WebGridVelocity
 ```
 
-外部解码器发布一个 LSL 流，默认按名称 `WebGridVelocity` 解析；找不到名称时回退到类型 `Velocity`。每个样本是浮点数组：
+外部解码器发布一个 LSL 流；必须**同时匹配名称 `WebGridVelocity` 和类型 `Velocity`** 才会连接。只匹配名称或只匹配类型都不会连接，这样不会误连到同名的其他类型流。每个样本是浮点数组：
 
 ```text
 [timestamp, vx, vy, button?]
@@ -177,8 +177,8 @@ uv run webgrid --input lsl --lsl-velocity-stream WebGridVelocity
 | 参数 | 默认 | 说明 |
 | --- | --- | --- |
 | `--lsl-velocity-stream` | `WebGridVelocity` | 流名称 |
-| `--lsl-velocity-type` | `Velocity` | 名称找不到时按类型解析 |
-| `--lsl-velocity-timeout` | 5 | 解析超时（秒） |
+| `--lsl-velocity-type` | `Velocity` | 必须匹配的流类型 |
+| `--lsl-velocity-timeout` | 5 | 名称+类型匹配的总超时（秒） |
 | `--lsl-velocity-stale-after` | 1.0 | 多久没有样本算 stale |
 
 最小的发送端（Python，需要 `pylsl`）：
@@ -535,8 +535,8 @@ data/
 | `--joystick-center` | 关 | 打开时发送中心校准命令 |
 | `--joystick-stale-after` | 0.4 | 无帧超时（秒） |
 | `--lsl-velocity-stream` | `WebGridVelocity` | LSL 速度流名称 |
-| `--lsl-velocity-type` | `Velocity` | 按类型解析的后备 |
-| `--lsl-velocity-timeout` | 5 | LSL 解析超时（秒） |
+| `--lsl-velocity-type` | `Velocity` | 必须匹配的流类型 |
+| `--lsl-velocity-timeout` | 5 | LSL 名称+类型匹配的总超时（秒） |
 | `--lsl-velocity-stale-after` | 1.0 | 无样本超时（秒） |
 | `--fullscreen` | 开 | 全屏（默认） |
 | `--windowed` | 关 | 强制窗口模式（调试） |
@@ -627,7 +627,7 @@ src/web_grid_paradigm/
 - **全屏与缩放**：默认全屏；本地调试用 `--windowed`。正式采集建议把 Windows 显示缩放设为 100%，避免像素坐标与刷新率偏差。
 - **时序**：目标出现时间取 `win.flip()` 的返回时间；请确认显示器刷新率和垂直同步。PsychoPy 的浮点渲染精度足够行为实验，但毫秒级 EEG 对齐仍建议硬件/光电校验。
 - **网格密度**：格子最小 8 px；40×40 需要足够大的窗口/分辨率，否则会报“grid is too dense”。
-- **输入设备**：`input=joystick` 在启动时会打开串口，端口/波特率错误会直接中止；`periodic` 模式超过 `--joystick-stale-after` 没有帧时会停住光标。`input=lsl` 在启动时解析流，找不到会报错，可先用 `--lsl-velocity-timeout` 调整等待时间。
+- **输入设备**：`input=joystick` 在启动时会打开串口，端口/波特率错误会直接中止；`periodic` 模式超过 `--joystick-stale-after` 没有帧时会停住光标。`input=lsl` 在启动时按名称+类型解析流，匹配不到会报错，可先用 `--lsl-velocity-timeout` 调整总等待时间。
 - **数据安全**：每次事件即时 flush；程序崩溃/按 Esc 时仍保留已写入的数据，但不会补写未完成的试次。
 - **范围**：本仓库不采集 EEG、不做解码、不实现 P300 行列闪烁；它是 web-grid 行为范式与 BCI 输入/标记的接口层。
 

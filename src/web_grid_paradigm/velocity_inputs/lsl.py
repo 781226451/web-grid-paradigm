@@ -8,8 +8,8 @@ second); the timestamp channel is informational, samples are stamped at
 receipt on the runner clock.
 
 The inlet is injectable (``inlet=...``) so the strategy can be unit-tested
-without a running LSL stream; ``open()`` resolves the stream by name and
-falls back to the stream type when the name is empty.
+without a running LSL stream; ``open()`` resolves a stream whose name and
+type both match.
 """
 
 from __future__ import annotations
@@ -33,7 +33,11 @@ from .registry import register_velocity_source
 
 @dataclass(frozen=True, slots=True)
 class LslVelocityOptions:
-    """Configuration of the LSL velocity strategy."""
+    """Configuration of the LSL velocity strategy.
+
+    ``stream_name`` and ``stream_type`` must both match; the timeout is the
+    total time for that single name+type lookup.
+    """
 
     stream_name: str = "WebGridVelocity"
     stream_type: str = "Velocity"
@@ -43,8 +47,8 @@ class LslVelocityOptions:
     max_samples_per_read: int = 256
 
     def __post_init__(self) -> None:
-        if not self.stream_name.strip() and not self.stream_type.strip():
-            raise ValueError("LSL velocity needs a stream name or type")
+        if not self.stream_name.strip() or not self.stream_type.strip():
+            raise ValueError("LSL velocity needs both stream name and type")
         if self.resolve_timeout <= 0:
             raise ValueError("resolve_timeout must be positive")
         if self.stale_after <= 0:
@@ -53,6 +57,25 @@ class LslVelocityOptions:
             raise ValueError("LSL velocity needs at least vx/vy channels")
         if self.max_samples_per_read <= 0:
             raise ValueError("max_samples_per_read must be positive")
+
+
+def _xpath_literal(value: str) -> str:
+    """Quote a stream name/type for an LSL XPath predicate."""
+    if "'" not in value:
+        return f"'{value}'"
+    if '"' not in value:
+        return f'"{value}"'
+    # Both quote characters: concat single-quoted pieces around "'".
+    pieces = [f"'{part}'" for part in value.split("'")]
+    return "concat(" + ", \"'\", ".join(pieces) + ")"
+
+
+def _match_predicate(stream_name: str, stream_type: str) -> str:
+    """Predicate that requires both the stream name and the stream type."""
+    return (
+        f"name={_xpath_literal(stream_name.strip())} and "
+        f"type={_xpath_literal(stream_type.strip())}"
+    )
 
 
 @register_velocity_source("lsl")
@@ -89,29 +112,24 @@ class LslVelocitySource:
             return
         if self._inlet is None:
             try:
-                from pylsl import StreamInlet, resolve_byprop
+                from pylsl import StreamInlet, resolve_bypred
             except ImportError as exc:  # pragma: no cover - declared dependency
                 raise VelocitySourceUnavailable(
                     "pylsl is required for the LSL input strategy"
                 ) from exc
-            infos: list[Any] = []
-            if self.options.stream_name.strip():
-                infos = resolve_byprop(
-                    "name",
+            infos = resolve_bypred(
+                _match_predicate(
                     self.options.stream_name,
-                    timeout=self.options.resolve_timeout,
-                )
-            if not infos and self.options.stream_type.strip():
-                infos = resolve_byprop(
-                    "type",
                     self.options.stream_type,
-                    timeout=self.options.resolve_timeout,
-                )
+                ),
+                minimum=1,
+                timeout=self.options.resolve_timeout,
+            )
             if not infos:
                 raise VelocitySourceUnavailable(
-                    "no LSL velocity stream found: "
-                    f"name={self.options.stream_name!r} or "
-                    f"type={self.options.stream_type!r} "
+                    "no LSL velocity stream matched "
+                    f"name={self.options.stream_name.strip()!r} and "
+                    f"type={self.options.stream_type.strip()!r} "
                     f"within {self.options.resolve_timeout:g} s"
                 )
             self._inlet = StreamInlet(infos[0], max_buflen=360)

@@ -34,10 +34,9 @@ const summary = computed(() => {
     return `串口 ${port} @ ${form.values.joystick_baud ?? 9600} · ${form.values.joystick_stream_mode ?? "periodic"}`;
   }
   if (mode.value === "lsl") {
-    const stream = String(
-      form.values.lsl_velocity_stream || form.values.lsl_velocity_type || "",
-    ).trim() || "未设置流";
-    return `LSL ${stream} · 解析超时 ${form.values.lsl_velocity_timeout ?? 5} s`;
+    const stream = String(form.values.lsl_velocity_stream ?? "").trim() || "未设置";
+    const type = String(form.values.lsl_velocity_type ?? "").trim() || "未设置";
+    return `LSL ${stream} (${type}) · 解析超时 ${form.values.lsl_velocity_timeout ?? 5} s`;
   }
   return "系统鼠标 · 无需额外参数";
 });
@@ -60,10 +59,12 @@ function confirm(): void {
   }
   if (
     mode.value === "lsl"
-    && !String(draft.lsl_velocity_stream ?? "").trim()
-    && !String(draft.lsl_velocity_type ?? "").trim()
+    && (
+      !String(draft.lsl_velocity_stream ?? "").trim()
+      || !String(draft.lsl_velocity_type ?? "").trim()
+    )
   ) {
-    message.value = "速度流名称和类型至少填一个";
+    message.value = "速度流名称和类型都必须填写";
     return;
   }
   for (const field of fields.value) {

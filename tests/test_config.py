@@ -84,6 +84,8 @@ def test_unknown_toml_key_rejected(tmp_path: Path) -> None:
         {"lsl_velocity_timeout": 0.0},
         {"lsl_velocity_stale_after": 0.0},
         {"input": "lsl", "lsl_velocity_stream": "", "lsl_velocity_type": ""},
+        {"input": "lsl", "lsl_velocity_stream": ""},
+        {"input": "lsl", "lsl_velocity_type": ""},
     ],
 )
 def test_invalid_settings_rejected(overrides: dict) -> None:

@@ -72,17 +72,22 @@ test.describe("control panel shell", () => {
     expect(payload.joystick_port).toBe("COM9");
   });
 
-  test("the LSL summary falls back to the stream type", async ({ page }) => {
+  test("the LSL dialog requires both stream name and type", async ({ page }) => {
     await page.goto("/");
 
     await choose(page, "input", "lsl");
     await page.getByRole("button", { name: "配置…" }).click();
     const inputs = page.locator(".n-modal input");
     await inputs.nth(0).fill("");
-    await inputs.nth(1).fill("Velocity");
+    await page.getByRole("button", { name: "确定" }).click();
+    await expect(page.locator(".n-modal")).toContainText(
+      "速度流名称和类型都必须填写",
+    );
+
+    await inputs.nth(0).fill("WebGridVelocity");
     await page.getByRole("button", { name: "确定" }).click();
     await expect(page.locator(".device[data-device=input] .status")).toContainText(
-      "Velocity",
+      "WebGridVelocity",
     );
   });
 
