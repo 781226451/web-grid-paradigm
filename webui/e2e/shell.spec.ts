@@ -16,7 +16,7 @@ test.describe("control panel shell", () => {
       await expect(page.locator(".group-title", { hasText: group })).toBeVisible();
     }
 
-    await expect(page.locator("[data-field=subject] input")).toHaveValue(/sub-/);
+    await expect(page.locator("[data-field=subject] input")).toHaveValue("e2e-cli");
     await expect(page.locator("[data-field=blocks] input")).toHaveValue(/\d+/);
   });
 
@@ -89,6 +89,22 @@ test.describe("control panel shell", () => {
     await expect(page.locator(".device[data-device=input] .status")).toContainText(
       "WebGridVelocity",
     );
+  });
+
+  test("config form shows startup source and resets to it", async ({ page }) => {
+    await page.goto("/");
+
+    const subject = page.locator('[data-field="subject"]');
+    await page.locator('[data-action="reset"]').click();
+    await expect(subject.locator("input")).toHaveValue("e2e-cli");
+    await expect(subject.locator(".source")).toHaveText("CLI");
+
+    await subject.locator("input").fill("e2e-web");
+    await expect(subject.locator(".source")).toHaveText("WebUI");
+
+    await page.locator('[data-action="reset"]').click();
+    await expect(subject.locator("input")).toHaveValue("e2e-cli");
+    await expect(subject.locator(".source")).toHaveText("CLI");
   });
 
   test("LSL state card starts from the configured stream and rate", async ({ page }) => {

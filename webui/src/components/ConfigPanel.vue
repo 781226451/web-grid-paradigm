@@ -5,12 +5,17 @@ import { computed, onMounted } from "vue";
 import InputDevice from "@/components/InputDevice.vue";
 import RewardDevice from "@/components/RewardDevice.vue";
 import SchemaForm from "@/components/SchemaForm.vue";
-import { clearMessages, form, isBusy, loadConfig, startRun, stopRun } from "@/stores/config";
+import { clearMessages, form, isBusy, loadConfig, resetConfig, startRun, stopRun } from "@/stores/config";
 import { station } from "@/stores/station";
 
 const busy = computed(() => isBusy());
 const canStart = computed(() => form.control && !busy.value && form.loaded);
 const canStop = computed(() => form.control && busy.value && station.status !== "stopping");
+const canReset = computed(() => form.control && !busy.value && form.loaded);
+const statusText = computed(() => {
+  if (!form.control) return "只读监控";
+  return busy.value ? "实验进行中，参数已锁定" : "修改后点“启动实验”";
+});
 
 onMounted(() => {
   if (!form.loaded) {
@@ -22,7 +27,7 @@ onMounted(() => {
 <template>
   <n-card title="实验参数" size="small">
     <template #header-extra>
-      <span class="status">{{ busy ? "实验进行中，参数已锁定" : "修改后点“启动实验”" }}</span>
+      <span class="status">{{ statusText }}</span>
     </template>
 
     <n-alert
@@ -64,6 +69,13 @@ onMounted(() => {
           启动实验
         </n-button>
         <n-button type="error" :disabled="!canStop" @click="stopRun">中止</n-button>
+        <n-button
+          data-action="reset"
+          :disabled="!canReset"
+          @click="resetConfig"
+        >
+          重置为启动配置
+        </n-button>
       </div>
     </template>
   </n-card>

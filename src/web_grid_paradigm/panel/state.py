@@ -236,6 +236,11 @@ class Station:
             "sources": {
                 name: sources.get(name, DEFAULT_SOURCE) for name in visible
             },
+            "base_values": self._base_values(),
+            "base_sources": {
+                name: self.base_sources.get(name, DEFAULT_SOURCE)
+                for name in visible
+            },
             "scopes": {name: FIELD_SCOPES[name] for name in visible},
             "editable": {
                 name: FIELD_SCOPES[name] != SCOPE_BOOTSTRAP for name in visible

@@ -29,7 +29,7 @@ export default defineConfig({
   webServer: {
     command:
       "uv run --frozen webgrid --debug --windowed --no-open-dashboard " +
-      `--dashboard-port ${PORT} --output-dir .e2e-data ` +
+      `--dashboard-port ${PORT} --output-dir .e2e-data --subject e2e-cli ` +
       "--lsl-state-stream E2EState --lsl-state-rate 25",
     url: `http://127.0.0.1:${PORT}/api/state`,
     cwd: "..",

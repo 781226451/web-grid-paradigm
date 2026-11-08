@@ -3,9 +3,11 @@ import { NForm, NFormItem } from "naive-ui";
 import { computed } from "vue";
 
 import SchemaField from "@/components/SchemaField.vue";
-import { form, isBusy } from "@/stores/config";
+import { form, isBusy, setValue, sourceLabel } from "@/stores/config";
 
 const disabled = computed(() => !form.control || isBusy());
+const disabledFor = (name: string): boolean =>
+  disabled.value || form.editable[name] === false;
 
 const groups = computed(() =>
   form.groups
@@ -38,14 +40,21 @@ const groups = computed(() =>
       >
         <template #label>
           <span class="label">{{ field.label }}</span>
+          <span
+            v-if="form.sources[field.name] && form.sources[field.name] !== 'default'"
+            class="source"
+            :title="`当前值来源：${sourceLabel(form.sources[field.name])}`"
+          >
+            {{ sourceLabel(form.sources[field.name]) }}
+          </span>
           <span v-if="field.hint" class="hint">{{ field.hint }}</span>
         </template>
 
         <SchemaField
           :field="field"
           :model-value="form.values[field.name]"
-          :disabled="disabled"
-          @update:model-value="form.values[field.name] = $event"
+          :disabled="disabledFor(field.name)"
+          @update:model-value="setValue(field.name, $event)"
         />
       </n-form-item>
       <slot :name="`after-${group.title}`" />
@@ -77,6 +86,17 @@ const groups = computed(() =>
 
 .label {
   font-size: 13px;
+}
+
+.source {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 4px;
+  color: var(--blue);
+  border: 1px solid color-mix(in srgb, var(--blue), transparent 65%);
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 15px;
 }
 
 .hint {

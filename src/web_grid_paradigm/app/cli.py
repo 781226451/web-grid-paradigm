@@ -92,7 +92,7 @@ def _serve(
         config.dashboard_port,
         base_config=config,
         base_sources=sources,
-        control=True,
+        control=not run_now,
         open_browser=config.dashboard_open,
     )
     if station is None:

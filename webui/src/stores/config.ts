@@ -23,6 +23,11 @@ interface ConfigStore {
   schema: FieldSchema[];
   groups: string[];
   values: Record<string, string | number | boolean>;
+  sources: Record<string, string>;
+  baseValues: Record<string, string | number | boolean>;
+  baseSources: Record<string, string>;
+  scopes: Record<string, string>;
+  editable: Record<string, boolean>;
   control: boolean;
   busy: boolean;
   error: string;
@@ -35,12 +40,43 @@ export const form = reactive<ConfigStore>({
   schema: [],
   groups: [],
   values: {},
+  sources: {},
+  baseValues: {},
+  baseSources: {},
+  scopes: {},
+  editable: {},
   control: true,
   busy: false,
   error: "",
   message: "",
   starting: false,
 });
+
+const SOURCE_LABELS: Record<string, string> = {
+  default: "默认",
+  config: "配置文件",
+  lab: "lab.toml",
+  reward: "奖励配置",
+  cli: "CLI",
+  webui: "WebUI",
+};
+
+export function sourceLabel(source: string | undefined): string {
+  if (!source) return "";
+  return SOURCE_LABELS[source] ?? source;
+}
+
+export function setValue(name: string, value: string | number | boolean): void {
+  form.values[name] = value;
+  form.sources[name] = "webui";
+}
+
+export function resetConfig(): void {
+  form.values = { ...form.baseValues };
+  form.sources = { ...form.baseSources };
+  form.error = "";
+  form.message = "";
+}
 
 export function isBusy(): boolean {
   return station.status !== "idle";
@@ -56,11 +92,21 @@ export async function loadConfig(): Promise<void> {
       schema: FieldSchema[];
       groups: string[];
       values: Record<string, string | number | boolean>;
+      sources?: Record<string, string>;
+      base_values?: Record<string, string | number | boolean>;
+      base_sources?: Record<string, string>;
+      scopes?: Record<string, string>;
+      editable?: Record<string, boolean>;
       control: boolean;
     };
     form.schema = data.schema;
     form.groups = data.groups;
     form.values = { ...data.values };
+    form.sources = { ...(data.sources ?? {}) };
+    form.baseValues = { ...(data.base_values ?? data.values) };
+    form.baseSources = { ...(data.base_sources ?? data.sources ?? {}) };
+    form.scopes = { ...(data.scopes ?? {}) };
+    form.editable = { ...(data.editable ?? {}) };
     form.control = data.control;
     form.loaded = true;
     form.error = "";
