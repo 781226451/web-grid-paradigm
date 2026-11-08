@@ -6,6 +6,7 @@ The command-line options themselves live in :mod:`.cli_args`.
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -33,13 +34,23 @@ def _preview(config: ExperimentConfig, path: Path) -> int:
     return 0
 
 
-def _run(config: ExperimentConfig, view: Any = None) -> dict[str, Any]:
+def _run(
+    config: ExperimentConfig,
+    view: Any = None,
+    *,
+    sources: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
     """Run one session; ``view`` receives live progress for the web panel."""
     import psychopy
 
     from .runner import run_experiment
 
-    recorder = SessionRecorder(config, psychopy_version=psychopy.__version__)
+    run_sources = getattr(view, "config_sources", None) or sources
+    recorder = SessionRecorder(
+        config,
+        psychopy_version=psychopy.__version__,
+        sources=run_sources,
+    )
     sink_id = add_session_log(recorder.dir)
     try:
         logger.info(
@@ -124,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.screenshot is not None:
             return _preview(config, args.screenshot)
         if not config.dashboard:
-            _run(config)
+            _run(config, sources=resolved.sources)
             return 0
         return _serve(config, run_now=args.run_now, sources=resolved.sources)
     except KeyboardInterrupt:

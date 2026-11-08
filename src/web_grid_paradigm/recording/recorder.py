@@ -6,6 +6,7 @@ import csv
 import json
 import platform
 import sys
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Self
@@ -83,8 +84,10 @@ class SessionRecorder:
         psychopy_version: str = "",
         session_id: str | None = None,
         created_utc: str | None = None,
+        sources: Mapping[str, str] | None = None,
     ) -> None:
         self.config = config
+        self.sources = dict(sources or {})
         self.session_id = session_id or config.session_id
         self.start_utc = created_utc or _utc_now()
         self.dir = self._allocate_dir(
@@ -99,6 +102,7 @@ class SessionRecorder:
             "psychopy_version": psychopy_version,
             "platform": platform.platform(),
             "config": config.to_dict(),
+            "config_sources": self.sources,
         }
         (self.dir / "config.json").write_text(
             json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"

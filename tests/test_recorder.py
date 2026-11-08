@@ -24,7 +24,11 @@ def make_config(tmp_path: Path) -> ExperimentConfig:
 
 def test_recorder_writes_config_events_trials_and_summary(tmp_path: Path) -> None:
     config = make_config(tmp_path)
-    with SessionRecorder(config, psychopy_version="test-version") as recorder:
+    with SessionRecorder(
+        config,
+        psychopy_version="test-version",
+        sources={"subject": "cli", "rows": "config"},
+    ) as recorder:
         assert recorder.dir.name == "ses-test"
         assert (recorder.dir / "config.json").exists()
         recorder.event(
@@ -70,6 +74,8 @@ def test_recorder_writes_config_events_trials_and_summary(tmp_path: Path) -> Non
     assert data["config"]["subject"] == "sub-01"
     meta = json.loads((recorder.dir / "config.json").read_text(encoding="utf-8"))
     assert meta["psychopy_version"] == "test-version"
+    assert meta["config_sources"]["subject"] == "cli"
+    assert meta["config_sources"]["rows"] == "config"
 
 
 def test_session_directory_collision_gets_suffix(tmp_path: Path) -> None:

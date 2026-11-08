@@ -11,6 +11,7 @@ import pytest
 from web_grid_paradigm.app.cli_args import build_parser, load_config
 from web_grid_paradigm.core.config import ExperimentConfig
 from web_grid_paradigm.core.monitor import NullMonitor
+from web_grid_paradigm.core.settings import FIELD_SCOPES, SCOPE_BOOTSTRAP
 from web_grid_paradigm.panel import (
     SessionView,
     coerce_params,
@@ -60,6 +61,9 @@ def test_form_schema_matches_config_fields() -> None:
     names = {field["name"] for field in form_schema()}
     config_fields = set(ExperimentConfig().to_dict())
     assert names <= config_fields, names - config_fields
+    for field in form_schema():
+        assert field["name"] in FIELD_SCOPES
+        assert FIELD_SCOPES[field["name"]] != SCOPE_BOOTSTRAP
     for required in ("blocks", "targets", "rows", "cols", "iti"):
         assert required in names
     # The LSL start-command trigger has been removed.
@@ -144,6 +148,24 @@ def test_start_queues_a_validated_run(station) -> None:
     assert (config.blocks, config.targets, source) == (2, 5, "web")
     assert sources["blocks"] == "webui"
     assert sources["dashboard_host"] == "default"
+
+
+def test_webui_source_marks_only_changed_fields() -> None:
+    board = make_station(
+        base_config=ExperimentConfig(rows=8),
+        base_sources={"rows": "cli"},
+        open_browser=False,
+    )
+    try:
+        status, _ = _post(board, "/api/start", {"rows": 8, "cols": 9})
+        assert status == 200
+        request = board._next_request()
+        assert request is not None
+        _, _, sources = request
+        assert sources["rows"] == "cli"
+        assert sources["cols"] == "webui"
+    finally:
+        board.close()
 
 
 def test_stop_before_start_does_nothing(station) -> None:

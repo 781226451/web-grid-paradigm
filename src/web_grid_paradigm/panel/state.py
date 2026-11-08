@@ -604,6 +604,7 @@ class Station:
             self._current = {
                 "id": run_id,
                 "source": source,
+                "sources": dict(sources),
                 "config": config,
                 "started": time.time(),
             }
@@ -736,8 +737,11 @@ class Station:
         if not self.control:
             raise RuntimeError("此页面为只读监控")
         config = coerce_params(payload, self.base_config)
+        base_values = self._base_values()
         sources = {
-            name: SOURCE_WEBUI for name in payload if name in _FORM_BY_NAME
+            name: SOURCE_WEBUI
+            for name in payload
+            if name in _FORM_BY_NAME and payload[name] != base_values.get(name)
         }
         self.request_start(config, source="web", sources=sources)
         return config.to_dict()
@@ -771,6 +775,14 @@ class SessionView:
     @property
     def stop_requested(self) -> bool:
         return self._station._stop.is_set()
+
+    @property
+    def config_sources(self) -> dict[str, str]:
+        with self._station._cond:
+            current = self._station._current
+            if current is None or current["id"] != self._run_id:
+                return {}
+            return dict(current.get("sources") or {})
 
     @property
     def reward_sink(self) -> SerialRewardSink | None:

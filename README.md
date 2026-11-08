@@ -34,6 +34,8 @@ uv run webgrid --no-open-dashboard               # 只启动服务、不自动�
 
 输入方式下方的“输入设备”卡片会显示当前模式；点“配置…”只弹出该模式需要的参数（演示速度 / 摇杆串口等 / LSL 流参数），不再把摇杆和 LSL 的细节平铺在参数表里。
 
+非默认参数会显示来源标签（配置文件、`lab.toml`、CLI 或 WebUI）；点“重置为启动配置”可恢复启动时读到的值。`--run-now` 启动的面板是只读监控，不提供页面启动/重置。
+
 ![控制台](docs/dashboard.png)
 
 其它启动方式：
@@ -527,7 +529,7 @@ data/
 | `--trials`（别名 `--targets`） | 40 | 每个 block 的 trial（目标）数 |
 | `--block-rest` | 10 | block 之间的空白休息（秒） |
 | `--max-seconds` | 300 | 单个 block 的时间上限；0 关闭 |
-| `--run-now` | 关 | 用命令行参数立即开始（不等待页面上点启动） |
+| `--run-now` | 关 | 用启动配置立即开始；面板只读监控 |
 | `--no-dashboard` / `--dashboard` | 开 | 是否启动 Web 控制台 |
 | `--dashboard-port` | 8765 | 控制台端口（0 = 随机空闲端口） |
 | `--dashboard-host` | `127.0.0.1` | 绑定地址；`0.0.0.0` 允许局域网访问 |
