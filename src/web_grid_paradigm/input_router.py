@@ -1,8 +1,10 @@
-"""Input devices: turn mouse / keyboard / UDP / autopilot into a cursor.
+"""Input facade: one strategy plus the velocity integrator.
 
-The runner asks for ``(x, y, clicks)`` once per frame; this module owns the
-device handles and the per-device quirks (button ordering, key mapping,
-smoothing), so the render loop stays device-agnostic.
+The runner asks for ``(x, y, clicks)`` once per frame, exactly as before.  This
+module owns the selected :class:`~web_grid_paradigm.velocity_inputs.base.VelocitySource`,
+sets the demo target, integrates the returned velocity samples and exposes the
+cursor position.  The render loop therefore never talks to a device or to a
+concrete strategy.
 """
 
 from __future__ import annotations
@@ -10,160 +12,188 @@ from __future__ import annotations
 from typing import Any
 
 from loguru import logger
-from psychopy import event
 
 from .config import ExperimentConfig
 from .geometry import Layout
-from .legacy_inputs import AutoPilot, UdpCursorSource
 from .session import Target
-
-# PsychoPy reports buttons as left, middle, right; the paradigm uses
-# left=1, right=2, middle=3.
-_MOUSE_BUTTONS = ((0, 1), (2, 2), (1, 3))
-_KEY_BUTTONS = (("1", 1), ("2", 2), ("3", 3))
+from .velocity_inputs import (
+    DemoVelocityOptions,
+    DeviceContext,
+    LslVelocityOptions,
+    MouseVelocityOptions,
+    SerialJoystickVelocityOptions,
+    VelocityIntegrator,
+    VelocitySource,
+    build_velocity_source,
+)
 
 
 class InputReader:
-    """Cursor position and clicks for the configured input source."""
+    """Cursor position, clicks and source lifecycle for the configured input."""
 
-    def __init__(self, win: Any, layout: Layout, config: ExperimentConfig) -> None:
+    def __init__(
+        self,
+        win: Any,
+        layout: Layout,
+        config: ExperimentConfig,
+        *,
+        source: VelocitySource | None = None,
+    ) -> None:
         self.cfg = config
         self.layout = layout
-        self.mouse = event.Mouse(win=win, visible=not config.hide_cursor)
-        self._prev_mouse = [False, False, False]
-        self._cursor_px: tuple[float, float] = (0.0, 0.0)
-        self._auto = (
-            AutoPilot(config.demo_speed) if config.input == "demo" else None
-        )
-        self._udp = (
-            UdpCursorSource(config.udp_host, config.udp_port, config.smoothing)
-            if config.input == "udp"
-            else None
+        self.context = DeviceContext(layout=layout, window=win)
+        self.source = source or self._build_source(config)
+        try:
+            self.source.open()
+        except BaseException:
+            self.source.close()
+            raise
+        self.integrator = VelocityIntegrator(layout)
+        self._initial_synced = False
+        logger.info(
+            "input source: {} ({}), clicks={}",
+            self.source.name,
+            self.source.capabilities.category,
+            self.source.capabilities.clicks,
         )
 
+    # ------------------------------------------------------------------
+    # construction
+    # ------------------------------------------------------------------
+    def _build_source(self, config: ExperimentConfig) -> VelocitySource:
+        name = config.input
+        if name == "mouse":
+            options: Any = MouseVelocityOptions(visible=not config.hide_cursor)
+        elif name == "demo":
+            options = DemoVelocityOptions(speed=config.demo_speed)
+        elif name == "joystick":
+            options = SerialJoystickVelocityOptions(
+                port=config.joystick_port,
+                baud=config.joystick_baud,
+                address=(
+                    None if config.joystick_address == 0 else config.joystick_address
+                ),
+                stream_mode=config.joystick_stream_mode,
+                stale_after=config.joystick_stale_after,
+                speed_px_per_s=config.joystick_speed,
+                invert_x=config.joystick_invert_x,
+                invert_y=config.joystick_invert_y,
+                deadzone=config.joystick_deadzone,
+                center_on_open=config.joystick_center_on_open,
+            )
+        elif name == "lsl":
+            options = LslVelocityOptions(
+                stream_name=config.lsl_velocity_stream,
+                stream_type=config.lsl_velocity_type,
+                resolve_timeout=config.lsl_velocity_timeout,
+                stale_after=config.lsl_velocity_stale_after,
+            )
+        else:  # pragma: no cover - config.validate() rejects unknown modes
+            raise ValueError(f"unknown input source {name!r}")
+        return build_velocity_source(name, options=options, context=self.context)
+
+    # ------------------------------------------------------------------
+    # cursor / frame API used by the runner
     # ------------------------------------------------------------------
     @property
     def cursor_px(self) -> tuple[float, float]:
-        return self._cursor_px
+        return self.integrator.position_px
 
     @cursor_px.setter
     def cursor_px(self, value: tuple[float, float]) -> None:
-        self._cursor_px = (float(value[0]), float(value[1]))
+        self.integrator.set_position_px(*value)
 
-    def restart_autopilot(self) -> None:
-        """Fresh autopilot state so that a repeated target is clicked again."""
-        if self._auto is not None:
-            self._auto = AutoPilot(
-                self.cfg.demo_speed, self.layout.px_to_norm(*self._cursor_px)
-            )
-
-    def reset_buttons(self) -> None:
-        """Forget button edges (e.g. when a block starts)."""
-        self._prev_mouse = [bool(v) for v in self.mouse.getPressed()]
-
-    # ------------------------------------------------------------------
     def read(
-        self, now: float, dt: float, keys: list[str], target: Target | None
+        self,
+        now: float,
+        target: Target | None,
     ) -> tuple[float, float, list[int]]:
-        """One frame of cursor movement and button presses."""
-        clicks: list[int] = []
-        x, y = self._cursor_px
-        width, height = self.layout.window_w, self.layout.window_h
-
-        if self.cfg.input == "mouse":
-            x, y = self._mouse_position()
-            pressed = [bool(v) for v in self.mouse.getPressed()]
-            for index, button in _MOUSE_BUTTONS:
-                if (
-                    button <= self.cfg.click_types
-                    and pressed[index]
-                    and not self._prev_mouse[index]
-                ):
-                    clicks.append(button)
-            self._prev_mouse = pressed
-        elif self.cfg.input == "keyboard":
-            x, y = self._keyboard_position(x, y, keys, clicks)
-        elif self.cfg.input == "udp" and self._udp is not None:
-            state = self._udp.poll(now)
-            if state is not None:
-                self.cursor_px = self.layout.norm_to_px(state.x, state.y)
-                clicks.extend(state.clicks)
-            x, y = self._cursor_px
-        elif self.cfg.input == "demo" and self._auto is not None and target is not None:
-            nx, ny = self.layout.px_to_norm(*target.centre_px)
-            state = self._auto.poll(dt, (nx, ny))
-            self.cursor_px = self.layout.norm_to_px(state.x, state.y)
-            if state.clicks:
-                clicks.append(target.required_button)
-            x, y = self._cursor_px
-
-        x = min(width / 2, max(-width / 2, float(x)))
-        y = min(height / 2, max(-height / 2, float(y)))
-        self._cursor_px = (x, y)
-        return (
-            x,
-            y,
-            [button for button in clicks if 1 <= button <= self.cfg.click_types],
-        )
+        """One frame of cursor movement and button edges."""
+        self._set_target(target)
+        frame = self.source.read(now)
+        self._sync_initial()
+        self.integrator.update(frame, now)
+        x, y = self.cursor_px
+        return x, y, [int(button) for button in frame.clicks]
 
     def poll_cursor(self, now: float) -> tuple[float, float]:
-        """Position only (countdown / rest); buttons are still flushed."""
-        if self.cfg.input == "mouse":
-            self.cursor_px = self._mouse_position()
-            self._prev_mouse = [bool(v) for v in self.mouse.getPressed()]
-        elif self.cfg.input == "udp" and self._udp is not None:
-            state = self._udp.poll(now)
-            if state is not None:
-                self.cursor_px = self.layout.norm_to_px(state.x, state.y)
-        return self._cursor_px
+        """Position only (countdown / rest); clicks are discarded."""
+        self._set_target(None)
+        frame = self.source.read(now)
+        self._sync_initial()
+        self.integrator.update(frame, now)
+        return self.cursor_px
 
     def start_requested(self, now: float, keys: list[str]) -> bool:
         """Any deliberate input on the intro screen starts the session."""
         if "space" in keys or "return" in keys:
             return True
-        pressed = [bool(v) for v in self.mouse.getPressed()]
-        self._prev_mouse = pressed
-        if any(pressed):
+        self._set_target(None)
+        frame = self.source.read(now)
+        self._sync_initial()
+        self.integrator.update(frame, now)
+        if frame.clicks:
             return True
-        if self.cfg.input == "udp" and self._udp is not None:
-            state = self._udp.poll(now)
-            if state is not None:
-                self.cursor_px = self.layout.norm_to_px(state.x, state.y)
-                return bool(state.clicks)
-        return False
+        pressed = getattr(self.source, "button_pressed", None)
+        return bool(pressed()) if callable(pressed) else False
+
+    def any_pressed(self) -> bool:
+        """True while a selection button is held (used on the end screen)."""
+        pressed = getattr(self.source, "button_pressed", None)
+        return bool(pressed()) if callable(pressed) else False
+
+    def reset_buttons(self) -> None:
+        """Forget button edges when a block starts (keep cursor tracking)."""
+        resetter = getattr(self.source, "reset_buttons", None)
+        if callable(resetter):
+            resetter()
+        else:
+            self.source.reset()
+
+    def restart_autopilot(self) -> None:
+        """Re-arm the demo autopilot after a block (no-op for real devices)."""
+        self.source.reset()
 
     def close(self) -> None:
-        if self._udp is not None:
-            self._udp.close()
+        self.source.close()
+
+    def status(self) -> dict[str, Any]:
+        snapshot = self.source.status()
+        return {
+            "name": snapshot.name,
+            "category": snapshot.category,
+            "connected": snapshot.connected,
+            "device": dict(snapshot.device),
+            "frames": snapshot.frames,
+            "invalid": snapshot.invalid,
+            "dropped": snapshot.dropped,
+            "stale": snapshot.stale,
+            "error": snapshot.error,
+        }
 
     # ------------------------------------------------------------------
-    def _mouse_position(self) -> tuple[float, float]:
-        try:
-            return self.mouse.getPos()
-        except Exception:  # noqa: BLE001 - backend focus edge case
-            logger.debug("mouse position unavailable; keeping the last position")
-            return self._cursor_px
+    # helpers
+    # ------------------------------------------------------------------
+    def _set_target(self, target: Target | None) -> None:
+        setter = getattr(self.source, "set_target_norm", None)
+        if not callable(setter):
+            return
+        if target is None:
+            setter(None)
+        else:
+            setter(
+                self.layout.px_to_norm(*target.centre_px),
+                target.required_button,
+            )
 
-    def _keyboard_position(
-        self,
-        x: float,
-        y: float,
-        keys: list[str],
-        clicks: list[int],
-    ) -> tuple[float, float]:
-        step_x = self.cfg.keyboard_step * self.layout.window_w / 2
-        step_y = self.cfg.keyboard_step * self.layout.window_h / 2
-        if "left" in keys:
-            x -= step_x
-        if "right" in keys:
-            x += step_x
-        if "up" in keys:
-            y += step_y
-        if "down" in keys:
-            y -= step_y
-        if "space" in keys or "return" in keys:
-            clicks.append(1)
-        for key, button in _KEY_BUTTONS:
-            if key in keys:
-                clicks.append(button)
-        return x, y
+    def _sync_initial(self) -> None:
+        if self._initial_synced:
+            return
+        getter = getattr(self.source, "initial_position_norm", None)
+        if not callable(getter):
+            return
+        position = getter()
+        if position is None:
+            return
+        self.integrator.set_position_norm(*position)
+        self._initial_synced = True

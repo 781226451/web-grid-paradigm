@@ -1,15 +1,9 @@
 <script setup lang="ts">
-import {
-  NForm,
-  NFormItem,
-  NInput,
-  NInputNumber,
-  NSelect,
-  NSwitch,
-} from "naive-ui";
+import { NForm, NFormItem } from "naive-ui";
 import { computed } from "vue";
 
-import { form, isBusy, type FieldSchema } from "@/stores/config";
+import SchemaField from "@/components/SchemaField.vue";
+import { form, isBusy } from "@/stores/config";
 
 const disabled = computed(() => !form.control || isBusy());
 
@@ -17,14 +11,12 @@ const groups = computed(() =>
   form.groups
     .map((group) => ({
       title: group,
-      fields: form.schema.filter((field) => field.group === group),
+      fields: form.schema.filter(
+        (field) => field.group === group && !field.dialog,
+      ),
     }))
     .filter((group) => group.fields.length > 0),
 );
-
-function choices(field: FieldSchema) {
-  return (field.options ?? []).map((option) => ({ label: option, value: option }));
-}
 </script>
 
 <template>
@@ -49,31 +41,11 @@ function choices(field: FieldSchema) {
           <span v-if="field.hint" class="hint">{{ field.hint }}</span>
         </template>
 
-        <n-switch
-          v-if="field.type === 'bool'"
-          v-model:value="form.values[field.name] as boolean"
+        <SchemaField
+          :field="field"
+          :model-value="form.values[field.name]"
           :disabled="disabled"
-        />
-        <n-select
-          v-else-if="field.type === 'choice'"
-          v-model:value="form.values[field.name] as string"
-          :options="choices(field)"
-          :disabled="disabled"
-        />
-        <n-input-number
-          v-else-if="field.type === 'int' || field.type === 'float'"
-          v-model:value="form.values[field.name] as number"
-          :min="field.min"
-          :max="field.max"
-          :step="field.step ?? (field.type === 'int' ? 1 : 0.1)"
-          :precision="field.type === 'float' ? 2 : 0"
-          :disabled="disabled"
-          class="number"
-        />
-        <n-input
-          v-else
-          v-model:value="form.values[field.name] as string"
-          :disabled="disabled"
+          @update:model-value="form.values[field.name] = $event"
         />
       </n-form-item>
       <slot :name="`after-${group.title}`" />
@@ -111,10 +83,6 @@ function choices(field: FieldSchema) {
   display: block;
   color: var(--muted);
   font-size: 11px;
-}
-
-.number {
-  width: 100%;
 }
 
 /* On a single-column layout the card can grow with the page instead of

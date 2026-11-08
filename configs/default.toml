@@ -26,12 +26,26 @@ countdown_seconds = 2.0
 seed = 20261107
 
 # --- input -----------------------------------------------------------------
-input = "mouse"             # mouse | keyboard | udp | demo
-udp_host = "127.0.0.1"
-udp_port = 9000
-smoothing = 0.0             # 0 raw ... 0.95 very smooth (UDP cursor only)
-keyboard_step = 0.035       # normalised units per arrow-key event
-demo_speed = 2.2            # normalised units per second
+input = "mouse"             # mouse | demo | joystick | lsl
+demo_speed = 2.2            # normalised units per second (demo autopilot)
+
+# serial hall-effect joystick (input = "joystick")
+joystick_port = ""          # e.g. "COM4"; required for input = "joystick"
+joystick_baud = 9600
+joystick_address = 0        # 0 = universal 9-byte frame; 1..64 = bus mode
+joystick_stream_mode = "periodic"  # periodic | on_change
+joystick_speed = 560.0      # full-deflection speed in px/s
+joystick_deadzone = 0.0     # normalised dead zone; 0 = off
+joystick_invert_x = false
+joystick_invert_y = false
+joystick_center_on_open = false  # send the set-centre calibration command
+joystick_stale_after = 0.4  # periodic-stream watchdog, seconds
+
+# LSL velocity decoder (input = "lsl")
+lsl_velocity_stream = "WebGridVelocity"
+lsl_velocity_type = "Velocity"
+lsl_velocity_timeout = 5.0
+lsl_velocity_stale_after = 1.0
 
 # --- display ---------------------------------------------------------------
 fullscreen = true

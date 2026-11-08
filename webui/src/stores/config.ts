@@ -14,6 +14,8 @@ export interface FieldSchema {
   step?: number;
   options?: string[];
   hint?: string;
+  /** When set, the field is configured in the device dialog for this input mode. */
+  dialog?: string;
 }
 
 interface ConfigStore {

@@ -4,6 +4,7 @@ import pytest
 
 from web_grid_paradigm.geometry import Layout
 from web_grid_paradigm.velocity_inputs import (
+    BUTTON_MASK,
     HEADER,
     RAW_CENTER,
     RAW_MAX,
@@ -208,7 +209,7 @@ def test_state_is_held_between_device_frames() -> None:
 
 
 def test_center_calibration_command_is_sent_when_requested() -> None:
-    source, transport = make_source(center_on_open=True)
+    _source, transport = make_source(center_on_open=True)
     assert transport.writes == [SET_CENTER]
 
 
@@ -246,6 +247,56 @@ def test_addressed_source_reads_addressed_frames() -> None:
     assert source.status().device["frame"] == "10"
 
 
+def test_trigger_press_is_reported_as_click_one() -> None:
+    source, _ = make_source(
+        data=make_frame(xx=RAW_CENTER, yy=RAW_CENTER, button=BUTTON_MASK)
+    )
+    source.pump()
+    first = source.read(now=1.0)
+    assert first.clicks == (1,)
+    assert source.button_pressed() is True
+
+    # A second frame with the trigger still held is not a new edge.
+    source, _ = make_source(
+        data=make_frame(button=BUTTON_MASK) + make_frame(button=BUTTON_MASK)
+    )
+    source.pump()
+    assert source.read(now=1.0).clicks == (1,)
+
+
+def test_periodic_stream_stops_the_cursor_when_frames_stop() -> None:
+    source, _ = make_source(
+        data=make_frame(xx=RAW_MAX, yy=RAW_CENTER),
+        stale_after=0.4,
+    )
+    source.pump()
+    moving = source.read(now=10.0)
+    assert moving.samples and moving.samples[0].vx > 0
+
+    # No new frames: after stale_after the source emits zero velocity instead
+    # of holding the last command forever.
+    stopped = source.read(now=11.0)
+    assert stopped.samples[0].vx == 0.0 and stopped.samples[0].vy == 0.0
+    assert source.status().stale is True
+
+
+def test_no_frames_at_all_is_reported_stale() -> None:
+    source, _ = make_source(stale_after=0.4)
+    assert source.status().stale is False
+    source._opened_at = source._opened_at - 1.0  # no frames for > stale_after
+    assert source.status().stale is True
+
+
+def test_open_requires_a_device_context() -> None:
+    source = SerialJoystickVelocitySource(
+        options=SerialJoystickVelocityOptions(port="fake"),
+        transport=FakeTransport(),
+        auto_thread=False,
+    )
+    with pytest.raises(Exception, match="DeviceContext"):
+        source.open()
+
+
 def test_invalid_options_are_rejected() -> None:
     with pytest.raises(ValueError):
         SerialJoystickVelocityOptions(stream_mode="burst")
@@ -253,3 +304,7 @@ def test_invalid_options_are_rejected() -> None:
         SerialJoystickVelocityOptions(address=0)
     with pytest.raises(ValueError):
         SerialJoystickVelocityOptions(speed_px_per_s=0.0)
+    with pytest.raises(ValueError):
+        SerialJoystickVelocityOptions(deadzone=1.0)
+    with pytest.raises(ValueError):
+        SerialJoystickVelocityOptions(stale_after=0.0)

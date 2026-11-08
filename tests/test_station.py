@@ -68,14 +68,14 @@ def test_form_schema_matches_config_fields() -> None:
 
 
 def test_coerce_params_validates_and_passes_through() -> None:
-    base = ExperimentConfig(udp_port=9000, subject="base")
+    base = ExperimentConfig(demo_speed=3.5, subject="base")
     config = coerce_params(
         {"blocks": "3", "targets": 20, "rows": 8, "cols": 10, "fullscreen": False},
         base,
     )
     assert (config.blocks, config.targets, config.rows, config.cols) == (3, 20, 8, 10)
     assert config.fullscreen is False
-    assert config.udp_port == 9000  # untouched fields come from the base
+    assert config.demo_speed == 3.5  # untouched fields come from the base
     assert config.subject == "base"
 
     with pytest.raises(ValueError, match="未知参数"):

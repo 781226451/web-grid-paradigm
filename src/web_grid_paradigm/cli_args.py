@@ -39,11 +39,13 @@ examples:
   uv run webgrid                       # open the web panel, set params, start
   uv run webgrid --config configs/default.toml   # same, pre-filled
   uv run webgrid --run-now --input demo --targets 8 --auto-exit
-  uv run webgrid --no-dashboard --input udp --lsl
-  uv run webgrid --input udp --udp-port 9000 --marker-udp 127.0.0.1:9001
+  uv run webgrid --no-dashboard --input mouse --lsl
+  uv run webgrid --input mouse --marker-udp 127.0.0.1:9001
+  uv run webgrid --input joystick --joystick-port COM4
+  uv run webgrid --input lsl --lsl-velocity-stream WebGridVelocity
   uv run webgrid --screenshot docs/preview.png
 
-The UDP input protocol and the data files are documented in README.md.
+The input sources and the data files are documented in README.md.
 """
 
 
@@ -131,22 +133,81 @@ def build_parser() -> argparse.ArgumentParser:
     inp = parser.add_argument_group("input")
     inp.add_argument(
         "--input",
-        choices=("mouse", "keyboard", "udp", "demo"),
+        choices=("mouse", "demo", "joystick", "lsl"),
         help="cursor/click source (default: mouse)",
-    )
-    inp.add_argument("--udp-host", help="UDP bind host (default: 127.0.0.1)")
-    inp.add_argument("--udp-port", type=int, help="UDP bind port (default: 9000)")
-    inp.add_argument(
-        "--smoothing",
-        type=float,
-        metavar="0-0.95",
-        help="exponential smoothing for UDP input",
-    )
-    inp.add_argument(
-        "--keyboard-step", type=float, help="normalised step per arrow key"
     )
     inp.add_argument(
         "--demo-speed", type=float, help="autopilot speed (normalised units/s)"
+    )
+    inp.add_argument(
+        "--joystick-port",
+        help="serial port of the hall-effect joystick (e.g. COM4)",
+    )
+    inp.add_argument("--joystick-baud", type=int, help="joystick baud rate (9600)")
+    inp.add_argument(
+        "--joystick-address",
+        type=int,
+        help="joystick bus address 1-64; 0 = universal 9-byte frame (default: 0)",
+    )
+    inp.add_argument(
+        "--joystick-mode",
+        dest="joystick_stream_mode",
+        choices=("periodic", "on_change"),
+        help="how the joystick sends frames (default: periodic)",
+    )
+    inp.add_argument(
+        "--joystick-speed",
+        type=float,
+        help="joystick full-deflection speed in px/s (default: 560)",
+    )
+    inp.add_argument(
+        "--joystick-deadzone",
+        type=float,
+        help="normalised joystick dead zone, 0-0.95 (default: 0)",
+    )
+    inp.add_argument(
+        "--joystick-invert-x",
+        action="store_true",
+        default=None,
+        help="invert the joystick X axis",
+    )
+    inp.add_argument(
+        "--joystick-invert-y",
+        action="store_true",
+        default=None,
+        help="invert the joystick Y axis",
+    )
+    inp.add_argument(
+        "--joystick-center",
+        action="store_true",
+        default=None,
+        help="send the set-centre calibration command when the port opens",
+    )
+    inp.add_argument(
+        "--joystick-stale-after",
+        type=float,
+        metavar="S",
+        help="stop the cursor after S s without joystick frames (default: 0.4)",
+    )
+    inp.add_argument(
+        "--lsl-velocity-stream",
+        help="LSL stream name of the velocity decoder (default: WebGridVelocity)",
+    )
+    inp.add_argument(
+        "--lsl-velocity-type",
+        help="LSL stream type fallback (default: Velocity)",
+    )
+    inp.add_argument(
+        "--lsl-velocity-timeout",
+        type=float,
+        metavar="S",
+        help="LSL stream resolve timeout in seconds (default: 5)",
+    )
+    inp.add_argument(
+        "--lsl-velocity-stale-after",
+        type=float,
+        metavar="S",
+        help="mark the LSL stream stale after S s without samples (default: 1)",
     )
 
     display = parser.add_argument_group("display")
@@ -322,11 +383,21 @@ def load_config(args: argparse.Namespace) -> ExperimentConfig:
         "iti": "iti",
         "countdown_seconds": "countdown_seconds",
         "input": "input",
-        "udp_host": "udp_host",
-        "udp_port": "udp_port",
-        "smoothing": "smoothing",
-        "keyboard_step": "keyboard_step",
         "demo_speed": "demo_speed",
+        "joystick_port": "joystick_port",
+        "joystick_baud": "joystick_baud",
+        "joystick_address": "joystick_address",
+        "joystick_stream_mode": "joystick_stream_mode",
+        "joystick_speed": "joystick_speed",
+        "joystick_deadzone": "joystick_deadzone",
+        "joystick_invert_x": "joystick_invert_x",
+        "joystick_invert_y": "joystick_invert_y",
+        "joystick_center": "joystick_center_on_open",
+        "joystick_stale_after": "joystick_stale_after",
+        "lsl_velocity_stream": "lsl_velocity_stream",
+        "lsl_velocity_type": "lsl_velocity_type",
+        "lsl_velocity_timeout": "lsl_velocity_timeout",
+        "lsl_velocity_stale_after": "lsl_velocity_stale_after",
         "window_width": "window_width",
         "window_height": "window_height",
         "screen": "screen",

@@ -18,7 +18,8 @@ from pathlib import Path
 from typing import Any
 
 _SAFE_LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
-_INPUT_MODES = ("mouse", "keyboard", "udp", "demo")
+_INPUT_MODES = ("mouse", "demo", "joystick", "lsl")
+_JOYSTICK_STREAM_MODES = ("periodic", "on_change")
 _SELECTION_MODES = ("click", "dwell")
 _LANGUAGES = ("zh", "en")
 
@@ -51,12 +52,26 @@ class ExperimentConfig:
     seed: int = 20261107
 
     # --- input ------------------------------------------------------------
-    input: str = "mouse"  # mouse | keyboard | udp | demo
-    udp_host: str = "127.0.0.1"
-    udp_port: int = 9000
-    smoothing: float = 0.0  # 0 raw ... 0.95 very smooth (UDP only)
-    keyboard_step: float = 0.035  # normalised units per key press
+    input: str = "mouse"  # mouse | demo | joystick | lsl
     demo_speed: float = 2.2  # normalised units per second
+
+    # serial hall-effect joystick (input = "joystick")
+    joystick_port: str = ""  # e.g. COM4 (Windows) or /dev/ttyUSB0
+    joystick_baud: int = 9600
+    joystick_address: int = 0  # 0 = universal 9-byte frame; 1..64 = bus mode
+    joystick_stream_mode: str = "periodic"  # periodic | on_change
+    joystick_speed: float = 560.0  # pixels/s at full deflection
+    joystick_deadzone: float = 0.0  # normalised dead zone, 0 = off
+    joystick_invert_x: bool = False
+    joystick_invert_y: bool = False
+    joystick_center_on_open: bool = False  # send the set-centre command
+    joystick_stale_after: float = 0.4  # periodic stream watchdog, seconds
+
+    # LSL velocity decoder (input = "lsl")
+    lsl_velocity_stream: str = "WebGridVelocity"
+    lsl_velocity_type: str = "Velocity"
+    lsl_velocity_timeout: float = 5.0  # resolve timeout, seconds
+    lsl_velocity_stale_after: float = 1.0
 
     # --- display ----------------------------------------------------------
     fullscreen: bool = True
@@ -177,14 +192,35 @@ class ExperimentConfig:
             raise ValueError("countdown_seconds must be between 0 and 10 s")
         if self.input not in _INPUT_MODES:
             raise ValueError(f"input must be one of {_INPUT_MODES}")
-        if not 1 <= self.udp_port <= 65535:
-            raise ValueError("udp_port must be between 1 and 65535")
-        if not 0 <= self.smoothing <= 0.95:
-            raise ValueError("smoothing must be between 0 and 0.95")
-        if not 0 < self.keyboard_step <= 0.5:
-            raise ValueError("keyboard_step must be in (0, 0.5]")
         if self.demo_speed <= 0:
             raise ValueError("demo_speed must be > 0")
+        if not 300 <= self.joystick_baud <= 2_000_000:
+            raise ValueError("joystick_baud must be between 300 and 2000000")
+        if not 0 <= self.joystick_address <= 64:
+            raise ValueError("joystick_address must be between 0 and 64")
+        if self.joystick_stream_mode not in _JOYSTICK_STREAM_MODES:
+            raise ValueError(
+                f"joystick_stream_mode must be one of {_JOYSTICK_STREAM_MODES}"
+            )
+        if self.joystick_speed <= 0:
+            raise ValueError("joystick_speed must be > 0")
+        if not 0.0 <= self.joystick_deadzone < 1.0:
+            raise ValueError("joystick_deadzone must be in [0, 1)")
+        if self.joystick_stale_after <= 0:
+            raise ValueError("joystick_stale_after must be > 0")
+        if self.input == "joystick" and not self.joystick_port.strip():
+            raise ValueError("joystick_port must be set when input = 'joystick'")
+        if self.lsl_velocity_timeout <= 0:
+            raise ValueError("lsl_velocity_timeout must be > 0")
+        if self.lsl_velocity_stale_after <= 0:
+            raise ValueError("lsl_velocity_stale_after must be > 0")
+        if self.input == "lsl" and not (
+            self.lsl_velocity_stream.strip() or self.lsl_velocity_type.strip()
+        ):
+            raise ValueError(
+                "lsl_velocity_stream or lsl_velocity_type must be set when "
+                "input = 'lsl'"
+            )
         if self.window_width < 640 or self.window_height < 480:
             raise ValueError("window must be at least 640x480")
         if self.marker_udp:

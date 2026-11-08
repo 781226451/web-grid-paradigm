@@ -242,7 +242,12 @@ class Stimuli:
         self.intro_body.text = strings[body_key]
         self.intro_mode.text = {
             "mouse": strings["mode_mouse"],
-            "keyboard": strings["mode_keyboard"],
-            "udp": strings.format("mode_udp", port=config.udp_port),
             "demo": strings["mode_demo"],
+            "joystick": strings.format(
+                "mode_joystick", port=config.joystick_port or "—"
+            ),
+            "lsl": strings.format(
+                "mode_lsl",
+                stream=config.lsl_velocity_stream or config.lsl_velocity_type,
+            ),
         }[config.input]

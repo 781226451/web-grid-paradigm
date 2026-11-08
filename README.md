@@ -1,8 +1,8 @@
 # BCI Web-Grid（PsychoPy）
 
-一个基于 **PsychoPy** 的 BCI **web-grid** 离散目标选择范式。屏幕显示网格，每次高亮一个目标格；被试通过 BCI 解码器（或鼠标/键盘）移动光标，并用点击或停留完成选择。程序记录行为数据、计算信息传输率（BPS），并可向 EEG/BCI 采集系统发送事件标记。
+一个基于 **PsychoPy** 的 BCI **web-grid** 离散目标选择范式。屏幕显示网格，每次高亮一个目标格；被试通过 BCI 解码器（LSL）、鼠标或串口摇杆移动光标，并用点击或停留完成选择。程序记录行为数据、计算信息传输率（BPS），并可向 EEG/BCI 采集系统发送事件标记。
 
-> 本仓库负责**刺激呈现、输入接入、行为记录和事件标记**，不包含 EEG 解码算法。解码器通过 UDP 把光标位置和点击发送进来即可。
+> 本仓库负责**刺激呈现、输入接入、行为记录和事件标记**，不包含 EEG 解码算法。解码器可以发布 LSL 速度流，把光标速度和点击发送进来。
 
 ![界面预览](docs/preview.png)
 
@@ -18,7 +18,7 @@ uv sync
 uv run webgrid --version
 ```
 
-`pylsl`（LSL 标记）和 `loguru`（日志）已是默认依赖，`uv sync` 即可安装；监控/控制页面只用 Python 标准库，不需要额外组件。
+`pylsl`（LSL 标记与速度输入）和 `loguru`（日志）已是默认依赖，`uv sync` 即可安装；监控/控制页面只用 Python 标准库，不需要额外组件。
 
 ## 快速开始（Web 控制台）
 
@@ -32,6 +32,8 @@ uv run webgrid --no-open-dashboard               # 只启动服务、不自动�
 
 页面左侧是参数表（被试、block 数、每 block trial 数、grid 行列、trial 间休息、选择方式、输入源、LSL 等），右侧实时显示：网格中的当前目标与光标、block/trial 进度、命中/超时/误点/命中率/RT/BPS、反应时图、每个 block 的结果、最近 trial、历史运行和日志。“中止”按钮等同于按 Esc。
 
+输入方式下方的“输入设备”卡片会显示当前模式；点“配置…”只弹出该模式需要的参数（演示速度 / 摇杆串口等 / LSL 流参数），不再把摇杆和 LSL 的细节平铺在参数表里。
+
 ![控制台](docs/dashboard.png)
 
 其它启动方式：
@@ -41,7 +43,11 @@ uv run webgrid --no-open-dashboard               # 只启动服务、不自动�
 uv run webgrid --run-now --input demo --targets 8 --auto-exit
 
 # 完全不用网页
-uv run webgrid --no-dashboard --input udp --lsl
+uv run webgrid --no-dashboard --input mouse --lsl
+
+# 串口 Hall 摇杆 / LSL 速度解码器
+uv run webgrid --input joystick --joystick-port COM4
+uv run webgrid --input lsl --lsl-velocity-stream WebGridVelocity
 ```
 
 点“启动实验”（或 `--run-now`）后，范式窗口立即进入倒计时并开始试次；需要和 EEG 对齐时勾选“发布 LSL 标记”（或 `--lsl`）。
@@ -117,67 +123,85 @@ net = 19, NTPM = 9.5, bits/target = log2(144) ≈ 7.17, BPS ≈ 1.14
 
 > 注意：`click_types` 同时决定“目标颜色/要求按键”和计分信息量。设为 1 时只有蓝色目标和 1 号键；设为 2 时目标为蓝/橙，必须分别按左/右键；设为 3 时增加紫色中键。按错键计一次 misclick，目标保留。
 
-## BCI UDP 输入
+## 串口 Hall 效应摇杆
 
 ```powershell
-uv run webgrid --input udp --udp-port 9000
+uv run webgrid --input joystick --joystick-port COM4 --joystick-baud 9600
 ```
 
-每个 UDP 数据报是一个 JSON 对象，建议以 60–200 Hz 持续发送：
+实验室摇杆是 USB 转串口的 HZL Hall 效应手柄（RS232/RS422/RS485），不是 HID 手柄，所以走串口协议而不是 `psychopy.hardware.joystick`。默认 **9600 8N1**、通用 9 字节帧：
 
-```json
-{"x": 0.12, "y": -0.30, "click": 0}
-{"x": 0.16, "y": -0.25, "click": 1}
-{"x": 0.16, "y": -0.25, "click": 1}
-{"x": 0.18, "y": -0.20, "click": 0}
+```text
+FF YYH YYL XXH XXL ZZH ZZL Button CH
 ```
 
-字段：
+- `YY/XX/ZZ` 为大端原始轴值，中心 `0x0200`，范围 `0x0030–0x03D0`；Z 轴保留不用；
+- `Button` 的 bit 5 是扳机，作为 1 号点击上报（因此 click 和 dwell 两种选择都可用）；
+- `CH` 是除 `FF` 外各字节之和的低 8 位。校验失败会丢帧并自动重新同步。
 
-| 字段 | 说明 |
-| --- | --- |
-| `x`, `y` | 窗口归一化坐标，范围 `[-1, 1]`；原点在窗口中心，`+x` 向右，`+y` 向上。超出范围会被裁剪。 |
-| `click` | 0 = 未按；1/2/3 = 按住某个键。只在 **0 → 非 0** 的跳变时产生一次选择。 |
-| `event` | 可选，`"click"` 表示一次性点击事件（不需要先发 0）。 |
-| `button` | 与 `event: "click"` 搭配的按键编号；缺省为 1。 |
-| `select` | `true` 时为一次性点击的简写。 |
+常用参数：
 
-也可以发送一次性事件：
+| 参数 | 默认 | 说明 |
+| --- | --- | --- |
+| `--joystick-port` | 空 | 串口，如 `COM4`；`input=joystick` 时必填 |
+| `--joystick-baud` | 9600 | 波特率 |
+| `--joystick-address` | 0 | 0 = 通用 9 字节帧；1–64 = 总线寻址 10 字节帧 |
+| `--joystick-mode` | `periodic` | `periodic`（周期上报）或 `on_change`（变化上报） |
+| `--joystick-speed` | 560 | 满偏速度（px/s），按窗口尺寸换算成归一化速度 |
+| `--joystick-deadzone` | 0 | 中心死区（归一化，0–0.95） |
+| `--joystick-invert-x` / `--joystick-invert-y` | 关 | 轴反向 |
+| `--joystick-center` | 关 | 打开串口时发送“以当前位置为中心”的校准命令 |
+| `--joystick-stale-after` | 0.4 | `periodic` 模式超过该时长无帧就停住光标（不保持最后速度） |
 
-```json
-{"x": 0.05, "y": 0.20, "event": "click", "button": 1}
+串口读取在后台线程完成，渲染循环只排空队列，不会阻塞。`status()` 会给出帧数、无效帧、丢帧、延迟和 stale 状态。
+
+> 扳机固定映射为 **1 号键**。`click_types > 1` 时摇杆无法产生 2/3 号键，请改用 `selection = "dwell"`，或使用支持多键的 LSL/鼠标输入。
+
+## LSL 速度解码器
+
+```powershell
+uv run webgrid --input lsl --lsl-velocity-stream WebGridVelocity
 ```
 
-- 每个数据报都必须带合法的 `x`、`y`；没有位置的事件包会被忽略。
-- 启动、停止和异常处理由实验者控制；UDP 的一次点击也可以用来开始任务。
-- 默认只监听 `127.0.0.1`。如解码器在另一台机器：`--udp-host 0.0.0.0`，并配置防火墙。
-- 解码输出抖动较大时可加 `--smoothing 0.3`（0 = 原始，0.95 = 很平滑）。
+外部解码器发布一个 LSL 流，默认按名称 `WebGridVelocity` 解析；找不到名称时回退到类型 `Velocity`。每个样本是浮点数组：
 
-最小发送端示例：
+```text
+[timestamp, vx, vy, button?]
+```
+
+- `vx/vy`：归一化窗口单位/秒，`+x` 向右、`+y` 向上，`1.0` = 每秒半个窗口；
+- `timestamp`：信息字段，实际按接收时刻打时间戳；
+- `button`（可选第 4 通道）：0 = 松开，1/2/3 = 点击，只在上升沿产生一次选择；
+- 流中断超过 `--lsl-velocity-stale-after`（默认 1 s）后状态标 stale，光标不再移动。
+
+| 参数 | 默认 | 说明 |
+| --- | --- | --- |
+| `--lsl-velocity-stream` | `WebGridVelocity` | 流名称 |
+| `--lsl-velocity-type` | `Velocity` | 名称找不到时按类型解析 |
+| `--lsl-velocity-timeout` | 5 | 解析超时（秒） |
+| `--lsl-velocity-stale-after` | 1.0 | 多久没有样本算 stale |
+
+最小的发送端（Python，需要 `pylsl`）：
 
 ```python
-import json
-import socket
+from pylsl import StreamInfo, StreamOutlet
 import time
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-addr = ("127.0.0.1", 9000)
-
+info = StreamInfo("WebGridVelocity", "Velocity", 3, 100, "float32", "demo")
+outlet = StreamOutlet(info)
 while True:
-    x, y = 0.0, 0.0          # TODO: 你的解码器输出
-    click = 0                 # TODO: 0/1/2/3
-    sock.sendto(json.dumps({"x": x, "y": y, "click": click}).encode(), addr)
-    time.sleep(1 / 120)
+    outlet.push_sample([0.0, 0.5, 0.0])  # [timestamp, vx, vy]
+    time.sleep(0.01)
 ```
 
-按键编号约定：鼠标左键 = 1，右键 = 2，中键 = 3；BCI 端可以按自己的分类器映射到 1/2/3。
+`input=lsl` 时如果启动阶段找不到流，会直接报“no LSL velocity stream found”，不会带着空输入开始实验。
 
 ## 事件标记（EEG/BCI）
 
 ### UDP 标记
 
 ```powershell
-uv run webgrid --input udp --marker-udp 127.0.0.1:9001
+uv run webgrid --marker-udp 127.0.0.1:9001
 ```
 
 每个事件发送一个 JSON 数据报：
@@ -191,7 +215,7 @@ uv run webgrid --input udp --marker-udp 127.0.0.1:9001
 ### LSL 标记
 
 ```powershell
-uv run webgrid --input udp --lsl --lsl-stream WebGridMarkers
+uv run webgrid --lsl --lsl-stream WebGridMarkers
 ```
 
 LSL 流为 `type="Markers"`、单通道 `int32`、`nominal_srate=0`；适合 LabRecorder、OpenViBE、MNE-LSL 等。
@@ -499,11 +523,21 @@ data/
 | `--feedback` | 0.35 | 命中/超时反馈时长 |
 | `--iti` | 0 | trial 间休息（秒）：反馈之后只显示空网格和光标、不显示目标；0 为无 |
 | `--countdown-seconds` | 2.0 | 倒计时总时长 |
-| `--input` | `mouse` | `mouse` / `keyboard` / `udp` / `demo` |
-| `--udp-host`, `--udp-port` | `127.0.0.1`, 9000 | UDP 输入地址 |
-| `--smoothing` | 0 | UDP 光标指数平滑，0–0.95 |
-| `--keyboard-step` | 0.035 | 键盘每次移动的归一化距离 |
+| `--input` | `mouse` | `mouse` / `demo` / `joystick` / `lsl` |
 | `--demo-speed` | 2.2 | autopilot 速度 |
+| `--joystick-port` | 空 | 摇杆串口（`input=joystick` 时必填） |
+| `--joystick-baud` | 9600 | 摇杆波特率 |
+| `--joystick-address` | 0 | 0 = 通用帧；1–64 = 总线地址 |
+| `--joystick-mode` | `periodic` | `periodic` / `on_change` |
+| `--joystick-speed` | 560 | 满偏速度（px/s） |
+| `--joystick-deadzone` | 0 | 归一化死区，0–0.95 |
+| `--joystick-invert-x/y` | 关 | 轴反向 |
+| `--joystick-center` | 关 | 打开时发送中心校准命令 |
+| `--joystick-stale-after` | 0.4 | 无帧超时（秒） |
+| `--lsl-velocity-stream` | `WebGridVelocity` | LSL 速度流名称 |
+| `--lsl-velocity-type` | `Velocity` | 按类型解析的后备 |
+| `--lsl-velocity-timeout` | 5 | LSL 解析超时（秒） |
+| `--lsl-velocity-stale-after` | 1.0 | 无样本超时（秒） |
 | `--fullscreen` | 开 | 全屏（默认） |
 | `--windowed` | 关 | 强制窗口模式（调试） |
 | `--window-width/height` | 1280/800 | 窗口尺寸（`--windowed` 时生效） |
@@ -531,16 +565,8 @@ data/
 配置文件示例见 [`configs/default.toml`](configs/default.toml)，命令行参数会覆盖文件中的同名字段：
 
 ```powershell
-uv run webgrid --config configs/default.toml --input udp
+uv run webgrid --config configs/default.toml --input joystick --joystick-port COM4
 ```
-
-## 键盘调试
-
-```powershell
-uv run webgrid --input keyboard
-```
-
-方向键移动光标，空格/回车选择（1 号键），数字键 `1`/`2`/`3` 分别对应左/右/中键，Esc 退出。键盘模式仅用于无鼠标环境下的调试，正式实验请使用 UDP 或鼠标。
 
 ## 测试与开发
 
@@ -560,10 +586,10 @@ src/web_grid_paradigm/
 ├── i18n.py              # 中英文 UI 文案
 ├── session.py           # 试次状态机（纯 Python）
 ├── scoring.py           # BPS/NTPM 统计、跨 block 合并
-├── legacy_inputs.py     # 旧版 UDP 光标源、autopilot（纯 Python，待迁移）
-├── velocity_inputs/     # 统一速度接口：VelocitySource / VelocitySample
-│                        #   鼠标、串口摇杆、LSL（策略模式）
-├── input_router.py      # 旧版输入路由（含鼠标/键盘/UDP→位置，待迁移）
+├── velocity_inputs/     # 输入策略：VelocitySource + 各设备实现
+│                        #   base/registry/integrator/mouse
+│                        #   demo/joystick/hall_protocol/lsl
+├── input_router.py      # 输入门面：选策略 + 积分 + 目标注入
 ├── monitor.py           # 监控协议 + 空实现（核心不依赖网页层）
 ├── palette.py           # 颜色
 ├── window.py            # PsychoPy 窗口创建
@@ -601,6 +627,7 @@ src/web_grid_paradigm/
 - **全屏与缩放**：默认全屏；本地调试用 `--windowed`。正式采集建议把 Windows 显示缩放设为 100%，避免像素坐标与刷新率偏差。
 - **时序**：目标出现时间取 `win.flip()` 的返回时间；请确认显示器刷新率和垂直同步。PsychoPy 的浮点渲染精度足够行为实验，但毫秒级 EEG 对齐仍建议硬件/光电校验。
 - **网格密度**：格子最小 8 px；40×40 需要足够大的窗口/分辨率，否则会报“grid is too dense”。
+- **输入设备**：`input=joystick` 在启动时会打开串口，端口/波特率错误会直接中止；`periodic` 模式超过 `--joystick-stale-after` 没有帧时会停住光标。`input=lsl` 在启动时解析流，找不到会报错，可先用 `--lsl-velocity-timeout` 调整等待时间。
 - **数据安全**：每次事件即时 flush；程序崩溃/按 Esc 时仍保留已写入的数据，但不会补写未完成的试次。
 - **范围**：本仓库不采集 EEG、不做解码、不实现 P300 行列闪烁；它是 web-grid 行为范式与 BCI 输入/标记的接口层。
 

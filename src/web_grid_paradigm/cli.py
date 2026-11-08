@@ -56,9 +56,19 @@ def _run(config: ExperimentConfig, view: Any = None) -> dict[str, Any]:
         )
         logger.info("saving to {}", recorder.dir)
         logger.debug("psychopy {} / config {}", psychopy.__version__, config.to_dict())
-        if config.input == "udp":
+        if config.input == "joystick":
             logger.info(
-                "listening for BCI data on udp://{}:{}", config.udp_host, config.udp_port
+                "joystick input on {} at {} baud (address={}, {})",
+                config.joystick_port,
+                config.joystick_baud,
+                config.joystick_address or "universal",
+                config.joystick_stream_mode,
+            )
+        elif config.input == "lsl":
+            logger.info(
+                "LSL velocity input: name={!r} type={!r}",
+                config.lsl_velocity_stream,
+                config.lsl_velocity_type,
             )
         if config.marker_udp:
             logger.info("UDP markers -> {}", config.marker_udp)

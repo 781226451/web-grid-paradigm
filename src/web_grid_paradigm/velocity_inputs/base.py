@@ -1,9 +1,10 @@
-"""Strategy interface for external velocity sources.
+"""Strategy interface for external cursor sources.
 
-The velocity input layer is a *strategy* family: a session holds exactly one
+The input layer is a *strategy* family: a session holds exactly one
 :class:`VelocitySource`; the concrete device (mouse, serial joystick, LSL
-decoder) is selected by configuration and created through the registry and
-factory in :mod:`web_grid_paradigm.velocity_inputs.registry`.  The runner only talks to
+decoder or the demo autopilot) is selected by configuration and created
+through the registry and factory in
+:mod:`web_grid_paradigm.velocity_inputs.registry`.  The runner only talks to
 the interface below, so adding a device never touches the render loop.
 
 Contract
@@ -15,12 +16,23 @@ Contract
   same timebase as ``win.flip()`` and the session engine, in seconds.
 * ``vx``/``vy`` are normalised window units per second: ``+x`` right, ``+y``
   up and ``1.0`` means half the window dimension per second.  The integrator
-  (next step) converts them to pixels, so sources stay resolution independent.
+  converts them to pixels, so sources stay resolution independent.
 * ``read(now)`` is called once per rendered frame.  It must not block and
   returns ``0..N`` velocity samples that arrived since the previous call.
   Device I/O stays outside the render loop.
+* A source with a selection channel (mouse buttons, joystick trigger, LSL
+  button channel) returns button **edges** in :attr:`VelocityFrame.clicks`.
+  Button numbers follow the paradigm convention: 1 = left/primary, 2 = right,
+  3 = middle.  Sources without a button channel simply leave the tuple empty.
 * One instance per session; the strategy is chosen before the session starts
   and never swapped while a session is running.
+
+Optional capabilities
+---------------------
+``InitialPositionProvider``  an absolute device (mouse, demo) reports where
+                              the cursor should start.
+``ButtonStateProvider``      a source can report the current held state for
+                              the intro/exit screens (mouse).
 """
 
 from __future__ import annotations
@@ -66,10 +78,12 @@ class VelocitySample:
 class VelocityFrame:
     """Everything a source produced for one frame.
 
-    ``samples`` is ordered by ``timestamp``.
+    ``samples`` is ordered by ``timestamp``; ``clicks`` holds button edges
+    (1/2/3) that happened since the previous call.
     """
 
     samples: tuple[VelocitySample, ...] = ()
+    clicks: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +93,7 @@ class VelocityCapabilities:
     category: str
     continuous: bool = True
     absolute: bool = False
+    clicks: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,13 +117,20 @@ class VelocitySourceStatus:
 class InitialPositionProvider(Protocol):
     """Optional capability: a source that knows its absolute cursor position.
 
-    Only absolute devices (the mouse) implement it.  The integrator may call
+    Only absolute devices (mouse, demo) implement it.  The integrator may call
     :meth:`initial_position_norm` once at session start so that the cursor
     begins where the physical pointer is instead of at the window centre.
     Velocity-only devices are assumed to start at the centre.
     """
 
     def initial_position_norm(self) -> tuple[float, float] | None: ...
+
+
+@runtime_checkable
+class ButtonStateProvider(Protocol):
+    """Optional capability: current button state for intro/exit screens."""
+
+    def button_pressed(self) -> bool: ...
 
 
 @runtime_checkable
@@ -125,7 +147,7 @@ class VelocitySource(Protocol):
         """Release the device.  Must be idempotent."""
 
     def read(self, now: float) -> VelocityFrame:
-        """Return the velocity samples produced since the previous call."""
+        """Return the velocity samples and button edges since the last call."""
 
     def reset(self) -> None:
         """Forget per-block state (button edges, velocity baseline)."""

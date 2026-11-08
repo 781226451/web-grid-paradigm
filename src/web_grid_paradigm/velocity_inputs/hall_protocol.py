@@ -64,7 +64,7 @@ def build_set_baud(baud: int) -> bytes:
     """Command that switches the joystick baud rate (answered by ACK)."""
     try:
         code = _BAUD_CODES[int(baud)]
-    except KeyError:
+    except (KeyError, TypeError, ValueError):
         raise ValueError(
             f"unsupported joystick baud rate {baud!r}; "
             f"choose one of {sorted(_BAUD_CODES)}"
@@ -139,10 +139,15 @@ class HallFrameParser:
         self.resyncs = 0
 
     # ------------------------------------------------------------------
-    def reset(self) -> None:
+    def reset(self, *, counters: bool = False) -> None:
         """Forget partial data (port reopened or session restarted)."""
         self._buf.clear()
         self._in_frame = False
+        if counters:
+            self.frames = 0
+            self.invalid = 0
+            self.discarded = 0
+            self.resyncs = 0
 
     def feed(self, data: bytes | bytearray) -> list[HallFrame]:
         """Consume serial bytes and return the frames completed by them."""

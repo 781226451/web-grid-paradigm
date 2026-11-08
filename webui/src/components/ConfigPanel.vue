@@ -2,6 +2,7 @@
 import { NAlert, NButton, NCard } from "naive-ui";
 import { computed, onMounted } from "vue";
 
+import InputDevice from "@/components/InputDevice.vue";
 import RewardDevice from "@/components/RewardDevice.vue";
 import SchemaForm from "@/components/SchemaForm.vue";
 import { clearMessages, form, isBusy, loadConfig, startRun, stopRun } from "@/stores/config";
@@ -44,6 +45,9 @@ onMounted(() => {
     </n-alert>
 
     <SchemaForm>
+      <template #after-输入>
+        <InputDevice />
+      </template>
       <template #after-奖励设备>
         <RewardDevice />
       </template>

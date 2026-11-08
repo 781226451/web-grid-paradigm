@@ -1,15 +1,14 @@
 """Mouse strategy: the absolute OS pointer converted to velocity samples.
 
-The mouse is an absolute device, so the interface still exposes velocity:
-the source differentiates consecutive positions on the runner clock.  Because
-the integrator integrates with the same sample timestamps, the round trip is
+The mouse is an absolute device, so the interface still exposes velocity: the
+source differentiates consecutive positions on the runner clock.  Because the
+integrator integrates with the same sample timestamps, the round trip is
 lossless (``pos + v * dt == pos``), which keeps mouse behaviour equivalent to
-the previous absolute implementation.
+an absolute implementation.  Button edges are reported as clicks so the
+paradigm can still offer click selection.
 
-The strategy is velocity-only; the paradigm derives selection from dwell (or
-from the external control stream), so button events are not part of the
-contract.  The device is injectable (``device=...``) so the strategy can be
-tested without PsychoPy or a real window.
+The device is injectable (``device=...``) so the strategy can be tested
+without PsychoPy or a real window.
 """
 
 from __future__ import annotations
@@ -19,15 +18,19 @@ from typing import Any
 
 from ..geometry import Layout
 from .base import (
-    VelocityCapabilities,
     DeviceContext,
     InitialPositionProvider,
+    VelocityCapabilities,
     VelocityFrame,
     VelocitySample,
     VelocitySourceError,
     VelocitySourceStatus,
 )
 from .registry import register_velocity_source
+
+# PsychoPy reports buttons as left, middle, right; the paradigm uses
+# left=1, right=2, middle=3.
+_MOUSE_BUTTONS = ((0, 1), (2, 2), (1, 3))
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,10 +42,12 @@ class MouseVelocityOptions:
 
 @register_velocity_source("mouse")
 class MouseVelocitySource(InitialPositionProvider):
-    """Velocity samples derived from PsychoPy's ``event.Mouse``."""
+    """Velocity samples and button edges derived from ``psychopy.event.Mouse``."""
 
     name = "mouse"
-    capabilities = VelocityCapabilities(category="mouse", continuous=True, absolute=True)
+    capabilities = VelocityCapabilities(
+        category="mouse", continuous=True, absolute=True, clicks=True
+    )
 
     def __init__(
         self,
@@ -57,6 +62,7 @@ class MouseVelocitySource(InitialPositionProvider):
         self._opened = False
         self._last_norm: tuple[float, float] | None = None
         self._last_t: float | None = None
+        self._prev_pressed: list[bool] = [False, False, False]
         self._frames = 0
         self._invalid = 0
         self._error: str | None = None
@@ -71,8 +77,12 @@ class MouseVelocitySource(InitialPositionProvider):
     def open(self) -> None:
         if self._opened:
             return
+        if self.context is None:
+            raise VelocitySourceError(
+                "mouse source needs a DeviceContext with the window layout"
+            )
         if self._device is None:
-            if self.context is None or self.context.window is None:
+            if self.context.window is None:
                 raise VelocitySourceError(
                     "mouse source needs an open PsychoPy window; "
                     "pass a DeviceContext with a window"
@@ -90,13 +100,18 @@ class MouseVelocitySource(InitialPositionProvider):
         self._opened = False
 
     def reset(self) -> None:
-        """Forget the position baseline (block/trial start)."""
+        """Forget the position baseline and button edges (port opened)."""
         self._last_norm = None
         self._last_t = None
+        self.reset_buttons()
+
+    def reset_buttons(self) -> None:
+        """Forget button edges only (block start); keep tracking the pointer."""
+        self._prev_pressed = [False, False, False]
 
     # ------------------------------------------------------------------
     def read(self, now: float) -> VelocityFrame:
-        """Return at most one velocity sample for this frame."""
+        """Return at most one velocity sample plus any new button edges."""
         if not self._opened or self._device is None:
             return VelocityFrame()
         try:
@@ -106,6 +121,7 @@ class MouseVelocitySource(InitialPositionProvider):
             self._error = f"{type(exc).__name__}: {exc}"
             return VelocityFrame()
 
+        clicks = self._read_clicks()
         self._frames += 1
         norm = self.layout.px_to_norm(float(px), float(py))
         samples: tuple[VelocitySample, ...] = ()
@@ -120,17 +136,52 @@ class MouseVelocitySource(InitialPositionProvider):
         else:
             self._last_norm = norm
             self._last_t = now
-        return VelocityFrame(samples=samples)
+        return VelocityFrame(samples=samples, clicks=clicks)
+
+    def _read_clicks(self) -> tuple[int, ...]:
+        getter = getattr(self._device, "getPressed", None)
+        if getter is None:  # injected test doubles may be position-only
+            return ()
+        try:
+            pressed = [bool(value) for value in getter()]
+        except Exception as exc:  # noqa: BLE001 - backend focus edge case
+            self._invalid += 1
+            self._error = f"{type(exc).__name__}: {exc}"
+            return ()
+        if len(pressed) < len(self._prev_pressed):
+            self._prev_pressed = [False] * len(pressed)
+        previous = self._prev_pressed
+        clicks = [
+            button
+            for index, button in _MOUSE_BUTTONS
+            if index < len(pressed)
+            and pressed[index]
+            and not (index < len(previous) and previous[index])
+        ]
+        self._prev_pressed = pressed
+        return tuple(clicks)
 
     # ------------------------------------------------------------------
     def initial_position_norm(self) -> tuple[float, float] | None:
         """Absolute starting position, so the integrator can sync to the mouse."""
-        if self._device is None:
+        if self._device is None or self.context is None:
             return None
         try:
             return self.layout.px_to_norm(*self._device.getPos())
         except Exception:  # noqa: BLE001 - backend edge case
             return None
+
+    def button_pressed(self) -> bool:
+        """True while any mouse button is held (intro/exit screens)."""
+        if self._device is None:
+            return False
+        getter = getattr(self._device, "getPressed", None)
+        if getter is None:
+            return False
+        try:
+            return any(bool(value) for value in getter())
+        except Exception:  # noqa: BLE001 - backend focus edge case
+            return False
 
     def status(self) -> VelocitySourceStatus:
         return VelocitySourceStatus(

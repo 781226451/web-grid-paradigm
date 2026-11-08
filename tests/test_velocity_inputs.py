@@ -6,16 +6,16 @@ from web_grid_paradigm.geometry import Layout
 from web_grid_paradigm.velocity_inputs import (
     DeviceContext,
     InitialPositionProvider,
-    VelocityFrame,
-    VelocitySample,
-    VelocitySource,
-    VelocitySourceUnavailable,
-    LslVelocitySource,
     LslVelocityOptions,
+    LslVelocitySource,
     MouseVelocityOptions,
     MouseVelocitySource,
     SerialJoystickVelocityOptions,
     SerialJoystickVelocitySource,
+    VelocityFrame,
+    VelocitySample,
+    VelocitySource,
+    VelocitySourceUnavailable,
     available_velocity_sources,
     build_velocity_source,
     get_velocity_source_class,
@@ -28,9 +28,29 @@ class FakeMouse:
 
     def __init__(self, pos: tuple[float, float] = (0.0, 0.0)) -> None:
         self.pos = pos
+        self.buttons = [False, False, False]
 
     def getPos(self) -> tuple[float, float]:
         return self.pos
+
+    def getPressed(self) -> list[bool]:
+        return list(self.buttons)
+
+
+class FakeInlet:
+    """Stand-in for ``pylsl.StreamInlet``."""
+
+    def __init__(self, samples: list[list[float]] | None = None) -> None:
+        self.samples = list(samples or [])
+        self.closed = False
+
+    def pull_sample(self, timeout: float = 0.0) -> tuple[list[float], float]:
+        if not self.samples:
+            return [], 0.0
+        return self.samples.pop(0), 0.0
+
+    def close_stream(self) -> None:
+        self.closed = True
 
 
 def make_context() -> DeviceContext:
@@ -40,8 +60,13 @@ def make_context() -> DeviceContext:
 # ----------------------------------------------------------------------
 # registry / factory
 # ----------------------------------------------------------------------
-def test_three_strategies_are_registered() -> None:
-    assert set(available_velocity_sources()) >= {"mouse", "joystick", "lsl"}
+def test_all_strategies_are_registered() -> None:
+    assert set(available_velocity_sources()) == {
+        "mouse",
+        "demo",
+        "joystick",
+        "lsl",
+    }
     assert available_velocity_sources() == tuple(sorted(available_velocity_sources()))
 
 
@@ -152,18 +177,60 @@ def test_serial_joystick_defaults_match_the_hall_protocol() -> None:
     assert (options.baud, options.protocol) == (9600, "hall_rs232")
     assert options.address is None  # universal 9-byte frame
     assert options.stream_mode == "periodic"
-    assert options.expected_rate_hz == 28.0
 
 
-def test_lsl_strategy_is_still_a_stub() -> None:
-    lsl = build_velocity_source("lsl")
-    with pytest.raises(VelocitySourceUnavailable, match="not implemented yet"):
+def test_lsl_strategy_reads_velocity_and_button_edges() -> None:
+    inlet = FakeInlet(
+        [
+            [0.0, 0.5, -0.25, 0.0],
+            [0.0, 0.5, -0.25, 2.0],
+            [0.0, 0.5, -0.25, 2.0],
+        ]
+    )
+    lsl = LslVelocitySource(inlet=inlet)
+    lsl.open()
+    frame = lsl.read(now=1.0)
+    assert len(frame.samples) == 1
+    assert (frame.samples[0].vx, frame.samples[0].vy) == (0.5, -0.25)
+    assert frame.samples[0].timestamp == 1.0
+    assert frame.clicks == (2,)
+
+    # Holding the button does not repeat the click.
+    assert lsl.read(now=1.1).clicks == ()
+    lsl.close()
+    assert inlet.closed is True
+
+
+def test_lsl_strategy_without_a_stream_fails_at_open(monkeypatch) -> None:
+    import pylsl
+
+    monkeypatch.setattr(pylsl, "resolve_byprop", lambda *args, **kwargs: [])
+    lsl = build_velocity_source(
+        "lsl", options=LslVelocityOptions(resolve_timeout=0.05)
+    )
+    with pytest.raises(VelocitySourceUnavailable, match="no LSL velocity stream"):
         lsl.open()
-    assert lsl.read(now=0.0) == VelocityFrame()
 
 
 def test_data_model_defaults() -> None:
     read = VelocityFrame()
-    assert read.samples == ()
+    assert read.samples == () and read.clicks == ()
     sample = VelocitySample(timestamp=1.0, vx=0.5, vy=-0.25)
     assert (sample.timestamp, sample.vx, sample.vy) == (1.0, 0.5, -0.25)
+    assert VelocityFrame(clicks=(1,)).clicks == (1,)
+
+
+def test_mouse_button_edges_are_reported_once() -> None:
+    device = FakeMouse()
+    mouse = MouseVelocitySource(context=make_context(), device=device)
+    mouse.open()
+    mouse.read(now=1.0)
+
+    device.buttons[0] = True  # left -> button 1
+    assert mouse.read(now=1.1).clicks == (1,)
+    assert mouse.read(now=1.2).clicks == ()  # held is not a new edge
+    device.buttons[0] = False
+    mouse.read(now=1.3)
+    device.buttons[1] = True  # PsychoPy middle -> paradigm button 3
+    assert mouse.read(now=1.4).clicks == (3,)
+    assert mouse.button_pressed() is True

@@ -88,7 +88,7 @@ async function selfTest(): Promise<void> {
 </script>
 
 <template>
-  <div class="device">
+  <div class="device" data-device="reward">
     <div class="row">
       <span class="status" :class="statusClass" :title="statusText">{{ statusText }}</span>
       <n-button size="tiny" :disabled="mode !== 'serial'" @click="open">连接…</n-button>

@@ -11,7 +11,7 @@ def test_cli_overrides_config() -> None:
     args = parser.parse_args(
         [
             "--input",
-            "udp",
+            "demo",
             "--rows",
             "6",
             "--cols",
@@ -26,7 +26,7 @@ def test_cli_overrides_config() -> None:
         ]
     )
     config = load_config(args)
-    assert config.input == "udp"
+    assert config.input == "demo"
     assert (config.rows, config.cols) == (6, 7)
     assert config.targets == 12
     assert config.hide_cursor is False
@@ -67,6 +67,69 @@ def test_i18n_tables_have_the_same_keys_and_format() -> None:
         assert strings["title"] == "BCI Web-Grid"
         assert "12" in strings.format("progress", current=12, total=40)
         assert "1.50" in strings.format("score", bps=1.5)
+        # Every input mode shown on the intro page has a label.
+        for key in ("mode_mouse", "mode_demo", "mode_joystick", "mode_lsl"):
+            assert strings[key]
+
+
+def test_joystick_and_lsl_options_are_mapped() -> None:
+    parser = build_parser()
+    joystick = load_config(
+        parser.parse_args(
+            [
+                "--input",
+                "joystick",
+                "--joystick-port",
+                "COM4",
+                "--joystick-baud",
+                "19200",
+                "--joystick-address",
+                "3",
+                "--joystick-mode",
+                "on_change",
+                "--joystick-speed",
+                "400",
+                "--joystick-deadzone",
+                "0.1",
+                "--joystick-invert-x",
+                "--joystick-invert-y",
+                "--joystick-center",
+                "--joystick-stale-after",
+                "0.6",
+            ]
+        )
+    )
+    assert joystick.input == "joystick"
+    assert joystick.joystick_port == "COM4"
+    assert joystick.joystick_baud == 19200
+    assert joystick.joystick_address == 3
+    assert joystick.joystick_stream_mode == "on_change"
+    assert joystick.joystick_speed == 400
+    assert joystick.joystick_deadzone == 0.1
+    assert joystick.joystick_invert_x and joystick.joystick_invert_y
+    assert joystick.joystick_center_on_open is True
+    assert joystick.joystick_stale_after == 0.6
+
+    lsl = load_config(
+        parser.parse_args(
+            [
+                "--input",
+                "lsl",
+                "--lsl-velocity-stream",
+                "DecoderVelocity",
+                "--lsl-velocity-type",
+                "Velocity",
+                "--lsl-velocity-timeout",
+                "2",
+                "--lsl-velocity-stale-after",
+                "0.5",
+            ]
+        )
+    )
+    assert lsl.input == "lsl"
+    assert lsl.lsl_velocity_stream == "DecoderVelocity"
+    assert lsl.lsl_velocity_timeout == 2
+    assert lsl.lsl_velocity_stale_after == 0.5
 
 
 def test_iti_option_and_validation() -> None:

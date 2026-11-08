@@ -73,7 +73,11 @@ class WebGridApp:
         )
         self.stimuli.configure_intro_texts(config)
         self.renderer = Renderer(self.win, self.layout, self.stimuli)
-        self.input = InputReader(self.win, self.layout, config)
+        try:
+            self.input = InputReader(self.win, self.layout, config)
+        except BaseException:
+            self.win.close()
+            raise
         # A device connected from the web panel is shared by every session; it
         # is only used in serial mode (test/off keep their own behaviour).
         panel_device = (
@@ -219,7 +223,7 @@ class WebGridApp:
                     continue
 
             if self.state == "run":
-                self._run_frame(now, dt, keys)
+                self._run_frame(now)
             elif self.state == "done":
                 self.renderer.draw_done()
                 self.win.flip()
@@ -241,7 +245,7 @@ class WebGridApp:
             (self.cfg.auto_exit and now - self._done_at >= AUTO_EXIT_DELAY_S)
             or "space" in keys
             or "return" in keys
-            or any(self.input.mouse.getPressed())
+            or self.input.any_pressed()
         )
 
     # ------------------------------------------------------------------
@@ -334,7 +338,7 @@ class WebGridApp:
     # ------------------------------------------------------------------
     # frames
     # ------------------------------------------------------------------
-    def _run_frame(self, now: float, dt: float, keys: list[str]) -> None:
+    def _run_frame(self, now: float) -> None:
         if self.engine.phase is Phase.DONE:
             self._end_block(now)
             self.win.flip()
@@ -352,12 +356,11 @@ class WebGridApp:
                 self._pending_target_onset = True
 
         if self.engine.phase is Phase.RUNNING and not self._pending_target_onset:
-            x, y, clicks = self.input.read(now, dt, keys, self.engine.target)
+            x, y, clicks = self.input.read(now, self.engine.target)
             self._handle_outcome(self.engine.update(now, x, y, clicks))
         elif self.engine.phase in (Phase.FEEDBACK, Phase.ITI):
-            # Keep the devices fresh during feedback/ITI (especially the mouse
-            # button edges) but discard any click.
-            self.input.read(now, dt, keys, self.engine.target)
+            # Keep the devices fresh during feedback/ITI but discard any click.
+            self.input.read(now, self.engine.target)
 
         self.renderer.draw_run(now, self.engine, self.input.cursor_px)
         flip_time = self.win.flip()

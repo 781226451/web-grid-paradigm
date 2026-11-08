@@ -27,8 +27,7 @@ def test_toml_round_trip(tmp_path: Path) -> None:
         cols = 12
         targets = 80
         max_seconds = 600.0
-        input = "udp"
-        udp_port = 9100
+        input = "demo"
         selection = "dwell"
         dwell_time = 0.8
         trial_timeout = 10.0
@@ -67,19 +66,55 @@ def test_unknown_toml_key_rejected(tmp_path: Path) -> None:
         {"targets": 0},
         {"click_types": 4},
         {"input": "keyboard2"},
+        {"input": "udp"},
+        {"input": "keyboard"},
         {"selection": "blink"},
-        {"smoothing": 1.0},
         {"subject": "../escape"},
         {"marker_udp": "localhost"},
         {"selection": "dwell", "dwell_time": 0.0},
         {"selection": "dwell", "dwell_time": 2.0, "trial_timeout": 1.0},
         {"window_width": 320},
+        {"input": "joystick"},  # port missing
+        {"joystick_baud": 0},
+        {"joystick_address": 65},
+        {"joystick_stream_mode": "burst"},
+        {"joystick_speed": 0.0},
+        {"joystick_deadzone": 1.0},
+        {"joystick_stale_after": 0.0},
+        {"lsl_velocity_timeout": 0.0},
+        {"lsl_velocity_stale_after": 0.0},
+        {"input": "lsl", "lsl_velocity_stream": "", "lsl_velocity_type": ""},
     ],
 )
 def test_invalid_settings_rejected(overrides: dict) -> None:
     config = dataclasses.replace(ExperimentConfig(), **overrides)
     with pytest.raises(ValueError):
         config.validate()
+
+
+def test_joystick_and_lsl_settings_validate() -> None:
+    ExperimentConfig(input="joystick", joystick_port="COM4").validate()
+    ExperimentConfig(
+        input="joystick",
+        joystick_port="/dev/ttyUSB0",
+        joystick_baud=19200,
+        joystick_address=3,
+        joystick_stream_mode="on_change",
+        joystick_speed=400.0,
+        joystick_deadzone=0.1,
+        joystick_invert_x=True,
+        joystick_invert_y=True,
+        joystick_center_on_open=True,
+        joystick_stale_after=0.6,
+    ).validate()
+    ExperimentConfig(input="lsl").validate()
+    ExperimentConfig(
+        input="lsl",
+        lsl_velocity_stream="DecoderVelocity",
+        lsl_velocity_type="Velocity",
+        lsl_velocity_timeout=2.0,
+        lsl_velocity_stale_after=0.5,
+    ).validate()
 
 
 def test_session_id_uses_explicit_value() -> None:
