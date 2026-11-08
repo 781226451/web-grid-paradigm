@@ -10,6 +10,7 @@ from __future__ import annotations
 
 DEFAULT_SOURCE = "default"
 SOURCE_CONFIG = "config"
+SOURCE_LAB = "lab"
 SOURCE_REWARD = "reward"
 SOURCE_CLI = "cli"
 SOURCE_WEBUI = "webui"

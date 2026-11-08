@@ -333,6 +333,35 @@ uv run webgrid --reward serial --reward-port COM3 --reward-baud 9600
 uv run webgrid --reward test
 ```
 
+### 设备参数放在 lab.toml（推荐）
+
+实验设计放 `--config`，串口/LSL/奖励硬件放机器本地的 `--lab-config`：
+
+```powershell
+uv run webgrid `
+  --config configs/default.toml `
+  --lab-config configs/lab.toml
+```
+
+`lab.toml` 只接受设备相关键（串口、波特率、LSL 流、奖励硬件等），写错实验字段会直接报错，避免一台机器的配置悄悄改变实验设计。复制示例：
+
+```powershell
+copy configs\lab.example.toml configs\lab.toml     # 只在本机保留
+```
+
+`--lab-config` 可以写成平铺键，也可以放在 `[device]` 小节：
+
+```toml
+[device]
+joystick_port = "COM4"
+joystick_baud = 9600
+lsl_velocity_stream = "WebGridVelocity"
+lsl_velocity_type = "Velocity"
+reward_port = "COM3"
+```
+
+优先级：**默认值 → `--config` → `--lab-config` → `configs/reward.toml` / `--reward-config` → 命令行参数**。所以临时换端口不用改文件。
+
 ### 硬件参数放在单独的 TOML 里（也可以只用一个文件）
 
 串口号是按机器不同的，**如果**你希望实验设计随仓库走、硬件只留在本机，就把示例文件复制一份填好：
@@ -383,7 +412,7 @@ uv run webgrid --config configs/session.toml
 | `--config` 范式 + 自动加载的 `configs/reward.toml` | 多台机器共用同一份实验设计，各自配硬件 |
 | `--config` + `--reward-config 文件` | 同一台机器多套硬件（例如两套 Arduino） |
 
-优先级：**默认值 → `--config` → `configs/reward.toml`（或 `--reward-config`）→ 命令行参数**。所以临时换端口不用改文件：`uv run webgrid --reward-port COM9`。
+优先级：**默认值 → `--config` → `--lab-config` → `configs/reward.toml`（或 `--reward-config`）→ 命令行参数**。所以临时换端口不用改文件：`uv run webgrid --reward-port COM9`。
 
 ### 在网页里连接与选择奖励方式
 
@@ -545,6 +574,7 @@ data/
 | `--reward-amount` | 1 | 每次命中的奖励量（0 = 不发） |
 | `--reward-duration-ms` | 50 | 奖励脉冲时长（毫秒） |
 | `--reward-config` | `configs/reward.toml`（存在时） | 硬件配置 TOML（端口/波特率等） |
+| `--lab-config` | 空 | 本机设备 TOML（串口、LSL、奖励硬件） |
 | `--debug` | 关 | 调试：DEBUG 日志、完整堆栈 |
 | `--log-file` | 空 | 额外写一份滚动日志文件（每个会话目录总会有 `session.log`） |
 | `--instructions` | 关 | 显示人用指导语页；动物实验保持关闭 |

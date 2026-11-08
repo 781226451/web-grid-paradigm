@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from web_grid_paradigm.app.cli_args import (
     build_parser,
     load_config,
@@ -100,6 +102,43 @@ def test_config_sources_track_file_and_cli(tmp_path: Path) -> None:
     assert resolved.sources["rows"] == "cli"
     assert resolved.sources["dashboard_host"] == "default"
     assert resolved.config.rows == 5
+
+
+def test_lab_config_layers_device_settings_only(tmp_path: Path) -> None:
+    experiment = tmp_path / "experiment.toml"
+    experiment.write_text("rows = 8\njoystick_port = 'COM1'\n", encoding="utf-8")
+    lab = tmp_path / "lab.toml"
+    lab.write_text(
+        "[device]\njoystick_port = 'COM7'\njoystick_baud = 19200\n",
+        encoding="utf-8",
+    )
+    parser = build_parser()
+    resolved = load_config_resolved(
+        parser.parse_args(
+            [
+                "--config",
+                str(experiment),
+                "--lab-config",
+                str(lab),
+                "--joystick-baud",
+                "9600",
+            ]
+        )
+    )
+    assert resolved.config.rows == 8
+    assert resolved.config.joystick_port == "COM7"
+    assert resolved.config.joystick_baud == 9600
+    assert resolved.sources["rows"] == "config"
+    assert resolved.sources["joystick_port"] == "lab"
+    assert resolved.sources["joystick_baud"] == "cli"
+
+    lab.write_text("[device]\nrows = 8\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="device keys"):
+        load_config_resolved(
+            parser.parse_args(
+                ["--config", str(experiment), "--lab-config", str(lab)]
+            )
+        )
 
 
 def test_blocks_trials_and_grid_options() -> None:

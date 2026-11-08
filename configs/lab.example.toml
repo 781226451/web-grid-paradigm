@@ -1,0 +1,43 @@
+# Machine/device settings for one lab computer.
+#
+# Copy this file to configs/lab.toml (gitignored) and edit per machine.
+# Load it explicitly with:
+#
+#   uv run webgrid --config configs/default.toml --lab-config configs/lab.toml
+#
+# Only device-scope keys are accepted here; experiment design belongs in the
+# main --config file.
+
+# --- serial Hall joystick -------------------------------------------------
+joystick_port = "COM4"
+joystick_baud = 9600
+joystick_address = 0             # 0 = universal frame; 1..64 = bus address
+joystick_stream_mode = "periodic"  # periodic | on_change
+joystick_speed = 560.0
+joystick_deadzone = 0.0
+joystick_invert_x = false
+joystick_invert_y = false
+joystick_center_on_open = false
+joystick_stale_after = 0.4
+
+# --- LSL velocity decoder -------------------------------------------------
+lsl_velocity_stream = "WebGridVelocity"
+lsl_velocity_type = "Velocity"
+lsl_velocity_timeout = 5.0
+lsl_velocity_stale_after = 1.0
+
+# --- external event markers ----------------------------------------------
+lsl = false
+lsl_stream = "WebGridMarkers"
+lsl_state = false
+lsl_state_stream = "WebGridState"
+lsl_state_rate = 10.0
+
+# --- reward hardware ------------------------------------------------------
+reward = "serial"
+reward_policy = "per_hit"
+reward_ratio = 2
+reward_port = "COM3"
+reward_baud = 9600
+reward_amount = 1
+reward_duration_ms = 50

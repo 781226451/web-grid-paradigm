@@ -27,6 +27,9 @@ _smoke*.png
 # Machine-specific reward hardware settings (copy from reward.example.toml)
 configs/reward.toml
 
+# Machine-specific device/LSL/serial settings (copy from lab.example.toml)
+configs/lab.toml
+
 # Front-end tooling (only needed to rebuild webui/)
 webui/node_modules/
 webui/.vite/

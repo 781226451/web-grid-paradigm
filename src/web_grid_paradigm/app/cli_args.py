@@ -19,9 +19,11 @@ from .. import __version__
 from ..core.config import ExperimentConfig
 from ..core.settings import (
     DEFAULT_SOURCE,
+    DEVICE_FIELDS,
     FIELD_SCOPES,
     SOURCE_CLI,
     SOURCE_CONFIG,
+    SOURCE_LAB,
     SOURCE_REWARD,
 )
 
@@ -67,6 +69,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--config", type=Path, metavar="FILE", help="load parameters from TOML"
+    )
+    parser.add_argument(
+        "--lab-config",
+        type=Path,
+        metavar="FILE",
+        help="machine/device TOML (serial ports, LSL streams and reward hardware)",
     )
     parser.add_argument(
         "--run-now",
@@ -453,6 +461,40 @@ def _toml_keys(path: str | Path, known: set[str]) -> set[str]:
     return {key for key in keys if key in known}
 
 
+def _lab_table(path: str | Path) -> dict[str, Any]:
+    """Read a flat lab TOML or its ``[device]`` section."""
+    data = tomllib.loads(Path(path).read_text(encoding="utf-8-sig"))
+    device = data.get("device")
+    if isinstance(device, Mapping):
+        return dict(device)
+    table = data.get("webgrid", data)
+    if not isinstance(table, Mapping):
+        raise TypeError(f"{path}: [webgrid] must be a table")
+    nested = table.get("device")
+    if isinstance(nested, Mapping):
+        return dict(nested)
+    return dict(table)
+
+
+def apply_lab_config(
+    config: ExperimentConfig, path: str | Path
+) -> ExperimentConfig:
+    """Layer machine/device settings from ``path`` over ``config``.
+
+    Lab files cannot contain experiment-design keys; this keeps a shared lab
+    file from silently changing the paradigm.
+    """
+    path = Path(path)
+    table = _lab_table(path)
+    unknown = sorted(set(table) - DEVICE_FIELDS)
+    if unknown:
+        raise ValueError(
+            f"{path}: lab config may only contain device keys: "
+            + ", ".join(unknown)
+        )
+    return dataclasses.replace(config, **table)
+
+
 def load_config_resolved(args: argparse.Namespace) -> ResolvedConfig:
     """Load all configuration layers and retain the source of each field."""
     sources = _default_sources()
@@ -461,6 +503,11 @@ def load_config_resolved(args: argparse.Namespace) -> ResolvedConfig:
         config = ExperimentConfig.from_toml(args.config)
         for name in _toml_keys(args.config, set(FIELD_SCOPES)):
             sources[name] = SOURCE_CONFIG
+
+    if args.lab_config:
+        config = apply_lab_config(config, args.lab_config)
+        for name in _lab_table(args.lab_config):
+            sources[name] = SOURCE_LAB
 
     # Hardware settings live in their own file (per machine, not in git):
     # defaults <- --config <- reward TOML <- command line.
