@@ -1,17 +1,39 @@
 <script setup lang="ts">
 import { NButton, NCard, NInput, NInputNumber } from "naive-ui";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 import { setLsl } from "@/stores/lsl";
 import { station } from "@/stores/station";
 
 const stream = ref("WebGridState");
 const rate = ref(10);
+const initialized = ref(false);
+const edited = ref(false);
 const message = ref("");
 const busy = ref(false);
 
 const status = computed(() => station.lsl ?? null);
 const running = computed(() => Boolean(status.value?.enabled));
+
+// The SSE snapshot carries the stream/rate resolved from the CLI/TOML config.
+// Seed the editable fields once; later snapshots update sent/consumers and
+// must not overwrite a value the experimenter is editing.
+watch(
+  () => station.lsl,
+  (current) => {
+    if (current === null || initialized.value || edited.value) {
+      return;
+    }
+    stream.value = current.stream;
+    rate.value = current.rate;
+    initialized.value = true;
+  },
+  { immediate: true },
+);
+
+function markEdited(): void {
+  edited.value = true;
+}
 
 const statusText = computed(() => {
   const current = status.value;
@@ -37,15 +59,24 @@ async function toggle(): Promise<void> {
 <template>
   <n-card title="LSL 状态流（供其他 LSL 客户端读取）" size="small">
     <div class="row">
-      <n-input v-model:value="stream" size="small" placeholder="WebGridState" :disabled="running" />
+      <n-input
+        v-model:value="stream"
+        data-lsl="stream"
+        size="small"
+        placeholder="WebGridState"
+        :disabled="running"
+        @update:value="markEdited"
+      />
       <n-input-number
         v-model:value="rate"
+        data-lsl="rate"
         size="small"
         :min="0.5"
         :max="100"
         :step="1"
         :disabled="running"
         class="rate"
+        @update:value="markEdited"
       />
       <n-button size="small" :loading="busy" @click="toggle">
         {{ running ? "停止" : "启动" }}

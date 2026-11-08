@@ -91,6 +91,13 @@ test.describe("control panel shell", () => {
     );
   });
 
+  test("LSL state card starts from the configured stream and rate", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page.locator('[data-lsl="stream"] input')).toHaveValue("E2EState");
+    await expect(page.locator('[data-lsl="rate"] input')).toHaveValue("25");
+  });
+
   test("shows the monitoring and hardware cards", async ({ page }) => {
     await page.goto("/");
 
