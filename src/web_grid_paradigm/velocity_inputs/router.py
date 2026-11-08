@@ -13,19 +13,16 @@ from typing import Any
 
 from loguru import logger
 
-from .core.config import ExperimentConfig
-from .core.geometry import Layout
-from .core.session import Target
-from .velocity_inputs import (
-    DemoVelocityOptions,
-    DeviceContext,
-    LslVelocityOptions,
-    MouseVelocityOptions,
-    SerialJoystickVelocityOptions,
-    VelocityIntegrator,
-    VelocitySource,
-    build_velocity_source,
-)
+from ..core.config import ExperimentConfig
+from ..core.geometry import Layout
+from ..core.session import Target
+from .base import DeviceContext, VelocitySource
+from .demo import DemoVelocityOptions
+from .integrator import VelocityIntegrator
+from .joystick import SerialJoystickVelocityOptions
+from .lsl import LslVelocityOptions
+from .mouse import MouseVelocityOptions
+from .registry import build_velocity_source
 
 
 class InputReader:

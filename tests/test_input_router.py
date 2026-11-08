@@ -7,13 +7,13 @@ import pytest
 from web_grid_paradigm.core.config import ExperimentConfig
 from web_grid_paradigm.core.geometry import Cell, Layout
 from web_grid_paradigm.core.session import Target
-from web_grid_paradigm.input_router import InputReader
 from web_grid_paradigm.velocity_inputs import (
     VelocityCapabilities,
     VelocityFrame,
     VelocitySample,
     VelocitySourceStatus,
 )
+from web_grid_paradigm.velocity_inputs.router import InputReader
 
 LAYOUT = Layout.create(800, 600, 4, 4)
 

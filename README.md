@@ -597,10 +597,9 @@ src/web_grid_paradigm/
 │   ├── window.py        # PsychoPy 窗口创建
 │   ├── stimuli.py       # 所有视觉刺激对象（一次性构建）
 │   └── renderer.py      # 逐帧绘制 + 误点/光标反馈
-├── velocity_inputs/     # 输入策略：VelocitySource + 各设备实现
-│                        #   base/registry/integrator/mouse
-│                        #   demo/joystick/hall_protocol/lsl
-├── input_router.py      # 输入门面：选策略 + 积分 + 目标注入
+├── velocity_inputs/     # 输入策略 + 门面
+│   ├── router.py        # 选策略 + 积分 + 目标注入
+│   └── ...              # base/registry/integrator/mouse/demo/joystick/hall_protocol/lsl
 ├── recording/           # 数据与事件输出
 │   ├── recorder.py      # CSV/JSON 数据写入
 │   ├── reporter.py      # 所有输出：CSV、事件标记、面板状态
