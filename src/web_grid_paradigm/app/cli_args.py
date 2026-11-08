@@ -164,23 +164,50 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         help="normalised joystick dead zone, 0-0.95 (default: 0)",
     )
-    inp.add_argument(
+    invert_x = inp.add_mutually_exclusive_group()
+    invert_x.add_argument(
         "--joystick-invert-x",
+        dest="joystick_invert_x",
         action="store_true",
         default=None,
         help="invert the joystick X axis",
     )
-    inp.add_argument(
+    invert_x.add_argument(
+        "--no-joystick-invert-x",
+        dest="joystick_invert_x",
+        action="store_false",
+        default=None,
+        help="do not invert the joystick X axis",
+    )
+    invert_y = inp.add_mutually_exclusive_group()
+    invert_y.add_argument(
         "--joystick-invert-y",
+        dest="joystick_invert_y",
         action="store_true",
         default=None,
         help="invert the joystick Y axis",
     )
-    inp.add_argument(
+    invert_y.add_argument(
+        "--no-joystick-invert-y",
+        dest="joystick_invert_y",
+        action="store_false",
+        default=None,
+        help="do not invert the joystick Y axis",
+    )
+    center = inp.add_mutually_exclusive_group()
+    center.add_argument(
         "--joystick-center",
+        dest="joystick_center",
         action="store_true",
         default=None,
         help="send the set-centre calibration command when the port opens",
+    )
+    center.add_argument(
+        "--no-joystick-center",
+        dest="joystick_center",
+        action="store_false",
+        default=None,
+        help="do not send the set-centre command when the port opens",
     )
     inp.add_argument(
         "--joystick-stale-after",
@@ -223,11 +250,20 @@ def build_parser() -> argparse.ArgumentParser:
     display.add_argument("--window-width", type=int, help="window width in pixels")
     display.add_argument("--window-height", type=int, help="window height in pixels")
     display.add_argument("--screen", type=int, help="monitor index")
-    display.add_argument(
+    cursor = display.add_mutually_exclusive_group()
+    cursor.add_argument(
         "--show-cursor",
-        action="store_true",
+        dest="hide_cursor",
+        action="store_false",
         default=None,
         help="show the operating-system cursor",
+    )
+    cursor.add_argument(
+        "--hide-cursor",
+        dest="hide_cursor",
+        action="store_true",
+        default=None,
+        help="hide the operating-system cursor (default)",
     )
     instruction_mode = display.add_mutually_exclusive_group()
     instruction_mode.add_argument(
@@ -242,23 +278,50 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="skip the instruction screen (default)",
     )
-    display.add_argument(
+    auto_exit = display.add_mutually_exclusive_group()
+    auto_exit.add_argument(
         "--auto-exit",
+        dest="auto_exit",
         action="store_true",
         default=None,
         help="close automatically 2.5 s after the final screen",
     )
+    auto_exit.add_argument(
+        "--no-auto-exit",
+        dest="auto_exit",
+        action="store_false",
+        default=None,
+        help="keep the final screen until the experimenter exits",
+    )
 
     markers = parser.add_argument_group("event markers")
-    markers.add_argument(
-        "--lsl", action="store_true", default=None, help="publish an LSL marker stream"
+    lsl = markers.add_mutually_exclusive_group()
+    lsl.add_argument(
+        "--lsl", dest="lsl", action="store_true", default=None,
+        help="publish an LSL marker stream",
+    )
+    lsl.add_argument(
+        "--no-lsl",
+        dest="lsl",
+        action="store_false",
+        default=None,
+        help="do not publish an LSL marker stream",
     )
     markers.add_argument("--lsl-stream", help="LSL stream name")
-    markers.add_argument(
+    lsl_state = markers.add_mutually_exclusive_group()
+    lsl_state.add_argument(
         "--lsl-state",
+        dest="lsl_state",
         action="store_true",
         default=None,
         help="start the LSL state stream together with the web panel",
+    )
+    lsl_state.add_argument(
+        "--no-lsl-state",
+        dest="lsl_state",
+        action="store_false",
+        default=None,
+        help="do not start the LSL state stream automatically",
     )
     markers.add_argument("--lsl-state-stream", help="LSL state stream name")
     markers.add_argument(
@@ -298,9 +361,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     dash = parser.add_argument_group("web dashboard")
-    dash.add_argument(
-        "--no-dashboard",
+    dash_mode = dash.add_mutually_exclusive_group()
+    dash_mode.add_argument(
+        "--dashboard",
+        dest="dashboard",
         action="store_true",
+        default=None,
+        help="start the live web dashboard",
+    )
+    dash_mode.add_argument(
+        "--no-dashboard",
+        dest="dashboard",
+        action="store_false",
         default=None,
         help="do not start the live web dashboard",
     )
@@ -397,7 +469,11 @@ def load_config(args: argparse.Namespace) -> ExperimentConfig:
         "window_width": "window_width",
         "window_height": "window_height",
         "screen": "screen",
+        "hide_cursor": "hide_cursor",
+        "auto_exit": "auto_exit",
+        "lsl": "lsl",
         "lsl_stream": "lsl_stream",
+        "lsl_state": "lsl_state",
         "reward": "reward",
         "reward_policy": "reward_policy",
         "reward_ratio": "reward_ratio",
@@ -409,6 +485,7 @@ def load_config(args: argparse.Namespace) -> ExperimentConfig:
         "lsl_state_rate": "lsl_state_rate",
         "dashboard_port": "dashboard_port",
         "dashboard_host": "dashboard_host",
+        "dashboard": "dashboard",
     }
     for arg_name, field_name in fields.items():
         value = getattr(args, arg_name)
@@ -418,20 +495,10 @@ def load_config(args: argparse.Namespace) -> ExperimentConfig:
         overrides["fullscreen"] = True
     if args.windowed:
         overrides["fullscreen"] = False
-    if args.show_cursor:
-        overrides["hide_cursor"] = False
     if args.no_instructions:
         overrides["skip_instructions"] = True
     if args.instructions:
         overrides["skip_instructions"] = False
-    if args.auto_exit:
-        overrides["auto_exit"] = True
-    if args.lsl:
-        overrides["lsl"] = True
-    if args.lsl_state:
-        overrides["lsl_state"] = True
-    if args.no_dashboard:
-        overrides["dashboard"] = False
     if args.open_dashboard:
         overrides["dashboard_open"] = True
     if args.no_open_dashboard:

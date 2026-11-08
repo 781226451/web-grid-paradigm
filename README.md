@@ -499,7 +499,7 @@ data/
 | `--block-rest` | 10 | block 之间的空白休息（秒） |
 | `--max-seconds` | 300 | 单个 block 的时间上限；0 关闭 |
 | `--run-now` | 关 | 用命令行参数立即开始（不等待页面上点启动） |
-| `--no-dashboard` | 关 | 不启动 Web 控制台，命令行直接跑一次 |
+| `--no-dashboard` / `--dashboard` | 开 | 是否启动 Web 控制台 |
 | `--dashboard-port` | 8765 | 控制台端口（0 = 随机空闲端口） |
 | `--dashboard-host` | `127.0.0.1` | 绑定地址；`0.0.0.0` 允许局域网访问 |
 | `--no-open-dashboard` / `--open-dashboard` | 自动打开 | 是否自动打开浏览器 |
@@ -518,8 +518,8 @@ data/
 | `--joystick-mode` | `periodic` | `periodic` / `on_change` |
 | `--joystick-speed` | 560 | 满偏速度（px/s） |
 | `--joystick-deadzone` | 0 | 归一化死区，0–0.95 |
-| `--joystick-invert-x/y` | 关 | 轴反向 |
-| `--joystick-center` | 关 | 打开时发送中心校准命令 |
+| `--joystick-invert-x/y` / `--no-joystick-invert-x/y` | 关 | 轴反向 |
+| `--joystick-center` / `--no-joystick-center` | 关 | 打开时发送中心校准命令 |
 | `--joystick-stale-after` | 0.4 | 无帧超时（秒） |
 | `--lsl-velocity-stream` | `WebGridVelocity` | LSL 速度流名称 |
 | `--lsl-velocity-type` | `Velocity` | 必须匹配的流类型 |
@@ -529,12 +529,12 @@ data/
 | `--windowed` | 关 | 强制窗口模式（调试） |
 | `--window-width/height` | 1280/800 | 窗口尺寸（`--windowed` 时生效） |
 | `--screen` | 0 | 显示器索引 |
-| `--show-cursor` | 关 | 显示操作系统光标（默认隐藏） |
+| `--show-cursor` / `--hide-cursor` | 关 / 开 | 显示或隐藏操作系统光标 |
 | `--language` | `zh` | `zh` / `en` |
 | `--font` | `Microsoft YaHei` | 文字字体 |
-| `--lsl` | 关 | 发布 LSL 事件标记流 |
+| `--lsl` / `--no-lsl` | 关 | 发布/不发布 LSL 事件标记流 |
 | `--lsl-stream` | `WebGridMarkers` | 事件标记流名称 |
-| `--lsl-state` | 关 | 控制台启动时就开始推送 LSL 状态流 |
+| `--lsl-state` / `--no-lsl-state` | 关 | 控制台启动时是否自动推送 LSL 状态流 |
 | `--lsl-state-stream` | `WebGridState` | 状态流名称 |
 | `--lsl-state-rate` | 10 | 状态流推送频率（Hz，0.5–100） |
 | `--reward` | `serial` | 交付策略：`serial` / `test` / `off` |
@@ -549,10 +549,9 @@ data/
 | `--log-file` | 空 | 额外写一份滚动日志文件（每个会话目录总会有 `session.log`） |
 | `--instructions` | 关 | 显示人用指导语页；动物实验保持关闭 |
 | `--no-instructions` | 开 | 跳过指导语（默认） |
-| `--auto-exit` | 关 | 空白结束屏 2.5 s 后自动关闭（演示/测试） |
+| `--auto-exit` / `--no-auto-exit` | 关 | 空白结束屏 2.5 s 后是否自动关闭 |
 
-配置文件示例见 [`configs/default.toml`](configs/default.toml)，命令行参数会覆盖文件中的同名字段。  
-注意：`--auto-exit`、`--lsl`、`--lsl-state`、`--joystick-invert-x/y`、`--joystick-center` 目前只有开启方向；如果 TOML 中已设为 `true`，需要修改 TOML 关闭。例如：
+配置文件示例见 [`configs/default.toml`](configs/default.toml)，命令行参数会覆盖文件中的同名字段。例如：
 
 ```powershell
 uv run webgrid --config configs/default.toml --input joystick --joystick-port COM4

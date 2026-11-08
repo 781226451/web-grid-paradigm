@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from web_grid_paradigm.app.cli_args import build_parser, load_config
+from web_grid_paradigm.core.config import ExperimentConfig
 from web_grid_paradigm.core.i18n import STRINGS, Strings
 
 
@@ -30,6 +31,48 @@ def test_cli_overrides_config() -> None:
     assert config.hide_cursor is False
     assert config.fullscreen is False
     assert config.skip_instructions is True
+
+
+def test_boolean_cli_flags_can_override_toml_in_both_directions(
+    tmp_path: Path,
+) -> None:
+    source = ExperimentConfig(
+        auto_exit=True,
+        hide_cursor=True,
+        lsl=True,
+        lsl_state=True,
+        joystick_invert_x=True,
+        joystick_invert_y=True,
+        joystick_center_on_open=True,
+        dashboard=True,
+    )
+    path = tmp_path / "booleans.toml"
+    path.write_text(source.to_toml(), encoding="utf-8")
+
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "--config",
+            str(path),
+            "--no-auto-exit",
+            "--show-cursor",
+            "--no-lsl",
+            "--no-lsl-state",
+            "--no-joystick-invert-x",
+            "--no-joystick-invert-y",
+            "--no-joystick-center",
+            "--no-dashboard",
+        ]
+    )
+    config = load_config(args)
+    assert config.auto_exit is False
+    assert config.hide_cursor is False
+    assert config.lsl is False
+    assert config.lsl_state is False
+    assert config.joystick_invert_x is False
+    assert config.joystick_invert_y is False
+    assert config.joystick_center_on_open is False
+    assert config.dashboard is False
 
 
 def test_config_file_then_cli_override(tmp_path: Path) -> None:
