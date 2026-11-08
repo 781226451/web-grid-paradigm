@@ -3,7 +3,7 @@ import { NButton, NFormItem, NModal } from "naive-ui";
 import { computed, reactive, ref } from "vue";
 
 import SchemaField from "@/components/SchemaField.vue";
-import { form, isBusy } from "@/stores/config";
+import { form, isBusy, setValue } from "@/stores/config";
 
 const show = ref(false);
 const message = ref("");
@@ -69,8 +69,8 @@ function confirm(): void {
   }
   for (const field of fields.value) {
     const value = draft[field.name];
-    if (value !== undefined) {
-      form.values[field.name] = value;
+    if (value !== undefined && value !== form.values[field.name]) {
+      setValue(field.name, value);
     }
   }
   show.value = false;
