@@ -1,8 +1,10 @@
 """Session runner: window lifetime, block flow and the render loop.
 
 This module orchestrates; it does not know how to draw a frame
-(:mod:`renderer`), read a device (:mod:`velocity_inputs.router`), write data
-(:mod:`reporter`) or decide when a trial ends (:mod:`session`).
+(:mod:`web_grid_paradigm.presentation.renderer`), read a device
+(:mod:`web_grid_paradigm.velocity_inputs.router`), write data
+(:mod:`web_grid_paradigm.recording.reporter`) or decide when a trial ends
+(:mod:`web_grid_paradigm.core.session`).
 """
 
 from __future__ import annotations

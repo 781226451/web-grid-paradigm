@@ -15,7 +15,7 @@ from typing import Any
 
 from loguru import logger
 
-_LSL_CFG = Path(__file__).with_name("lsl_api.cfg")
+_LSL_CFG = Path(__file__).resolve().parents[1] / "lsl_api.cfg"
 if _LSL_CFG.exists():
     os.environ.setdefault("LSLAPICFG", str(_LSL_CFG))
 

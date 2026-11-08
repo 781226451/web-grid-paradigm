@@ -585,6 +585,7 @@ uv run webgrid --screenshot docs/preview.png   # 视觉检查
 src/web_grid_paradigm/
 ├── __init__.py          # 版本号等包元数据
 ├── __main__.py          # python -m web_grid_paradigm
+├── lsl_api.cfg          # 随包分发的 liblsl 日志配置
 ├── app/                 # 应用编排 / 组合根
 │   ├── cli.py           # 入口：main / _run / _serve / _preview
 │   ├── cli_args.py      # 命令行参数定义、配置合并（TOML+CLI）
