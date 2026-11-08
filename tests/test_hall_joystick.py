@@ -99,7 +99,6 @@ def test_pdf_example_frame_is_parsed() -> None:
     assert (frame.xx, frame.yy, frame.zz) == (0x0200, 0x0200, 0x03FF)
     assert frame.button == 0
     assert frame.address is None
-    assert frame.button_pressed is False
 
 
 def test_addressed_pdf_example_is_parsed() -> None:
@@ -146,7 +145,7 @@ def test_normalize_axis_matches_protocol_ranges() -> None:
 
 
 # ----------------------------------------------------------------------
-# source: velocity mapping, state hold, buttons, status
+# source: velocity mapping, state hold, status
 # ----------------------------------------------------------------------
 def test_factory_builds_a_working_joystick_strategy() -> None:
     source = build_input_source(
@@ -156,7 +155,6 @@ def test_factory_builds_a_working_joystick_strategy() -> None:
     )
     assert isinstance(source, SerialJoystickSource)
     assert source.capabilities.category == "joystick"
-    assert source.capabilities.n_buttons == 1
     assert source.read(now=0.0).samples == ()  # nothing until a frame arrives
 
 
@@ -207,22 +205,6 @@ def test_state_is_held_between_device_frames() -> None:
     second = source.read(now=1.1).samples
     assert len(first) == len(second) == 1
     assert first[0].vx == pytest.approx(second[0].vx)
-
-
-def test_button_edges_from_bit5() -> None:
-    source, transport = make_source()
-    pressed = make_frame(button=0x20)
-    released = make_frame(button=0x00)
-
-    def feed_and_read(payload: bytes, now: float):
-        transport.data += payload
-        source.pump()
-        return source.read(now=now)
-
-    assert [b.button for b in feed_and_read(pressed, 1.0).buttons] == [1]
-    assert feed_and_read(pressed, 1.1).buttons == ()  # held: no repeat edge
-    assert feed_and_read(released, 1.2).buttons == ()
-    assert [b.button for b in feed_and_read(pressed, 1.3).buttons] == [1]
 
 
 def test_center_calibration_command_is_sent_when_requested() -> None:

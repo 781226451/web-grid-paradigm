@@ -17,8 +17,8 @@ Contract
   up and ``1.0`` means half the window dimension per second.  The integrator
   (next step) converts them to pixels, so sources stay resolution independent.
 * ``read(now)`` is called once per rendered frame.  It must not block and
-  returns ``0..N`` samples that arrived since the previous call, plus any
-  button edges.  Device I/O stays outside the render loop.
+  returns ``0..N`` velocity samples that arrived since the previous call.
+  Device I/O stays outside the render loop.
 * One instance per session; the strategy is chosen before the session starts
   and never swapped while a session is running.
 """
@@ -63,23 +63,13 @@ class InputSample:
 
 
 @dataclass(frozen=True, slots=True)
-class ButtonEvent:
-    """One logical button edge (1 = left, 2 = right, 3 = middle)."""
-
-    button: int
-    timestamp: float
-
-
-@dataclass(frozen=True, slots=True)
 class InputRead:
     """Everything a source produced for one frame.
 
-    ``samples`` is ordered by ``timestamp``; ``buttons`` contains only new
-    edges (a held button is reported once).
+    ``samples`` is ordered by ``timestamp``.
     """
 
     samples: tuple[InputSample, ...] = ()
-    buttons: tuple[ButtonEvent, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,7 +79,6 @@ class Capabilities:
     category: str
     continuous: bool = True
     absolute: bool = False
-    n_buttons: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,7 +125,7 @@ class InputSource(Protocol):
         """Release the device.  Must be idempotent."""
 
     def read(self, now: float) -> InputRead:
-        """Return the samples/buttons produced since the previous call."""
+        """Return the velocity samples produced since the previous call."""
 
     def reset(self) -> None:
         """Forget per-block state (button edges, velocity baseline)."""

@@ -4,7 +4,6 @@ import pytest
 
 from web_grid_paradigm.geometry import Layout
 from web_grid_paradigm.inputs import (
-    ButtonEvent,
     DeviceContext,
     InitialPositionProvider,
     InputRead,
@@ -27,19 +26,11 @@ from web_grid_paradigm.inputs import (
 class FakeMouse:
     """Stand-in for ``psychopy.event.Mouse`` (no window needed)."""
 
-    def __init__(
-        self,
-        pos: tuple[float, float] = (0.0, 0.0),
-        pressed: tuple[bool, bool, bool] = (False, False, False),
-    ) -> None:
+    def __init__(self, pos: tuple[float, float] = (0.0, 0.0)) -> None:
         self.pos = pos
-        self.pressed = pressed
 
     def getPos(self) -> tuple[float, float]:
         return self.pos
-
-    def getPressed(self) -> list[bool]:
-        return list(self.pressed)
 
 
 def make_context() -> DeviceContext:
@@ -95,9 +86,7 @@ def test_source_classes_are_looked_up_by_name() -> None:
 def test_mouse_first_frame_only_establishes_the_baseline() -> None:
     mouse = MouseSource(context=make_context(), device=FakeMouse())
     mouse.open()
-    read = mouse.read(now=10.0)
-    assert read.samples == ()
-    assert read.buttons == ()
+    assert mouse.read(now=10.0).samples == ()
 
 
 def test_mouse_position_delta_becomes_velocity() -> None:
@@ -116,37 +105,17 @@ def test_mouse_position_delta_becomes_velocity() -> None:
     assert sample.vy == pytest.approx(0.20 / 0.1)
 
 
-def test_mouse_button_edges_are_reported_once() -> None:
-    device = FakeMouse()
-    mouse = MouseSource(context=make_context(), device=device)
-    mouse.open()
-
-    assert mouse.read(now=0.0).buttons == ()  # open() resets the edge baseline
-
-    device.pressed = (True, False, False)  # left
-    assert [b.button for b in mouse.read(now=0.1).buttons] == [1]
-    assert mouse.read(now=0.2).buttons == ()  # still held: no second edge
-
-    device.pressed = (False, True, False)  # middle -> logical button 3
-    assert [b.button for b in mouse.read(now=0.3).buttons] == [3]
-
-    device.pressed = (False, False, True)  # right -> logical button 2
-    assert [b.button for b in mouse.read(now=0.4).buttons] == [2]
-
-
-def test_mouse_reset_clears_position_and_button_baseline() -> None:
+def test_mouse_reset_clears_the_position_baseline() -> None:
     device = FakeMouse()
     mouse = MouseSource(context=make_context(), device=device)
     mouse.open()
     mouse.read(now=1.0)
 
     device.pos = (50.0, 0.0)
-    device.pressed = (True, False, False)
     mouse.read(now=1.1)
 
     mouse.reset()
     assert mouse.read(now=1.2).samples == ()  # baseline re-established
-    assert mouse.read(now=1.2).buttons == ()  # held button is not a new edge
 
 
 def test_mouse_initial_position_capability() -> None:
@@ -176,7 +145,7 @@ def test_mouse_status_snapshot() -> None:
 
 
 # ----------------------------------------------------------------------
-# joystick / lsl skeletons
+# joystick / lsl
 # ----------------------------------------------------------------------
 def test_serial_joystick_defaults_match_the_hall_protocol() -> None:
     options = SerialJoystickOptions()
@@ -195,8 +164,6 @@ def test_lsl_strategy_is_still_a_stub() -> None:
 
 def test_data_model_defaults() -> None:
     read = InputRead()
-    assert read.samples == () and read.buttons == ()
+    assert read.samples == ()
     sample = InputSample(timestamp=1.0, vx=0.5, vy=-0.25)
-    event = ButtonEvent(button=1, timestamp=1.0)
     assert (sample.timestamp, sample.vx, sample.vy) == (1.0, 0.5, -0.25)
-    assert event.button == 1

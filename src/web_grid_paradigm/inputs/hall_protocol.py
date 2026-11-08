@@ -95,18 +95,17 @@ def normalize_axis(raw: int) -> float:
 
 @dataclass(frozen=True, slots=True)
 class HallFrame:
-    """One decoded joystick frame (raw values, as sent by the device)."""
+    """One decoded joystick frame (raw values, as sent by the device).
+
+    ``button`` is kept for protocol completeness/checksum validation; the
+    paradigm itself is velocity-only and does not consume button events.
+    """
 
     xx: int
     yy: int
     zz: int
     button: int
     address: int | None = None
-
-    @property
-    def button_pressed(self) -> bool:
-        """True when the joystick trigger (bit 5) is down."""
-        return bool(self.button & BUTTON_MASK)
 
 
 class HallFrameParser:

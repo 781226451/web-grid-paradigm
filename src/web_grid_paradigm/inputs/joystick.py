@@ -11,7 +11,9 @@ the LSL strategies:
   velocity command (``speed_px_per_s``) and emits one velocity sample per
   rendered frame from the latest device state, so motion stays smooth no
   matter whether the joystick uses *send-on-change* or *periodic* mode;
-* the trigger (Button bit 5) becomes a logical button edge (button 1);
+* the trigger bit (Button bit 5) is decoded for protocol completeness but is
+  not part of the input contract: the paradigm is velocity-only and derives
+  selection from dwell (or from the external control stream);
 * the Z axis is decoded but unused by the 2-D paradigm.
 
 A background reader thread owns the serial port, so the render loop only
@@ -28,7 +30,6 @@ from typing import Any
 
 from ..geometry import Layout
 from .base import (
-    ButtonEvent,
     Capabilities,
     DeviceContext,
     InputRead,
@@ -103,7 +104,6 @@ class SerialJoystickSource:
         category="joystick",
         continuous=True,
         absolute=False,
-        n_buttons=1,  # trigger on Button bit 5
     )
 
     def __init__(
@@ -131,7 +131,6 @@ class SerialJoystickSource:
         self._vx = 0.0
         self._vy = 0.0
         self._has_state = False
-        self._button_down = False
         self._clock_offset: float | None = None
         self._last_read_now: float | None = None
         self._last_rx: float | None = None
@@ -197,7 +196,6 @@ class SerialJoystickSource:
         self._last_read_now = None
         self._last_rx = None
         self._has_state = False
-        self._button_down = False
         self._vx = self._vy = 0.0
         self._stop.clear()
         self._opened = True
@@ -232,9 +230,8 @@ class SerialJoystickSource:
     def reset(self) -> None:
         """Apply queued frames to the device state and forget the rest.
 
-        Called at block boundaries: pending frames (for example a button
-        release) still update the internal deflection/button state, but no
-        samples or button events are emitted for them.
+        Called at block boundaries: pending frames still update the internal
+        deflection state, but no velocity sample is emitted for them.
         """
         if self._queue is None:
             return
@@ -242,9 +239,8 @@ class SerialJoystickSource:
             pending = list(self._queue)
             self._queue.clear()
         offset = self._clock_offset or 0.0
-        discarded: list[ButtonEvent] = []
         for perf_time, frame in pending:
-            self._apply_frame(frame, perf_time + offset, discarded)
+            self._apply_frame(frame, perf_time + offset)
 
     # ------------------------------------------------------------------
     # device I/O (background thread) and per-frame drain
@@ -292,20 +288,17 @@ class SerialJoystickSource:
         with self._lock:
             pending = list(self._queue)
             self._queue.clear()
-        buttons: list[ButtonEvent] = []
         for perf_time, frame in pending:
-            self._apply_frame(frame, perf_time + self._clock_offset, buttons)
+            self._apply_frame(frame, perf_time + self._clock_offset)
         self._last_read_now = now
 
         samples: tuple[InputSample, ...] = ()
         if self._has_state and self._connected:
             samples = (InputSample(now, self._vx, self._vy),)
-        return InputRead(samples=samples, buttons=tuple(buttons))
+        return InputRead(samples=samples)
 
     # ------------------------------------------------------------------
-    def _apply_frame(
-        self, frame: HallFrame, timestamp: float, buttons: list[ButtonEvent]
-    ) -> None:
+    def _apply_frame(self, frame: HallFrame, timestamp: float) -> None:
         dx = normalize_axis(frame.xx)
         dy = normalize_axis(frame.yy)
         deadzone = self.options.deadzone
@@ -320,10 +313,6 @@ class SerialJoystickSource:
         # normalised units per second: 1.0 == half the window dimension / s
         self._vx = dx * self.options.speed_px_per_s * 2.0 / layout.window_w
         self._vy = dy * self.options.speed_px_per_s * 2.0 / layout.window_h
-        pressed = frame.button_pressed
-        if pressed and not self._button_down:
-            buttons.append(ButtonEvent(button=1, timestamp=timestamp))
-        self._button_down = pressed
         self._has_state = True
         self._last_rx = timestamp
 

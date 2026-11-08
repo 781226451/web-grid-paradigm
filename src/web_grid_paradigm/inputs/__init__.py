@@ -24,7 +24,6 @@ the runner switches to the new interface.
 from __future__ import annotations
 
 from .base import (
-    ButtonEvent,
     Capabilities,
     DeviceContext,
     InitialPositionProvider,
@@ -65,7 +64,6 @@ from .registry import (
 
 __all__ = [
     # interface / data model
-    "ButtonEvent",
     "Capabilities",
     "DeviceContext",
     "InitialPositionProvider",

@@ -45,9 +45,7 @@ class LslInputSource:
     """Velocity samples from an LSL control stream (stub for now)."""
 
     name = "lsl"
-    capabilities = Capabilities(
-        category="lsl", continuous=True, absolute=False, n_buttons=0
-    )
+    capabilities = Capabilities(category="lsl", continuous=True, absolute=False)
 
     def __init__(
         self,
