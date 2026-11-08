@@ -1,6 +1,6 @@
 """Command-line definition: options, defaults and config assembly.
 
-The parser lives here so that :mod:`web_grid_paradigm.cli` stays a thin entry
+The parser lives here so that :mod:`web_grid_paradigm.app.cli` stays a thin entry
 point and other front-ends (the web panel) can reuse the same options.
 """
 
@@ -15,8 +15,8 @@ from typing import Any
 
 from loguru import logger
 
-from . import __version__
-from .core.config import ExperimentConfig
+from .. import __version__
+from ..core.config import ExperimentConfig
 
 DESCRIPTION = """\
 BCI Web-Grid: a PsychoPy target-selection paradigm.

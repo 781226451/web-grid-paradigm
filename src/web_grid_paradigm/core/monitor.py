@@ -11,7 +11,7 @@ from typing import Any, Protocol, runtime_checkable
 
 @runtime_checkable
 class SessionMonitor(Protocol):
-    """Live state sink used by :class:`web_grid_paradigm.runner.WebGridApp`."""
+    """Live state sink used by :class:`web_grid_paradigm.app.runner.WebGridApp`."""
 
     @property
     def stop_requested(self) -> bool:

@@ -11,15 +11,15 @@ from typing import Any
 
 from loguru import logger
 
-from . import __version__
+from .. import __version__
+from ..core.config import ExperimentConfig
+from ..recording.recorder import SessionRecorder
 from .cli_args import build_parser, load_config
-from .core.config import ExperimentConfig
 from .log import add_session_log, setup_logging
-from .recording.recorder import SessionRecorder
 
 
 def _preview(config: ExperimentConfig, path: Path) -> int:
-    from .recording.markers import NullMarkerSink
+    from ..recording.markers import NullMarkerSink
     from .runner import WebGridApp
 
     # A screenshot must not take over the experimenter's screen.
@@ -82,7 +82,7 @@ def _run(config: ExperimentConfig, view: Any = None) -> dict[str, Any]:
 
 def _serve(config: ExperimentConfig, *, run_now: bool) -> int:
     """Start the web control panel and run whatever the page asks for."""
-    from .panel import start_station
+    from ..panel import start_station
 
     station = start_station(
         config.dashboard_host,

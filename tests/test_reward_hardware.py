@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from web_grid_paradigm.cli_args import (
+from web_grid_paradigm.app.cli_args import (
     apply_reward_config,
     build_parser,
     load_config,

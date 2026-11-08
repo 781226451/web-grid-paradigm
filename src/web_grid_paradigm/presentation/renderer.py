@@ -2,7 +2,7 @@
 
 The renderer turns engine state into pixels.  It owns the short-lived visual
 feedback (miss flash, cursor flash) so that the session logic in
-:mod:`web_grid_paradigm.runner` never has to think about drawing state.
+:mod:`web_grid_paradigm.app.runner` never has to think about drawing state.
 """
 
 from __future__ import annotations

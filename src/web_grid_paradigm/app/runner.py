@@ -17,19 +17,19 @@ import psychopy
 from loguru import logger
 from psychopy import core, event
 
-from .core.config import ExperimentConfig
-from .core.geometry import Cell, Layout
-from .core.i18n import Strings
-from .core.monitor import NullMonitor, SessionMonitor
-from .core.scoring import SessionStats, merge_stats
-from .core.session import FrameOutcome, Phase, SessionEngine, Target
-from .presentation.renderer import Renderer
-from .presentation.stimuli import Stimuli
-from .presentation.window import create_window
-from .recording.markers import MarkerSink, build_marker_sink
-from .recording.reporter import Reporter
-from .reward.policy import build_reward_policy
-from .velocity_inputs.router import InputReader
+from ..core.config import ExperimentConfig
+from ..core.geometry import Cell, Layout
+from ..core.i18n import Strings
+from ..core.monitor import NullMonitor, SessionMonitor
+from ..core.scoring import SessionStats, merge_stats
+from ..core.session import FrameOutcome, Phase, SessionEngine, Target
+from ..presentation.renderer import Renderer
+from ..presentation.stimuli import Stimuli
+from ..presentation.window import create_window
+from ..recording.markers import MarkerSink, build_marker_sink
+from ..recording.reporter import Reporter
+from ..reward.policy import build_reward_policy
+from ..velocity_inputs.router import InputReader
 
 UI_SCALE_RANGE = (0.65, 2.2)
 REFERENCE_SIZE = (1280, 800)

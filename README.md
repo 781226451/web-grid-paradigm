@@ -583,8 +583,13 @@ uv run webgrid --screenshot docs/preview.png   # 视觉检查
 
 ```text
 src/web_grid_paradigm/
-├── cli.py               # 入口：main / _run / _serve / _preview
-├── cli_args.py          # 命令行参数定义、配置合并（TOML+CLI）
+├── __init__.py          # 版本号等包元数据
+├── __main__.py          # python -m web_grid_paradigm
+├── app/                 # 应用编排 / 组合根
+│   ├── cli.py           # 入口：main / _run / _serve / _preview
+│   ├── cli_args.py      # 命令行参数定义、配置合并（TOML+CLI）
+│   ├── log.py           # loguru 配置、PsychoPy 日志桥接
+│   └── runner.py        # 会话编排：窗口、block 流程、主循环
 ├── core/                # 纯 Python：参数、几何、试次、计分、文案、监控协议
 │   ├── config.py        # 参数与校验、TOML 读写
 │   ├── geometry.py      # 网格布局、像素/归一化坐标、目标洗牌袋
@@ -605,11 +610,9 @@ src/web_grid_paradigm/
 │   ├── reporter.py      # 所有输出：CSV、事件标记、面板状态
 │   ├── markers.py       # 事件码、UDP 标记、fan-out
 │   └── lsl.py           # LSL 出口（事件标记 / 状态流）、liblsl 配置
-├── runner.py            # 会话编排：窗口、block 流程、主循环
 ├── reward/              # 奖励子系统：两个独立模块
 │   ├── policy.py        # 何时给：per_hit / ratio / none（返回 Reward 决策）
 │   └── sink.py          # 怎么送：serial / test / off（把决策送到硬件）
-├── log.py               # loguru 配置、PsychoPy 日志桥接
 └── panel/               # Web 控制台
     ├── __init__.py      # 对外导出
     ├── schema.py        # 参数表单描述与校验
@@ -623,7 +626,7 @@ src/web_grid_paradigm/
 `src/web_grid_paradigm/panel/static/`，由控制台在根路径 `/` 提供。开发/构建见
 [webui/README.md](<webui/README.md>)。
 
-依赖方向：`core` 不依赖 PsychoPy；`presentation` 和 `velocity_inputs` 只依赖 `core`；`runner` 只依赖 `core.monitor` 协议，不依赖 `panel`；`panel` 依赖 `runner` 提供的 `SessionView` 语义。因此 `core`、`velocity_inputs`、`panel/schema` 的单元测试无需打开窗口。
+依赖方向：`core` 不依赖 PsychoPy；`presentation` 和 `velocity_inputs` 只依赖 `core`；`recording` 依赖 `core`/`reward`；`reward` 只依赖 `core`；`app` 是唯一同时依赖所有子系统的组合根；`panel` 依赖 `core`/`reward`/`recording`，不依赖 `app.runner`。
 
 ## 注意事项
 

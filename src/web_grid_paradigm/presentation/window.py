@@ -39,7 +39,7 @@ def create_window(config: ExperimentConfig) -> visual.Window:
         title="BCI Web-Grid",
     )
     # PsychoPy buffers its own log entries; emit window-setup messages now
-    # (routed to loguru by web_grid_paradigm.log) instead of at shutdown.
+    # (routed to loguru by web_grid_paradigm.app.log) instead of at shutdown.
     plog.flush()
     logger.debug(
         "window opened: size={} fullscreen={}",

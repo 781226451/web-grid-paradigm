@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-webgrid = "web_grid_paradigm.cli:main"
+webgrid = "web_grid_paradigm.app.cli:main"
 
 [dependency-groups]
 dev = ["pytest>=8.0"]

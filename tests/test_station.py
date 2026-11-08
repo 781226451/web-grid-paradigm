@@ -8,7 +8,7 @@ import urllib.request
 
 import pytest
 
-from web_grid_paradigm.cli_args import build_parser, load_config
+from web_grid_paradigm.app.cli_args import build_parser, load_config
 from web_grid_paradigm.core.config import ExperimentConfig
 from web_grid_paradigm.core.monitor import NullMonitor
 from web_grid_paradigm.panel import (

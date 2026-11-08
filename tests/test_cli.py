@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from web_grid_paradigm.cli_args import build_parser, load_config
+from web_grid_paradigm.app.cli_args import build_parser, load_config
 from web_grid_paradigm.core.i18n import STRINGS, Strings
 
 
