@@ -12,10 +12,6 @@ const busy = computed(() => isBusy());
 const canStart = computed(() => form.control && !busy.value && form.loaded);
 const canStop = computed(() => form.control && busy.value && station.status !== "stopping");
 const canReset = computed(() => form.control && !busy.value && form.loaded);
-const statusText = computed(() => {
-  if (!form.control) return "只读监控";
-  return busy.value ? "实验进行中，参数已锁定" : "修改后点“启动实验”";
-});
 
 onMounted(() => {
   if (!form.loaded) {
@@ -27,7 +23,7 @@ onMounted(() => {
 <template>
   <n-card title="实验参数" size="small">
     <template #header-extra>
-      <span class="status">{{ statusText }}</span>
+      <span class="status">{{ busy ? "实验进行中，参数已锁定" : "修改后点“启动实验”" }}</span>
     </template>
 
     <n-alert
