@@ -105,6 +105,7 @@ class SourceStatus:
     frames: int = 0
     invalid: int = 0
     dropped: int = 0
+    stale: bool = False
     error: str | None = None
 
 

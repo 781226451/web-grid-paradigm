@@ -178,19 +178,15 @@ def test_mouse_status_snapshot() -> None:
 # ----------------------------------------------------------------------
 # joystick / lsl skeletons
 # ----------------------------------------------------------------------
-def test_serial_joystick_defaults_match_the_hzl_type1_device() -> None:
+def test_serial_joystick_defaults_match_the_hall_protocol() -> None:
     options = SerialJoystickOptions()
-    assert (options.baud, options.frame_len) == (9600, 9)
-    assert options.protocol == "hzl_rs232_t1"
+    assert (options.baud, options.protocol) == (9600, "hall_rs232")
+    assert options.address is None  # universal 9-byte frame
+    assert options.stream_mode == "periodic"
     assert options.expected_rate_hz == 28.0
 
 
-def test_unimplemented_strategies_fail_with_a_clear_error() -> None:
-    joystick = build_input_source("joystick")
-    with pytest.raises(InputSourceUnavailable, match="not implemented yet"):
-        joystick.open()
-    assert joystick.read(now=0.0) == InputRead()
-
+def test_lsl_strategy_is_still_a_stub() -> None:
     lsl = build_input_source("lsl")
     with pytest.raises(InputSourceUnavailable, match="not implemented yet"):
         lsl.open()

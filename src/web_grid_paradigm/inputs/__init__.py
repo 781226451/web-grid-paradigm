@@ -10,7 +10,8 @@ Layout
 ``base``      interface, velocity-sample dataclasses, capabilities, status
 ``registry``  self-registration decorator + name -> strategy factory
 ``mouse``     category 1: absolute OS pointer, differentiated to velocity
-``joystick``  category 2: serial (USB/RS232/RS485) joystick (protocol WIP)
+``joystick``  category 2: serial hall-effect joystick (RS232/RS422/RS485)
+``hall_protocol``  9/10-byte frame parser/checksum/axis normalisation
 ``lsl``       category 3: LSL control stream from the external decoder (WIP)
 ``legacy``    the previous UDP/autopilot module, kept importable while the
               runner is migrated to the strategy interface
@@ -34,10 +35,27 @@ from .base import (
     InputSourceUnavailable,
     SourceStatus,
 )
+from .hall_protocol import (
+    ACK,
+    BUTTON_MASK,
+    CANCEL_ADDRESS,
+    HEADER,
+    QUERY_POSITION,
+    RAW_CENTER,
+    RAW_HALF_RANGE,
+    RAW_MAX,
+    RAW_MIN,
+    SET_CENTER,
+    HallFrame,
+    HallFrameParser,
+    build_set_address,
+    build_set_baud,
+    normalize_axis,
+)
+from .joystick import PROTOCOLS, SerialJoystickOptions, SerialJoystickSource
 from .legacy import AutoPilot, InputState, UdpCursorSource
-from .mouse import MouseOptions, MouseSource
-from .joystick import PROTOCOLS, FrameParser, SerialJoystickOptions, SerialJoystickSource
 from .lsl import LslInputSource, LslOptions
+from .mouse import MouseOptions, MouseSource
 from .registry import (
     available_sources,
     build_input_source,
@@ -65,12 +83,27 @@ __all__ = [
     # strategies
     "MouseOptions",
     "MouseSource",
-    "FrameParser",
     "PROTOCOLS",
     "SerialJoystickOptions",
     "SerialJoystickSource",
     "LslInputSource",
     "LslOptions",
+    # serial joystick protocol
+    "ACK",
+    "BUTTON_MASK",
+    "CANCEL_ADDRESS",
+    "HEADER",
+    "QUERY_POSITION",
+    "RAW_CENTER",
+    "RAW_HALF_RANGE",
+    "RAW_MAX",
+    "RAW_MIN",
+    "SET_CENTER",
+    "HallFrame",
+    "HallFrameParser",
+    "build_set_address",
+    "build_set_baud",
+    "normalize_axis",
     # legacy compatibility
     "AutoPilot",
     "InputState",
