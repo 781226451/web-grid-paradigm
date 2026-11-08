@@ -57,7 +57,6 @@ skip_instructions = true       # animal use: no text/instruction screen by defau
 auto_exit = false
 
 # --- event markers ---------------------------------------------------------
-marker_udp = ""             # e.g. "127.0.0.1:9001"; empty disables
 lsl = false
 lsl_stream = "WebGridMarkers"
 

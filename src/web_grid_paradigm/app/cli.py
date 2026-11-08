@@ -70,8 +70,6 @@ def _run(config: ExperimentConfig, view: Any = None) -> dict[str, Any]:
                 config.lsl_velocity_stream,
                 config.lsl_velocity_type,
             )
-        if config.marker_udp:
-            logger.info("UDP markers -> {}", config.marker_udp)
         if config.lsl:
             logger.info("LSL marker stream: {}", config.lsl_stream)
         return run_experiment(config, recorder, monitor=view)

@@ -40,7 +40,6 @@ examples:
   uv run webgrid --config configs/default.toml   # same, pre-filled
   uv run webgrid --run-now --input demo --targets 8 --auto-exit
   uv run webgrid --no-dashboard --input mouse --lsl
-  uv run webgrid --input mouse --marker-udp 127.0.0.1:9001
   uv run webgrid --input joystick --joystick-port COM4
   uv run webgrid --input lsl --lsl-velocity-stream WebGridVelocity
   uv run webgrid --screenshot docs/preview.png
@@ -252,9 +251,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     markers = parser.add_argument_group("event markers")
     markers.add_argument(
-        "--marker-udp", metavar="HOST:PORT", help="send JSON event markers over UDP"
-    )
-    markers.add_argument(
         "--lsl", action="store_true", default=None, help="publish an LSL marker stream"
     )
     markers.add_argument("--lsl-stream", help="LSL stream name")
@@ -401,7 +397,6 @@ def load_config(args: argparse.Namespace) -> ExperimentConfig:
         "window_width": "window_width",
         "window_height": "window_height",
         "screen": "screen",
-        "marker_udp": "marker_udp",
         "lsl_stream": "lsl_stream",
         "reward": "reward",
         "reward_policy": "reward_policy",

@@ -83,7 +83,6 @@ class ExperimentConfig:
     auto_exit: bool = False
 
     # --- event markers ----------------------------------------------------
-    marker_udp: str = ""  # "host:port"; empty disables UDP markers
     lsl: bool = False
     lsl_stream: str = "WebGridMarkers"
 
@@ -224,10 +223,6 @@ class ExperimentConfig:
             )
         if self.window_width < 640 or self.window_height < 480:
             raise ValueError("window must be at least 640x480")
-        if self.marker_udp:
-            host, _, port = self.marker_udp.rpartition(":")
-            if not host or not port.isdigit() or not 1 <= int(port) <= 65535:
-                raise ValueError("marker_udp must look like '127.0.0.1:9001'")
         if not self.lsl_stream.strip():
             raise ValueError("lsl_stream must not be empty")
         if not self.lsl_state_stream.strip():

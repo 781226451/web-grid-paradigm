@@ -100,8 +100,6 @@ _FORM: list[dict[str, Any]] = [
     # markers / LSL
     {"name": "lsl", "label": "发布 LSL 标记", "type": "bool", "group": "标记"},
     {"name": "lsl_stream", "label": "标记流名称", "type": "text", "group": "标记"},
-    {"name": "marker_udp", "label": "UDP 标记 (host:port)", "type": "text",
-     "group": "标记"},
     # --- reward part 1: the external device -----------------------------
     # Port, baud rate and command template are protocol details of the device,
     # so they are asked for in the "连接…" dialog instead of the form.

@@ -198,20 +198,6 @@ while True:
 
 ## 事件标记（EEG/BCI）
 
-### UDP 标记
-
-```powershell
-uv run webgrid --marker-udp 127.0.0.1:9001
-```
-
-每个事件发送一个 JSON 数据报：
-
-```json
-{"code": 10, "event": "target_onset", "t": 12.345, "utc": "...", "detail": {"target_index": 3, "row": 2, "col": 5}}
-```
-
-`t` 是 PsychoPy 的单调时钟（秒），`utc` 是发送时的 UTC 时间。
-
 ### LSL 标记
 
 ```powershell
@@ -299,7 +285,7 @@ MATLAB（`lsl_loadlib`）、Unity、C#、C++ 等任何 LSL 客户端都能同样
 | 2 | `session_end` | 正常结束 |
 | 90 | `session_abort` | Esc / 异常中止 |
 
-目标出现标记在 `win.flip()` 返回之后发送，反应时也从该 flip 的时间戳计算。UDP 标记存在系统网络延迟；对严格 EEG 同步要求高的实验建议使用 LSL，或把标记输出扩展到并行口/采集卡。
+目标出现标记在 `win.flip()` 返回之后发送，反应时也从该 flip 的时间戳计算。LSL 标记通过网络传输，严格 EEG 同步建议同时做硬件/光电校验，或把标记输出扩展到并行口/采集卡。
 
 ## 奖励系统（双策略）
 
@@ -542,7 +528,6 @@ data/
 | `--windowed` | 关 | 强制窗口模式（调试） |
 | `--window-width/height` | 1280/800 | 窗口尺寸（`--windowed` 时生效） |
 | `--language` | `zh` | `zh` / `en` |
-| `--marker-udp` | 空 | 事件标记 UDP 地址 |
 | `--lsl` | 关 | 发布 LSL 事件标记流 |
 | `--lsl-stream` | `WebGridMarkers` | 事件标记流名称 |
 | `--lsl-state` | 关 | 控制台启动时就开始推送 LSL 状态流 |
@@ -609,7 +594,7 @@ src/web_grid_paradigm/
 ├── recording/           # 数据与事件输出
 │   ├── recorder.py      # CSV/JSON 数据写入
 │   ├── reporter.py      # 所有输出：CSV、事件标记、面板状态
-│   ├── markers.py       # 事件码、UDP 标记、fan-out
+│   ├── markers.py       # 事件码、LSL 标记
 │   └── lsl.py           # LSL 出口（事件标记 / 状态流）、liblsl 配置
 ├── reward/              # 奖励子系统：两个独立模块
 │   ├── policy.py        # 何时给：per_hit / ratio / none（返回 Reward 决策）

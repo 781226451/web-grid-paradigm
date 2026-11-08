@@ -1,7 +1,7 @@
 """All session output in one place: data files, event markers, live monitor.
 
 The runner decides *what* happens; :class:`Reporter` decides what to write
-where.  Keeping this at one boundary means the CSV columns, the LSL/UDP marker
+where.  Keeping this at one boundary means the CSV columns, the LSL marker
 codes and the web panel payload can never drift apart.
 """
 

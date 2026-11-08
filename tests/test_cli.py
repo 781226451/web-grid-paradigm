@@ -21,8 +21,6 @@ def test_cli_overrides_config() -> None:
             "--show-cursor",
             "--windowed",
             "--no-instructions",
-            "--marker-udp",
-            "127.0.0.1:9001",
         ]
     )
     config = load_config(args)
@@ -32,7 +30,6 @@ def test_cli_overrides_config() -> None:
     assert config.hide_cursor is False
     assert config.fullscreen is False
     assert config.skip_instructions is True
-    assert config.marker_udp == "127.0.0.1:9001"
 
 
 def test_config_file_then_cli_override(tmp_path: Path) -> None:
