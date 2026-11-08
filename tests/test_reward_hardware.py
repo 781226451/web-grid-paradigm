@@ -13,7 +13,7 @@ from web_grid_paradigm.cli_args import (
     build_parser,
     load_config,
 )
-from web_grid_paradigm.config import ExperimentConfig
+from web_grid_paradigm.core.config import ExperimentConfig
 from web_grid_paradigm.panel import Station
 from web_grid_paradigm.reward.sink import serial_ports
 

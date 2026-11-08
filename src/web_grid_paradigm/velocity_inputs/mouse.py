@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..geometry import Layout
+from ..core.geometry import Layout
 from .base import (
     DeviceContext,
     InitialPositionProvider,

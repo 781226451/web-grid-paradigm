@@ -13,9 +13,9 @@ from typing import Any
 
 from loguru import logger
 
-from .config import ExperimentConfig
-from .geometry import Layout
-from .session import Target
+from .core.config import ExperimentConfig
+from .core.geometry import Layout
+from .core.session import Target
 from .velocity_inputs import (
     DemoVelocityOptions,
     DeviceContext,

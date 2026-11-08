@@ -10,7 +10,7 @@ from loguru import logger
 from psychopy import logging as plog
 from psychopy import visual
 
-from .config import ExperimentConfig
+from .core.config import ExperimentConfig
 from .palette import BG
 
 

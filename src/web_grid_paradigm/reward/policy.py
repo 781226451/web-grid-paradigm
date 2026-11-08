@@ -13,8 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from ..config import ExperimentConfig
-from ..session import TrialResult
+from ..core.config import ExperimentConfig
+from ..core.session import TrialResult
 
 
 @dataclass(frozen=True, slots=True)

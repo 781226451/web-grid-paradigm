@@ -17,17 +17,17 @@ import psychopy
 from loguru import logger
 from psychopy import core, event
 
-from .config import ExperimentConfig
-from .geometry import Cell, Layout
-from .i18n import Strings
+from .core.config import ExperimentConfig
+from .core.geometry import Cell, Layout
+from .core.i18n import Strings
+from .core.monitor import NullMonitor, SessionMonitor
+from .core.scoring import SessionStats, merge_stats
+from .core.session import FrameOutcome, Phase, SessionEngine, Target
 from .input_router import InputReader
 from .markers import MarkerSink, build_marker_sink
-from .monitor import NullMonitor, SessionMonitor
 from .renderer import Renderer
 from .reporter import Reporter
 from .reward.policy import build_reward_policy
-from .scoring import SessionStats, merge_stats
-from .session import FrameOutcome, Phase, SessionEngine, Target
 from .stimuli import Stimuli
 from .window import create_window
 

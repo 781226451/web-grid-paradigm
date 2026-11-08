@@ -19,7 +19,7 @@ from typing import Any
 
 from loguru import logger
 
-from ..config import ExperimentConfig
+from ..core.config import ExperimentConfig
 from ..reward.sink import (
     DryRunRewardSink,
     SerialRewardSink,

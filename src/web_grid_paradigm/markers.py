@@ -18,7 +18,7 @@ from typing import Any, Protocol
 
 from loguru import logger
 
-from .config import ExperimentConfig
+from .core.config import ExperimentConfig
 from .lsl import LslMarkerSink
 
 SESSION_START = 1

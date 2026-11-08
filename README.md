@@ -585,16 +585,17 @@ uv run webgrid --screenshot docs/preview.png   # 视觉检查
 src/web_grid_paradigm/
 ├── cli.py               # 入口：main / _run / _serve / _preview
 ├── cli_args.py          # 命令行参数定义、配置合并（TOML+CLI）
-├── config.py            # 参数与校验、TOML 读写
-├── geometry.py          # 网格布局、像素/归一化坐标、目标洗牌袋
-├── i18n.py              # 中英文 UI 文案
-├── session.py           # 试次状态机（纯 Python）
-├── scoring.py           # BPS/NTPM 统计、跨 block 合并
+├── core/                # 纯 Python：参数、几何、试次、计分、文案、监控协议
+│   ├── config.py        # 参数与校验、TOML 读写
+│   ├── geometry.py      # 网格布局、像素/归一化坐标、目标洗牌袋
+│   ├── i18n.py          # 中英文 UI 文案
+│   ├── monitor.py       # 监控协议 + 空实现（核心不依赖网页层）
+│   ├── scoring.py       # BPS/NTPM 统计、跨 block 合并
+│   └── session.py       # 试次状态机（纯 Python）
 ├── velocity_inputs/     # 输入策略：VelocitySource + 各设备实现
 │                        #   base/registry/integrator/mouse
 │                        #   demo/joystick/hall_protocol/lsl
 ├── input_router.py      # 输入门面：选策略 + 积分 + 目标注入
-├── monitor.py           # 监控协议 + 空实现（核心不依赖网页层）
 ├── palette.py           # 颜色
 ├── window.py            # PsychoPy 窗口创建
 ├── stimuli.py           # 所有视觉刺激对象（一次性构建）
@@ -621,7 +622,7 @@ src/web_grid_paradigm/
 `src/web_grid_paradigm/panel/static/`，由控制台在根路径 `/` 提供。开发/构建见
 [webui/README.md](<webui/README.md>)。
 
-依赖方向：`config/geometry/scoring/session` 不依赖 PsychoPy；`runner` 只依赖 `monitor` 协议，不依赖 `panel`；`panel` 依赖 `runner` 提供的 `SessionView` 语义。因此 `geometry`、`scoring`、`session`、`velocity_inputs`、`panel/schema` 的单元测试无需打开窗口。
+依赖方向：`core` 不依赖 PsychoPy，也不依赖 `velocity_inputs`/`panel`；`runner` 只依赖 `core.monitor` 协议，不依赖 `panel`；`panel` 依赖 `runner` 提供的 `SessionView` 语义。因此 `core`、`velocity_inputs`、`panel/schema` 的单元测试无需打开窗口。
 
 ## 注意事项
 

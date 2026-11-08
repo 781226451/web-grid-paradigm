@@ -10,9 +10,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Self
 
-from .config import ExperimentConfig
-from .geometry import Cell
-from .session import TrialResult
+from .core.config import ExperimentConfig
+from .core.geometry import Cell
+from .core.session import TrialResult
 
 _EVENT_FIELDS = [
     "subject",

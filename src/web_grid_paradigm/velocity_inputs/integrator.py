@@ -8,7 +8,7 @@ used to integrate the next sample.  It is pure Python and unit-testable.
 
 from __future__ import annotations
 
-from ..geometry import Layout
+from ..core.geometry import Layout
 from .base import VelocityFrame
 
 

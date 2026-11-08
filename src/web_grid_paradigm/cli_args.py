@@ -16,7 +16,7 @@ from typing import Any
 from loguru import logger
 
 from . import __version__
-from .config import ExperimentConfig
+from .core.config import ExperimentConfig
 
 DESCRIPTION = """\
 BCI Web-Grid: a PsychoPy target-selection paradigm.

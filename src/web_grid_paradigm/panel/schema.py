@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..config import ExperimentConfig
+from ..core.config import ExperimentConfig
 
 # ----------------------------------------------------------------------
 # Parameter form (single source of truth for the page and for validation)

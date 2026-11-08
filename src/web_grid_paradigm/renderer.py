@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from psychopy import visual
 
-from .geometry import Cell, Layout
+from .core.geometry import Cell, Layout
+from .core.session import Phase, SessionEngine
 from .palette import ACCENT, CURSOR, ERROR, TARGET_COLORS
-from .session import Phase, SessionEngine
 from .stimuli import Stimuli
 
 MISS_FLASH_S = 0.2

@@ -5,7 +5,8 @@ from __future__ import annotations
 import pytest
 
 from web_grid_paradigm.cli_args import build_parser, load_config
-from web_grid_paradigm.config import ExperimentConfig
+from web_grid_paradigm.core.config import ExperimentConfig
+from web_grid_paradigm.core.session import Cell, TrialResult
 from web_grid_paradigm.panel import form_schema
 from web_grid_paradigm.reward.policy import (
     NoRewardPolicy,
@@ -13,7 +14,6 @@ from web_grid_paradigm.reward.policy import (
     RatioPolicy,
     build_reward_policy,
 )
-from web_grid_paradigm.session import Cell, TrialResult
 
 
 def make_trial(

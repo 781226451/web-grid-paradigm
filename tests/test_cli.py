@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from web_grid_paradigm.cli_args import build_parser, load_config
-from web_grid_paradigm.i18n import STRINGS, Strings
+from web_grid_paradigm.core.i18n import STRINGS, Strings
 
 
 def test_cli_overrides_config() -> None:

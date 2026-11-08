@@ -29,7 +29,7 @@ from typing import Any
 
 from loguru import logger
 
-from ..geometry import Layout
+from ..core.geometry import Layout
 from .base import (
     DeviceContext,
     VelocityCapabilities,

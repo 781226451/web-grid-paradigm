@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
-from ..config import ExperimentConfig
+from ..core.config import ExperimentConfig
 
 if TYPE_CHECKING:
     from .state import Station

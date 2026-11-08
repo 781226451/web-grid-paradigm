@@ -4,10 +4,10 @@ import csv
 import json
 from pathlib import Path
 
-from web_grid_paradigm.config import ExperimentConfig
-from web_grid_paradigm.geometry import Cell
+from web_grid_paradigm.core.config import ExperimentConfig
+from web_grid_paradigm.core.geometry import Cell
+from web_grid_paradigm.core.session import TrialResult
 from web_grid_paradigm.recorder import SessionRecorder
-from web_grid_paradigm.session import TrialResult
 
 
 def make_config(tmp_path: Path) -> ExperimentConfig:

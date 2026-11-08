@@ -4,7 +4,7 @@ import random
 
 import pytest
 
-from web_grid_paradigm.geometry import Cell, Layout, TargetBag
+from web_grid_paradigm.core.geometry import Cell, Layout, TargetBag
 
 
 def test_layout_cells_are_square_and_inside_window() -> None:

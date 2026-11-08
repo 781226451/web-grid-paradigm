@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from web_grid_paradigm.config import ExperimentConfig
+from web_grid_paradigm.core.config import ExperimentConfig
 from web_grid_paradigm.reward.sink import (
     DryRunRewardSink,
     NullRewardSink,

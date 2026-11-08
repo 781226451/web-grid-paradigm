@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from web_grid_paradigm.geometry import Layout
+from web_grid_paradigm.core.geometry import Layout
 from web_grid_paradigm.velocity_inputs import (
     DemoVelocityOptions,
     DemoVelocitySource,

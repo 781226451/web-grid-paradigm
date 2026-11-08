@@ -8,7 +8,7 @@ import urllib.request
 
 import pytest
 
-from web_grid_paradigm.config import ExperimentConfig
+from web_grid_paradigm.core.config import ExperimentConfig
 from web_grid_paradigm.panel import Station
 
 

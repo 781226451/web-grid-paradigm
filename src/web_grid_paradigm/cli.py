@@ -13,7 +13,7 @@ from loguru import logger
 
 from . import __version__
 from .cli_args import build_parser, load_config
-from .config import ExperimentConfig
+from .core.config import ExperimentConfig
 from .log import add_session_log, setup_logging
 from .recorder import SessionRecorder
 

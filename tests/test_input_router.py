@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from web_grid_paradigm.config import ExperimentConfig
-from web_grid_paradigm.geometry import Cell, Layout
+from web_grid_paradigm.core.config import ExperimentConfig
+from web_grid_paradigm.core.geometry import Cell, Layout
+from web_grid_paradigm.core.session import Target
 from web_grid_paradigm.input_router import InputReader
-from web_grid_paradigm.session import Target
 from web_grid_paradigm.velocity_inputs import (
     VelocityCapabilities,
     VelocityFrame,

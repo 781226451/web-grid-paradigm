@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from web_grid_paradigm.scoring import SessionStats, bits_per_target, merge_stats
+from web_grid_paradigm.core.scoring import SessionStats, bits_per_target, merge_stats
 
 
 def test_merge_stats_sums_blocks_on_in_block_time() -> None:

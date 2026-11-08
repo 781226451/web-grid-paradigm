@@ -5,9 +5,9 @@ import random
 
 import pytest
 
-from web_grid_paradigm.config import ExperimentConfig
-from web_grid_paradigm.geometry import Cell, Layout
-from web_grid_paradigm.session import Phase, SessionEngine
+from web_grid_paradigm.core.config import ExperimentConfig
+from web_grid_paradigm.core.geometry import Cell, Layout
+from web_grid_paradigm.core.session import Phase, SessionEngine
 
 
 def make_config(**overrides: object) -> ExperimentConfig:
