@@ -191,7 +191,7 @@ def start_station(
     open_browser: bool = False,
 ) -> Station | None:
     """Start the panel; on failure log a warning and return ``None``."""
-    from .state import Station
+    from .state import Station, lan_ipv4_addresses
 
     try:
         station = Station(
@@ -212,8 +212,29 @@ def start_station(
         return None
     station.attach_logs()
     logger.info("web control panel: {}", station.url)
-    if host in ("0.0.0.0", "::"):
+    lan_urls = station.lan_urls
+    for url in lan_urls:
+        logger.info("  reachable from another computer: {}", url)
+    if station.is_wildcard:
         logger.warning("the web panel is reachable from other computers")
+        if not lan_urls:
+            logger.warning(
+                "no LAN IPv4 address was found; check the network connection"
+            )
+    elif station.is_loopback:
+        addresses = lan_ipv4_addresses()
+        if addresses:
+            logger.info(
+                "  only reachable on this computer; to open it from another one, "
+                "add --dashboard-host 0.0.0.0 and use http://{}:{}/",
+                addresses[0],
+                station.port,
+            )
+        else:
+            logger.info(
+                "  only reachable on this computer; add --dashboard-host 0.0.0.0 "
+                "to open it from another computer"
+            )
     if base_config is not None and base_config.lsl_state:
         try:
             station.start_lsl_state()

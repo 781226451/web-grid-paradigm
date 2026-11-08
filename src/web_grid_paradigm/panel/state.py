@@ -38,6 +38,47 @@ _REWARD_TEST_KEYS = (
     "reward_duration_ms",
 )
 
+# Addresses that make the server listen on every interface / only on loopback.
+_WILDCARD_HOSTS = frozenset({"", "0.0.0.0", "::", "[::]"})
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1", "[::1]"})
+
+
+def is_wildcard(host: str) -> bool:
+    """True when ``host`` binds every interface, i.e. other computers can connect."""
+    return host.strip().lower() in _WILDCARD_HOSTS
+
+
+def lan_ipv4_addresses() -> list[str]:
+    """IPv4 addresses of this computer that another computer can reach.
+
+    The default-route address comes first.  A machine with Hyper-V, WSL or
+    VPN adapters resolves its own host name to several addresses, and the
+    virtual-switch ones cannot be reached from the lab network.  Loopback and
+    link-local (169.254/16) addresses are dropped: they never help a remote
+    browser.
+    """
+    found: list[str] = []
+
+    def add(address: str) -> None:
+        if address not in found and not address.startswith(("127.", "169.254.")):
+            found.append(address)
+
+    # A connected UDP socket reports the address of the default route without
+    # sending a single packet (192.0.2.0/24 is TEST-NET-1, never routed).
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(("192.0.2.1", 9))
+            add(probe.getsockname()[0])
+    except OSError:
+        pass
+    try:
+        infos = socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)
+    except OSError:
+        infos = []
+    for info in infos:
+        add(str(info[4][0]))
+    return found
+
 
 class Station:
     """Control panel server plus the shared state it publishes."""
@@ -89,6 +130,8 @@ class Station:
         self._server = _Server((host, port), _make_handler(self))
         self.host = host
         self.port = int(self._server.server_address[1])
+        self._wildcard = is_wildcard(host)
+        self._loopback = host.strip().lower() in _LOOPBACK_HOSTS
         self._thread = threading.Thread(
             target=self._server.serve_forever, name="webgrid-station", daemon=True
         )
@@ -99,10 +142,30 @@ class Station:
     # ------------------------------------------------------------------
     @property
     def url(self) -> str:
-        host = self.host
-        if host in ("0.0.0.0", "", "::"):
-            host = socket.gethostname()
+        """The URL to use *on this computer* (loopback when bound to all interfaces)."""
+        host = "127.0.0.1" if self._wildcard else self.host.strip()
+        if ":" in host and not host.startswith("["):  # bare IPv6 literal
+            host = f"[{host}]"
         return f"http://{host}:{self.port}/"
+
+    @property
+    def lan_urls(self) -> list[str]:
+        """URLs a browser on another computer can use.
+
+        Empty when the panel only listens on loopback; the default-route
+        address comes first.
+        """
+        if not self._wildcard:
+            return []
+        return [f"http://{address}:{self.port}/" for address in lan_ipv4_addresses()]
+
+    @property
+    def is_wildcard(self) -> bool:
+        return self._wildcard
+
+    @property
+    def is_loopback(self) -> bool:
+        return self._loopback
 
     def attach_logs(self, level: str = "INFO") -> None:
         """Mirror loguru output into the page's log panel."""
