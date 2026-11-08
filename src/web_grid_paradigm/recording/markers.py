@@ -5,7 +5,7 @@ laptop with no amplifier attached.  Choose ``--marker-udp host:port`` and/or
 ``--lsl``; every code below is sent with the label and, for UDP, the PsychoPy
 monotonic timestamp.
 
-The transports themselves live in :mod:`web_grid_paradigm.lsl` (LSL) and here
+The transports themselves live in :mod:`web_grid_paradigm.recording.lsl` (LSL) and here
 (UDP); this module defines the event codes and the fan-out policy.
 """
 
@@ -18,7 +18,7 @@ from typing import Any, Protocol
 
 from loguru import logger
 
-from .core.config import ExperimentConfig
+from ..core.config import ExperimentConfig
 from .lsl import LslMarkerSink
 
 SESSION_START = 1

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
-from ..lsl import LslStateOutlet
+from ..recording.lsl import LslStateOutlet
 
 if TYPE_CHECKING:
     from .state import Station

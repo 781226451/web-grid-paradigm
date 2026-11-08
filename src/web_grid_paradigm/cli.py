@@ -15,11 +15,11 @@ from . import __version__
 from .cli_args import build_parser, load_config
 from .core.config import ExperimentConfig
 from .log import add_session_log, setup_logging
-from .recorder import SessionRecorder
+from .recording.recorder import SessionRecorder
 
 
 def _preview(config: ExperimentConfig, path: Path) -> int:
-    from .markers import NullMarkerSink
+    from .recording.markers import NullMarkerSink
     from .runner import WebGridApp
 
     # A screenshot must not take over the experimenter's screen.

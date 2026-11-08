@@ -24,11 +24,11 @@ from .core.monitor import NullMonitor, SessionMonitor
 from .core.scoring import SessionStats, merge_stats
 from .core.session import FrameOutcome, Phase, SessionEngine, Target
 from .input_router import InputReader
-from .markers import MarkerSink, build_marker_sink
 from .presentation.renderer import Renderer
 from .presentation.stimuli import Stimuli
 from .presentation.window import create_window
-from .reporter import Reporter
+from .recording.markers import MarkerSink, build_marker_sink
+from .recording.reporter import Reporter
 from .reward.policy import build_reward_policy
 
 UI_SCALE_RANGE = (0.65, 2.2)

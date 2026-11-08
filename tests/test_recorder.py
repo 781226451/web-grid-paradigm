@@ -7,7 +7,7 @@ from pathlib import Path
 from web_grid_paradigm.core.config import ExperimentConfig
 from web_grid_paradigm.core.geometry import Cell
 from web_grid_paradigm.core.session import TrialResult
-from web_grid_paradigm.recorder import SessionRecorder
+from web_grid_paradigm.recording.recorder import SessionRecorder
 
 
 def make_config(tmp_path: Path) -> ExperimentConfig:

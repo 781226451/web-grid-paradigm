@@ -11,10 +11,11 @@ from typing import Any
 
 from loguru import logger
 
-from .core.config import ExperimentConfig
-from .core.geometry import Layout
-from .core.monitor import NullMonitor, SessionMonitor
-from .core.session import ClickEvent, Target, TrialResult
+from ..core.config import ExperimentConfig
+from ..core.geometry import Layout
+from ..core.monitor import NullMonitor, SessionMonitor
+from ..core.session import ClickEvent, Target, TrialResult
+from ..reward.sink import RewardSink, build_reward_sink
 from .markers import (
     BLOCK_END,
     BLOCK_START,
@@ -29,7 +30,6 @@ from .markers import (
     NullMarkerSink,
 )
 from .recorder import SessionRecorder
-from .reward.sink import RewardSink, build_reward_sink
 
 
 class Reporter:

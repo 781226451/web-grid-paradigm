@@ -601,14 +601,15 @@ src/web_grid_paradigm/
 │                        #   base/registry/integrator/mouse
 │                        #   demo/joystick/hall_protocol/lsl
 ├── input_router.py      # 输入门面：选策略 + 积分 + 目标注入
-├── reporter.py          # 所有输出：CSV、事件标记、面板状态
+├── recording/           # 数据与事件输出
+│   ├── recorder.py      # CSV/JSON 数据写入
+│   ├── reporter.py      # 所有输出：CSV、事件标记、面板状态
+│   ├── markers.py       # 事件码、UDP 标记、fan-out
+│   └── lsl.py           # LSL 出口（事件标记 / 状态流）、liblsl 配置
 ├── runner.py            # 会话编排：窗口、block 流程、主循环
-├── markers.py           # 事件码、UDP 标记、fan-out
 ├── reward/              # 奖励子系统：两个独立模块
 │   ├── policy.py        # 何时给：per_hit / ratio / none（返回 Reward 决策）
 │   └── sink.py          # 怎么送：serial / test / off（把决策送到硬件）
-├── lsl.py               # LSL 出口（事件标记 / 状态流）、liblsl 配置
-├── recorder.py          # CSV/JSON 数据写入
 ├── log.py               # loguru 配置、PsychoPy 日志桥接
 └── panel/               # Web 控制台
     ├── __init__.py      # 对外导出

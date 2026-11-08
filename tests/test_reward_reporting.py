@@ -12,8 +12,8 @@ from web_grid_paradigm.cli_args import build_parser, load_config
 from web_grid_paradigm.core.config import ExperimentConfig
 from web_grid_paradigm.core.geometry import Layout
 from web_grid_paradigm.panel import form_schema
-from web_grid_paradigm.recorder import SessionRecorder
-from web_grid_paradigm.reporter import Reporter
+from web_grid_paradigm.recording.recorder import SessionRecorder
+from web_grid_paradigm.recording.reporter import Reporter
 from web_grid_paradigm.reward.sink import DryRunRewardSink
 
 
