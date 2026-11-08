@@ -497,7 +497,7 @@ void loop() {
 data/
 └── sub-01/
     └── ses-20261107-140000/
-        ├── config.json      # 全部参数、Python/PsychoPy 版本、平台
+        ├── config.json      # 全部参数、参数来源、Python/PsychoPy 版本、平台
         ├── events.csv       # 事件日志：session/target/click/hit/reward/timeout...
         ├── trials.csv       # 每个目标一行（命中或超时）
         ├── rewards.csv      # 每次奖励一行（amount/duration/reason/sink）
