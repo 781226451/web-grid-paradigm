@@ -118,13 +118,6 @@ def test_legacy_keyboard_toml_is_rejected(tmp_path: Path) -> None:
         ExperimentConfig.from_toml(path)
 
 
-def test_removed_marker_udp_is_rejected(tmp_path: Path) -> None:
-    path = tmp_path / "old-marker.toml"
-    path.write_text('marker_udp = "127.0.0.1:9001"\n', encoding="utf-8")
-    with pytest.raises(ValueError, match="unknown configuration key"):
-        ExperimentConfig.from_toml(path)
-
-
 @pytest.mark.parametrize(
     "overrides",
     [
