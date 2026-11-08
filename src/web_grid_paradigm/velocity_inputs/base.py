@@ -1,9 +1,9 @@
-"""Strategy interface for external input sources.
+"""Strategy interface for external velocity sources.
 
-The input layer is a *strategy* family: a session holds exactly one
-:class:`InputSource`; the concrete device (mouse, serial joystick, LSL
+The velocity input layer is a *strategy* family: a session holds exactly one
+:class:`VelocitySource`; the concrete device (mouse, serial joystick, LSL
 decoder) is selected by configuration and created through the registry and
-factory in :mod:`web_grid_paradigm.inputs.registry`.  The runner only talks to
+factory in :mod:`web_grid_paradigm.velocity_inputs.registry`.  The runner only talks to
 the interface below, so adding a device never touches the render loop.
 
 Contract
@@ -31,11 +31,11 @@ from typing import Any, Protocol, runtime_checkable
 from ..geometry import Layout
 
 
-class InputSourceError(RuntimeError):
-    """Base error for input-source problems (configuration or hardware)."""
+class VelocitySourceError(RuntimeError):
+    """Base error for velocity-source problems (configuration or hardware)."""
 
 
-class InputSourceUnavailable(InputSourceError):
+class VelocitySourceUnavailable(VelocitySourceError):
     """The strategy is not implemented yet, or its device cannot be opened."""
 
 
@@ -54,7 +54,7 @@ class DeviceContext:
 
 
 @dataclass(frozen=True, slots=True)
-class InputSample:
+class VelocitySample:
     """One velocity sample ``(timestamp, vx, vy)``."""
 
     timestamp: float
@@ -63,17 +63,17 @@ class InputSample:
 
 
 @dataclass(frozen=True, slots=True)
-class InputRead:
+class VelocityFrame:
     """Everything a source produced for one frame.
 
     ``samples`` is ordered by ``timestamp``.
     """
 
-    samples: tuple[InputSample, ...] = ()
+    samples: tuple[VelocitySample, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
-class Capabilities:
+class VelocityCapabilities:
     """Static description used for validation and user-facing hints."""
 
     category: str
@@ -82,7 +82,7 @@ class Capabilities:
 
 
 @dataclass(frozen=True, slots=True)
-class SourceStatus:
+class VelocitySourceStatus:
     """Snapshot for logging and the live web panel."""
 
     name: str
@@ -112,23 +112,23 @@ class InitialPositionProvider(Protocol):
 
 
 @runtime_checkable
-class InputSource(Protocol):
+class VelocitySource(Protocol):
     """The strategy interface implemented by every input source."""
 
     name: str
-    capabilities: Capabilities
+    capabilities: VelocityCapabilities
 
     def open(self) -> None:
-        """Open/connect the device.  May raise :class:`InputSourceError`."""
+        """Open/connect the device.  May raise :class:`VelocitySourceError`."""
 
     def close(self) -> None:
         """Release the device.  Must be idempotent."""
 
-    def read(self, now: float) -> InputRead:
+    def read(self, now: float) -> VelocityFrame:
         """Return the velocity samples produced since the previous call."""
 
     def reset(self) -> None:
         """Forget per-block state (button edges, velocity baseline)."""
 
-    def status(self) -> SourceStatus:
+    def status(self) -> VelocitySourceStatus:
         """Return a snapshot for logging and the live panel."""

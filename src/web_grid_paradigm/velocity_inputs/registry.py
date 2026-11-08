@@ -1,7 +1,7 @@
 """Name -> strategy registry and factory.
 
-New input sources only have to add a module that decorates its class with
-:func:`register_source`; the factory and the runner stay untouched.  This is
+New velocity sources only have to add a module that decorates its class with
+:func:`register_velocity_source`; the factory and the runner stay untouched.  This is
 the extension point that makes the strategy pattern configurable: the
 configuration file only names a strategy, never imports one.
 """
@@ -10,13 +10,13 @@ from __future__ import annotations
 
 from typing import Any, TypeVar
 
-from .base import DeviceContext, InputSource
+from .base import DeviceContext, VelocitySource
 
-_S = TypeVar("_S", bound=InputSource)
-_SOURCES: dict[str, type[InputSource]] = {}
+_S = TypeVar("_S", bound=VelocitySource)
+_SOURCES: dict[str, type[VelocitySource]] = {}
 
 
-def register_source(name: str):
+def register_velocity_source(name: str):
     """Class decorator registering a strategy under ``name``."""
 
     key = name.strip().lower()
@@ -36,34 +36,34 @@ def register_source(name: str):
     return _register
 
 
-def available_sources() -> tuple[str, ...]:
+def available_velocity_sources() -> tuple[str, ...]:
     """Names of all registered strategies, sorted for stable output."""
     return tuple(sorted(_SOURCES))
 
 
-def get_source_class(name: str) -> type[InputSource]:
+def get_velocity_source_class(name: str) -> type[VelocitySource]:
     """Return the strategy class registered under ``name``."""
     key = str(name).strip().lower()
     try:
         return _SOURCES[key]
     except KeyError:
-        choices = ", ".join(available_sources()) or "(none)"
+        choices = ", ".join(available_velocity_sources()) or "(none)"
         raise ValueError(
             f"unknown input source {name!r}; available: {choices}"
         ) from None
 
 
-def build_input_source(
+def build_velocity_source(
     name: str,
     *,
     options: Any = None,
     context: DeviceContext | None = None,
-) -> InputSource:
+) -> VelocitySource:
     """Instantiate the strategy selected by configuration.
 
     ``options`` is the strategy-specific configuration object (for example
-    :class:`~web_grid_paradigm.inputs.mouse.MouseOptions`); ``context`` carries
+    :class:`~web_grid_paradigm.velocity_inputs.mouse.MouseVelocityOptions`); ``context`` carries
     the shared application objects.  The factory does not open the device —
-    that is the caller's explicit :meth:`InputSource.open` call.
+    that is the caller's explicit :meth:`VelocitySource.open` call.
     """
-    return get_source_class(name)(options=options, context=context)
+    return get_velocity_source_class(name)(options=options, context=context)

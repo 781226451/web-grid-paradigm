@@ -3,23 +3,23 @@ from __future__ import annotations
 import pytest
 
 from web_grid_paradigm.geometry import Layout
-from web_grid_paradigm.inputs import (
+from web_grid_paradigm.velocity_inputs import (
     DeviceContext,
     InitialPositionProvider,
-    InputRead,
-    InputSample,
-    InputSource,
-    InputSourceUnavailable,
-    LslInputSource,
-    LslOptions,
-    MouseOptions,
-    MouseSource,
-    SerialJoystickOptions,
-    SerialJoystickSource,
-    available_sources,
-    build_input_source,
-    get_source_class,
-    register_source,
+    VelocityFrame,
+    VelocitySample,
+    VelocitySource,
+    VelocitySourceUnavailable,
+    LslVelocitySource,
+    LslVelocityOptions,
+    MouseVelocityOptions,
+    MouseVelocitySource,
+    SerialJoystickVelocityOptions,
+    SerialJoystickVelocitySource,
+    available_velocity_sources,
+    build_velocity_source,
+    get_velocity_source_class,
+    register_velocity_source,
 )
 
 
@@ -41,50 +41,50 @@ def make_context() -> DeviceContext:
 # registry / factory
 # ----------------------------------------------------------------------
 def test_three_strategies_are_registered() -> None:
-    assert set(available_sources()) >= {"mouse", "joystick", "lsl"}
-    assert available_sources() == tuple(sorted(available_sources()))
+    assert set(available_velocity_sources()) >= {"mouse", "joystick", "lsl"}
+    assert available_velocity_sources() == tuple(sorted(available_velocity_sources()))
 
 
 def test_factory_builds_the_selected_strategy_only() -> None:
-    mouse = build_input_source(
-        "mouse", options=MouseOptions(), context=make_context()
+    mouse = build_velocity_source(
+        "mouse", options=MouseVelocityOptions(), context=make_context()
     )
-    assert isinstance(mouse, MouseSource)
+    assert isinstance(mouse, MouseVelocitySource)
     assert mouse.name == "mouse"
-    assert isinstance(mouse, InputSource)
+    assert isinstance(mouse, VelocitySource)
     assert isinstance(mouse, InitialPositionProvider)
     assert mouse.status().connected is False  # factory never opens the device
 
-    joystick = build_input_source(
-        "joystick", options=SerialJoystickOptions(port="/dev/null")
+    joystick = build_velocity_source(
+        "joystick", options=SerialJoystickVelocityOptions(port="/dev/null")
     )
-    assert isinstance(joystick, SerialJoystickSource)
+    assert isinstance(joystick, SerialJoystickVelocitySource)
     assert joystick.options.port == "/dev/null"
 
-    lsl = build_input_source("lsl", options=LslOptions(stream_name="WT"))
-    assert isinstance(lsl, LslInputSource)
+    lsl = build_velocity_source("lsl", options=LslVelocityOptions(stream_name="WT"))
+    assert isinstance(lsl, LslVelocitySource)
     assert lsl.options.stream_name == "WT"
 
 
 def test_unknown_source_is_rejected() -> None:
     with pytest.raises(ValueError, match="unknown input source"):
-        build_input_source("gamepad")
+        build_velocity_source("gamepad")
 
 
 def test_duplicate_registration_is_rejected() -> None:
     with pytest.raises(ValueError, match="already registered"):
-        register_source("mouse")(type("Duplicate", (), {}))
+        register_velocity_source("mouse")(type("Duplicate", (), {}))
 
 
 def test_source_classes_are_looked_up_by_name() -> None:
-    assert get_source_class("  MOUSE  ") is MouseSource
+    assert get_velocity_source_class("  MOUSE  ") is MouseVelocitySource
 
 
 # ----------------------------------------------------------------------
 # mouse strategy (velocity contract)
 # ----------------------------------------------------------------------
 def test_mouse_first_frame_only_establishes_the_baseline() -> None:
-    mouse = MouseSource(context=make_context(), device=FakeMouse())
+    mouse = MouseVelocitySource(context=make_context(), device=FakeMouse())
     mouse.open()
     assert mouse.read(now=10.0).samples == ()
 
@@ -92,7 +92,7 @@ def test_mouse_first_frame_only_establishes_the_baseline() -> None:
 def test_mouse_position_delta_becomes_velocity() -> None:
     context = make_context()
     device = FakeMouse(pos=(0.0, 0.0))
-    mouse = MouseSource(options=MouseOptions(visible=True), context=context, device=device)
+    mouse = MouseVelocitySource(options=MouseVelocityOptions(visible=True), context=context, device=device)
     mouse.open()
     mouse.read(now=1.0)
 
@@ -107,7 +107,7 @@ def test_mouse_position_delta_becomes_velocity() -> None:
 
 def test_mouse_reset_clears_the_position_baseline() -> None:
     device = FakeMouse()
-    mouse = MouseSource(context=make_context(), device=device)
+    mouse = MouseVelocitySource(context=make_context(), device=device)
     mouse.open()
     mouse.read(now=1.0)
 
@@ -120,14 +120,14 @@ def test_mouse_reset_clears_the_position_baseline() -> None:
 
 def test_mouse_initial_position_capability() -> None:
     device = FakeMouse(pos=(200.0, -150.0))
-    mouse = MouseSource(context=make_context(), device=device)
+    mouse = MouseVelocitySource(context=make_context(), device=device)
     mouse.open()
     assert mouse.initial_position_norm() == pytest.approx((0.5, -0.5))
 
 
 def test_mouse_status_snapshot() -> None:
     device = FakeMouse()
-    mouse = MouseSource(context=make_context(), device=device)
+    mouse = MouseVelocitySource(context=make_context(), device=device)
     status = mouse.status()
     assert status.connected is False
     assert status.frames == 0
@@ -148,7 +148,7 @@ def test_mouse_status_snapshot() -> None:
 # joystick / lsl
 # ----------------------------------------------------------------------
 def test_serial_joystick_defaults_match_the_hall_protocol() -> None:
-    options = SerialJoystickOptions()
+    options = SerialJoystickVelocityOptions()
     assert (options.baud, options.protocol) == (9600, "hall_rs232")
     assert options.address is None  # universal 9-byte frame
     assert options.stream_mode == "periodic"
@@ -156,14 +156,14 @@ def test_serial_joystick_defaults_match_the_hall_protocol() -> None:
 
 
 def test_lsl_strategy_is_still_a_stub() -> None:
-    lsl = build_input_source("lsl")
-    with pytest.raises(InputSourceUnavailable, match="not implemented yet"):
+    lsl = build_velocity_source("lsl")
+    with pytest.raises(VelocitySourceUnavailable, match="not implemented yet"):
         lsl.open()
-    assert lsl.read(now=0.0) == InputRead()
+    assert lsl.read(now=0.0) == VelocityFrame()
 
 
 def test_data_model_defaults() -> None:
-    read = InputRead()
+    read = VelocityFrame()
     assert read.samples == ()
-    sample = InputSample(timestamp=1.0, vx=0.5, vy=-0.25)
+    sample = VelocitySample(timestamp=1.0, vx=0.5, vy=-0.25)
     assert (sample.timestamp, sample.vx, sample.vy) == (1.0, 0.5, -0.25)

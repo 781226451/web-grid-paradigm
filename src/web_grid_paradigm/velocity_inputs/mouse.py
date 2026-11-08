@@ -19,39 +19,39 @@ from typing import Any
 
 from ..geometry import Layout
 from .base import (
-    Capabilities,
+    VelocityCapabilities,
     DeviceContext,
     InitialPositionProvider,
-    InputRead,
-    InputSample,
-    InputSourceError,
-    SourceStatus,
+    VelocityFrame,
+    VelocitySample,
+    VelocitySourceError,
+    VelocitySourceStatus,
 )
-from .registry import register_source
+from .registry import register_velocity_source
 
 
 @dataclass(frozen=True, slots=True)
-class MouseOptions:
+class MouseVelocityOptions:
     """Configuration of the mouse strategy."""
 
     visible: bool = True
 
 
-@register_source("mouse")
-class MouseSource(InitialPositionProvider):
+@register_velocity_source("mouse")
+class MouseVelocitySource(InitialPositionProvider):
     """Velocity samples derived from PsychoPy's ``event.Mouse``."""
 
     name = "mouse"
-    capabilities = Capabilities(category="mouse", continuous=True, absolute=True)
+    capabilities = VelocityCapabilities(category="mouse", continuous=True, absolute=True)
 
     def __init__(
         self,
         *,
-        options: MouseOptions | None = None,
+        options: MouseVelocityOptions | None = None,
         context: DeviceContext | None = None,
         device: Any | None = None,
     ) -> None:
-        self.options = options or MouseOptions()
+        self.options = options or MouseVelocityOptions()
         self.context = context
         self._device = device
         self._opened = False
@@ -65,7 +65,7 @@ class MouseSource(InitialPositionProvider):
     @property
     def layout(self) -> Layout:
         if self.context is None:
-            raise InputSourceError("mouse source needs a DeviceContext")
+            raise VelocitySourceError("mouse source needs a DeviceContext")
         return self.context.layout
 
     def open(self) -> None:
@@ -73,7 +73,7 @@ class MouseSource(InitialPositionProvider):
             return
         if self._device is None:
             if self.context is None or self.context.window is None:
-                raise InputSourceError(
+                raise VelocitySourceError(
                     "mouse source needs an open PsychoPy window; "
                     "pass a DeviceContext with a window"
                 )
@@ -95,32 +95,32 @@ class MouseSource(InitialPositionProvider):
         self._last_t = None
 
     # ------------------------------------------------------------------
-    def read(self, now: float) -> InputRead:
+    def read(self, now: float) -> VelocityFrame:
         """Return at most one velocity sample for this frame."""
         if not self._opened or self._device is None:
-            return InputRead()
+            return VelocityFrame()
         try:
             px, py = self._device.getPos()
         except Exception as exc:  # noqa: BLE001 - keep the frame loop alive
             self._invalid += 1
             self._error = f"{type(exc).__name__}: {exc}"
-            return InputRead()
+            return VelocityFrame()
 
         self._frames += 1
         norm = self.layout.px_to_norm(float(px), float(py))
-        samples: tuple[InputSample, ...] = ()
+        samples: tuple[VelocitySample, ...] = ()
         if self._last_norm is not None and self._last_t is not None:
             dt = now - self._last_t
             if dt > 0.0:
                 vx = (norm[0] - self._last_norm[0]) / dt
                 vy = (norm[1] - self._last_norm[1]) / dt
-                samples = (InputSample(now, vx, vy),)
+                samples = (VelocitySample(now, vx, vy),)
                 self._last_norm = norm
                 self._last_t = now
         else:
             self._last_norm = norm
             self._last_t = now
-        return InputRead(samples=samples)
+        return VelocityFrame(samples=samples)
 
     # ------------------------------------------------------------------
     def initial_position_norm(self) -> tuple[float, float] | None:
@@ -132,8 +132,8 @@ class MouseSource(InitialPositionProvider):
         except Exception:  # noqa: BLE001 - backend edge case
             return None
 
-    def status(self) -> SourceStatus:
-        return SourceStatus(
+    def status(self) -> VelocitySourceStatus:
+        return VelocitySourceStatus(
             name=self.name,
             category=self.capabilities.category,
             connected=self._opened,

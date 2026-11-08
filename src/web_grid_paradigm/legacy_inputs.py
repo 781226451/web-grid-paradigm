@@ -1,8 +1,9 @@
-"""Cursor input sources for BCI and local testing.
+"""Legacy position-based input sources (UDP decoder / autopilot).
 
-Only the UDP source and the autopilot live here so that the protocol can be
-tested without PsychoPy.  Mouse and keyboard handling stay in the renderer,
-where PsychoPy's event objects are available.
+This is the previous input layer: it delivers cursor positions and clicks.
+The velocity-based strategies now live in
+:mod:`web_grid_paradigm.velocity_inputs`; this module is kept only until the
+runner is migrated and can then be deleted.
 """
 
 from __future__ import annotations

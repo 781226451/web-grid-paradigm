@@ -30,7 +30,7 @@ PC -> joystick commands (hex)::
     A5 55 05 00 FF   cancel address (back to the universal protocol)
 
 The parser is pure Python and independent of pyserial/PsychoPy so it can be
-unit-tested with byte streams; :class:`SerialJoystickSource` owns the device.
+unit-tested with byte streams; :class:`SerialJoystickVelocitySource` owns the device.
 """
 
 from __future__ import annotations

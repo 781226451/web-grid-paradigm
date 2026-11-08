@@ -4,7 +4,7 @@ import json
 import socket
 import time
 
-from web_grid_paradigm.inputs import AutoPilot, UdpCursorSource
+from web_grid_paradigm.legacy_inputs import AutoPilot, UdpCursorSource
 
 
 def send(source: UdpCursorSource, payload: dict) -> None:

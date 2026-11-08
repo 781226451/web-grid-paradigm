@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from web_grid_paradigm.geometry import Layout
-from web_grid_paradigm.inputs import (
+from web_grid_paradigm.velocity_inputs import (
     HEADER,
     RAW_CENTER,
     RAW_MAX,
@@ -11,9 +11,9 @@ from web_grid_paradigm.inputs import (
     SET_CENTER,
     DeviceContext,
     HallFrameParser,
-    SerialJoystickOptions,
-    SerialJoystickSource,
-    build_input_source,
+    SerialJoystickVelocityOptions,
+    SerialJoystickVelocitySource,
+    build_velocity_source,
     normalize_axis,
 )
 
@@ -76,10 +76,10 @@ def make_source(
     *,
     transport: FakeTransport | None = None,
     **options: object,
-) -> tuple[SerialJoystickSource, FakeTransport]:
+) -> tuple[SerialJoystickVelocitySource, FakeTransport]:
     fake = transport or FakeTransport(data)
-    source = SerialJoystickSource(
-        options=SerialJoystickOptions(port="fake", **options),
+    source = SerialJoystickVelocitySource(
+        options=SerialJoystickVelocityOptions(port="fake", **options),
         context=DeviceContext(layout=LAYOUT),
         transport=fake,
         auto_thread=False,
@@ -148,12 +148,12 @@ def test_normalize_axis_matches_protocol_ranges() -> None:
 # source: velocity mapping, state hold, status
 # ----------------------------------------------------------------------
 def test_factory_builds_a_working_joystick_strategy() -> None:
-    source = build_input_source(
+    source = build_velocity_source(
         "joystick",
-        options=SerialJoystickOptions(port="fake"),
+        options=SerialJoystickVelocityOptions(port="fake"),
         context=DeviceContext(layout=LAYOUT),
     )
-    assert isinstance(source, SerialJoystickSource)
+    assert isinstance(source, SerialJoystickVelocitySource)
     assert source.capabilities.category == "joystick"
     assert source.read(now=0.0).samples == ()  # nothing until a frame arrives
 
@@ -248,8 +248,8 @@ def test_addressed_source_reads_addressed_frames() -> None:
 
 def test_invalid_options_are_rejected() -> None:
     with pytest.raises(ValueError):
-        SerialJoystickOptions(stream_mode="burst")
+        SerialJoystickVelocityOptions(stream_mode="burst")
     with pytest.raises(ValueError):
-        SerialJoystickOptions(address=0)
+        SerialJoystickVelocityOptions(address=0)
     with pytest.raises(ValueError):
-        SerialJoystickOptions(speed_px_per_s=0.0)
+        SerialJoystickVelocityOptions(speed_px_per_s=0.0)

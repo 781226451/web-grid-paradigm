@@ -3,8 +3,8 @@
 The lab joystick is a USB-serial peripheral, not an HID gamepad, so
 ``psychopy.hardware.joystick`` (pyglet/GLFW) cannot enumerate it.  This
 strategy owns the serial transport and the 9/10-byte protocol state machine
-(:mod:`web_grid_paradigm.inputs.hall_protocol`), and exposes the same
-:class:`~web_grid_paradigm.inputs.base.InputSource` contract as the mouse and
+(:mod:`web_grid_paradigm.velocity_inputs.hall_protocol`), and exposes the same
+:class:`~web_grid_paradigm.velocity_inputs.base.VelocitySource` contract as the mouse and
 the LSL strategies:
 
 * the device reports the stick deflection; the source interprets it as a
@@ -30,12 +30,12 @@ from typing import Any
 
 from ..geometry import Layout
 from .base import (
-    Capabilities,
+    VelocityCapabilities,
     DeviceContext,
-    InputRead,
-    InputSample,
-    InputSourceError,
-    SourceStatus,
+    VelocityFrame,
+    VelocitySample,
+    VelocitySourceError,
+    VelocitySourceStatus,
 )
 from .hall_protocol import (
     FRAME_LEN_ADDRESSED,
@@ -45,7 +45,7 @@ from .hall_protocol import (
     HallFrameParser,
     normalize_axis,
 )
-from .registry import register_source
+from .registry import register_velocity_source
 
 #: Protocol identifiers of the serial joystick strategy.
 PROTOCOLS = ("hall_rs232",)
@@ -54,7 +54,7 @@ STREAM_MODES = ("periodic", "on_change")
 
 
 @dataclass(frozen=True, slots=True)
-class SerialJoystickOptions:
+class SerialJoystickVelocityOptions:
     """Configuration of the serial joystick strategy."""
 
     port: str = ""  # e.g. "/dev/cu.usbserial-XXXX" or "COM4"
@@ -95,12 +95,12 @@ class SerialJoystickOptions:
             raise ValueError("max_queue must be positive")
 
 
-@register_source("joystick")
-class SerialJoystickSource:
+@register_velocity_source("joystick")
+class SerialJoystickVelocitySource:
     """Velocity samples from the serial hall-effect joystick."""
 
     name = "joystick"
-    capabilities = Capabilities(
+    capabilities = VelocityCapabilities(
         category="joystick",
         continuous=True,
         absolute=False,
@@ -109,13 +109,13 @@ class SerialJoystickSource:
     def __init__(
         self,
         *,
-        options: SerialJoystickOptions | None = None,
+        options: SerialJoystickVelocityOptions | None = None,
         context: DeviceContext | None = None,
         transport: Any | None = None,
         parser: HallFrameParser | None = None,
         auto_thread: bool = True,
     ) -> None:
-        self.options = options or SerialJoystickOptions()
+        self.options = options or SerialJoystickVelocityOptions()
         self.context = context
         self._transport = transport
         self._parser = parser
@@ -149,7 +149,7 @@ class SerialJoystickSource:
     @property
     def layout(self) -> Layout:
         if self.context is None:
-            raise InputSourceError("serial joystick needs a DeviceContext")
+            raise VelocitySourceError("serial joystick needs a DeviceContext")
         return self.context.layout
 
     def open(self) -> None:
@@ -158,14 +158,14 @@ class SerialJoystickSource:
         self._parser = self._parser or HallFrameParser(address=self.options.address)
         if self._transport is None:
             if not self.options.port:
-                raise InputSourceError(
+                raise VelocitySourceError(
                     "serial joystick port is not configured "
                     "(set joystick.port to e.g. /dev/cu.usbserial-XXXX)"
                 )
             try:
                 import serial  # lazy: pyserial is only needed by this strategy
             except ImportError as exc:  # pragma: no cover - dependency is declared
-                raise InputSourceError(
+                raise VelocitySourceError(
                     "pyserial is required for the serial joystick strategy"
                 ) from exc
             try:
@@ -176,7 +176,7 @@ class SerialJoystickSource:
                 )
             except Exception as exc:  # noqa: BLE001 - surface a clear message
                 self._error = f"{type(exc).__name__}: {exc}"
-                raise InputSourceError(
+                raise VelocitySourceError(
                     f"could not open joystick port {self.options.port!r} at "
                     f"{self.options.baud} baud: {exc}"
                 ) from exc
@@ -278,10 +278,10 @@ class SerialJoystickSource:
             # sleep only avoids spinning with transports that return at once.
             time.sleep(0.001)
 
-    def read(self, now: float) -> InputRead:
+    def read(self, now: float) -> VelocityFrame:
         """Drain new frames and return one velocity sample for this frame."""
         if not self._opened or self._queue is None:
-            return InputRead()
+            return VelocityFrame()
         perf_now = time.perf_counter()
         if self._clock_offset is None:
             self._clock_offset = now - perf_now
@@ -292,10 +292,10 @@ class SerialJoystickSource:
             self._apply_frame(frame, perf_time + self._clock_offset)
         self._last_read_now = now
 
-        samples: tuple[InputSample, ...] = ()
+        samples: tuple[VelocitySample, ...] = ()
         if self._has_state and self._connected:
-            samples = (InputSample(now, self._vx, self._vy),)
-        return InputRead(samples=samples)
+            samples = (VelocitySample(now, self._vx, self._vy),)
+        return VelocityFrame(samples=samples)
 
     # ------------------------------------------------------------------
     def _apply_frame(self, frame: HallFrame, timestamp: float) -> None:
@@ -331,7 +331,7 @@ class SerialJoystickSource:
         self._error = f"{type(exc).__name__}: {exc}"
 
     # ------------------------------------------------------------------
-    def status(self) -> SourceStatus:
+    def status(self) -> VelocitySourceStatus:
         latency_ms: float | None = None
         if self._last_read_now is not None and self._last_rx is not None:
             latency_ms = max(0.0, (self._last_read_now - self._last_rx) * 1000.0)
@@ -343,7 +343,7 @@ class SerialJoystickSource:
             and self._last_rx is not None
         ):
             stale = (self._last_read_now - self._last_rx) > self.options.stale_after
-        return SourceStatus(
+        return VelocitySourceStatus(
             name=self.name,
             category=self.capabilities.category,
             connected=self._connected,

@@ -560,8 +560,10 @@ src/web_grid_paradigm/
 ├── i18n.py              # 中英文 UI 文案
 ├── session.py           # 试次状态机（纯 Python）
 ├── scoring.py           # BPS/NTPM 统计、跨 block 合并
-├── inputs.py            # UDP 光标源、autopilot（纯 Python）
-├── input_router.py      # 鼠标/键盘/UDP/autopilot → 光标与点击
+├── legacy_inputs.py     # 旧版 UDP 光标源、autopilot（纯 Python，待迁移）
+├── velocity_inputs/     # 统一速度接口：VelocitySource / VelocitySample
+│                        #   鼠标、串口摇杆、LSL（策略模式）
+├── input_router.py      # 旧版输入路由（含鼠标/键盘/UDP→位置，待迁移）
 ├── monitor.py           # 监控协议 + 空实现（核心不依赖网页层）
 ├── palette.py           # 颜色
 ├── window.py            # PsychoPy 窗口创建
@@ -589,7 +591,7 @@ src/web_grid_paradigm/
 `src/web_grid_paradigm/panel/static/`，由控制台在根路径 `/` 提供。开发/构建见
 [webui/README.md](<webui/README.md>)。
 
-依赖方向：`config/geometry/scoring/session` 不依赖 PsychoPy；`runner` 只依赖 `monitor` 协议，不依赖 `panel`；`panel` 依赖 `runner` 提供的 `SessionView` 语义。因此 `geometry`、`scoring`、`session`、`inputs`、`panel/schema` 的单元测试无需打开窗口。
+依赖方向：`config/geometry/scoring/session` 不依赖 PsychoPy；`runner` 只依赖 `monitor` 协议，不依赖 `panel`；`panel` 依赖 `runner` 提供的 `SessionView` 语义。因此 `geometry`、`scoring`、`session`、`velocity_inputs`、`panel/schema` 的单元测试无需打开窗口。
 
 ## 注意事项
 

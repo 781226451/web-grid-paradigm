@@ -14,7 +14,7 @@ from psychopy import event
 
 from .config import ExperimentConfig
 from .geometry import Layout
-from .inputs import AutoPilot, UdpCursorSource
+from .legacy_inputs import AutoPilot, UdpCursorSource
 from .session import Target
 
 # PsychoPy reports buttons as left, middle, right; the paradigm uses
