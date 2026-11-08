@@ -737,11 +737,11 @@ class Station:
         if not self.control:
             raise RuntimeError("此页面为只读监控")
         config = coerce_params(payload, self.base_config)
-        base_values = self._base_values()
         sources = {
             name: SOURCE_WEBUI
             for name in payload
-            if name in _FORM_BY_NAME and payload[name] != base_values.get(name)
+            if name in _FORM_BY_NAME
+            and getattr(config, name) != getattr(self.base_config, name)
         }
         self.request_start(config, source="web", sources=sources)
         return config.to_dict()
