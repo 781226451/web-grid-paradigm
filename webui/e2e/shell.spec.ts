@@ -36,6 +36,56 @@ test.describe("control panel shell", () => {
     await page.getByRole("button", { name: "取消" }).click();
   });
 
+  test("editing the joystick dialog updates the device summary", async ({ page }) => {
+    await page.goto("/");
+
+    await choose(page, "input", "joystick");
+    await page.getByRole("button", { name: "配置…" }).click();
+    const dialog = page.locator(".n-modal");
+    await dialog.locator("input").first().fill("COM9");
+    await page.getByRole("button", { name: "确定" }).click();
+    await expect(page.locator(".device[data-device=input] .status")).toContainText(
+      "COM9",
+    );
+  });
+
+  test("dialog values are sent with the start request", async ({ page }) => {
+    let payload: Record<string, unknown> = {};
+    await page.route("**/api/start", async (route) => {
+      payload = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "intentional stop" }),
+      });
+    });
+
+    await page.goto("/");
+    await choose(page, "input", "joystick");
+    await page.getByRole("button", { name: "配置…" }).click();
+    await page.locator(".n-modal input").first().fill("COM9");
+    await page.getByRole("button", { name: "确定" }).click();
+    await page.getByRole("button", { name: "启动实验" }).click();
+
+    await expect(page.locator(".n-alert")).toContainText("intentional stop");
+    expect(payload.input).toBe("joystick");
+    expect(payload.joystick_port).toBe("COM9");
+  });
+
+  test("the LSL summary falls back to the stream type", async ({ page }) => {
+    await page.goto("/");
+
+    await choose(page, "input", "lsl");
+    await page.getByRole("button", { name: "配置…" }).click();
+    const inputs = page.locator(".n-modal input");
+    await inputs.nth(0).fill("");
+    await inputs.nth(1).fill("Velocity");
+    await page.getByRole("button", { name: "确定" }).click();
+    await expect(page.locator(".device[data-device=input] .status")).toContainText(
+      "Velocity",
+    );
+  });
+
   test("shows the monitoring and hardware cards", async ({ page }) => {
     await page.goto("/");
 

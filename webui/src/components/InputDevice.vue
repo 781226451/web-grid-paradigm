@@ -30,12 +30,12 @@ const summary = computed(() => {
     return `演示 autopilot · 速度 ${form.values.demo_speed ?? 2.2}`;
   }
   if (mode.value === "joystick") {
-    const port = String(form.values.joystick_port ?? "").trim() || "未设置串口";
+    const port = String(form.values.joystick_port ?? "").trim() || "未设置";
     return `串口 ${port} @ ${form.values.joystick_baud ?? 9600} · ${form.values.joystick_stream_mode ?? "periodic"}`;
   }
   if (mode.value === "lsl") {
     const stream = String(
-      form.values.lsl_velocity_stream ?? form.values.lsl_velocity_type ?? "",
+      form.values.lsl_velocity_stream || form.values.lsl_velocity_type || "",
     ).trim() || "未设置流";
     return `LSL ${stream} · 解析超时 ${form.values.lsl_velocity_timeout ?? 5} s`;
   }
