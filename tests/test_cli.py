@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from web_grid_paradigm.app.cli_args import build_parser, load_config
+from web_grid_paradigm.app.cli_args import (
+    build_parser,
+    load_config,
+    load_config_resolved,
+)
 from web_grid_paradigm.core.config import ExperimentConfig
 from web_grid_paradigm.core.i18n import STRINGS, Strings
 
@@ -83,6 +87,19 @@ def test_config_file_then_cli_override(tmp_path: Path) -> None:
     config = load_config(args)
     assert config.subject == "from-file"
     assert config.rows == 5
+
+
+def test_config_sources_track_file_and_cli(tmp_path: Path) -> None:
+    path = tmp_path / "config.toml"
+    path.write_text("subject = 'from-file'\nrows = 10\n", encoding="utf-8")
+    parser = build_parser()
+    resolved = load_config_resolved(
+        parser.parse_args(["--config", str(path), "--rows", "5"])
+    )
+    assert resolved.sources["subject"] == "config"
+    assert resolved.sources["rows"] == "cli"
+    assert resolved.sources["dashboard_host"] == "default"
+    assert resolved.config.rows == 5
 
 
 def test_blocks_trials_and_grid_options() -> None:

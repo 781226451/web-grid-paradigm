@@ -14,7 +14,7 @@ from loguru import logger
 from .. import __version__
 from ..core.config import ExperimentConfig
 from ..recording.recorder import SessionRecorder
-from .cli_args import build_parser, load_config
+from .cli_args import build_parser, load_config_resolved
 from .log import add_session_log, setup_logging
 
 
@@ -78,7 +78,12 @@ def _run(config: ExperimentConfig, view: Any = None) -> dict[str, Any]:
         logger.remove(sink_id)
 
 
-def _serve(config: ExperimentConfig, *, run_now: bool) -> int:
+def _serve(
+    config: ExperimentConfig,
+    *,
+    run_now: bool,
+    sources: dict[str, str] | None = None,
+) -> int:
     """Start the web control panel and run whatever the page asks for."""
     from ..panel import start_station
 
@@ -86,6 +91,7 @@ def _serve(config: ExperimentConfig, *, run_now: bool) -> int:
         config.dashboard_host,
         config.dashboard_port,
         base_config=config,
+        base_sources=sources,
         control=True,
         open_browser=config.dashboard_open,
     )
@@ -96,7 +102,7 @@ def _serve(config: ExperimentConfig, *, run_now: bool) -> int:
     logger.info("open {} and press 启动实验 (Ctrl+C quits)", station.url)
     try:
         if run_now:
-            station.request_start(config, source="cli")
+            station.request_start(config, source="cli", sources=sources)
         station.serve(lambda cfg, view: _run(cfg, view))
     finally:
         station.close()
@@ -109,7 +115,8 @@ def main(argv: list[str] | None = None) -> int:
     setup_logging(debug=args.debug, log_file=args.log_file)
     logger.debug("webgrid {} started with argv={}", __version__, argv)
     try:
-        config = load_config(args)
+        resolved = load_config_resolved(args)
+        config = resolved.config
     except Exception as exc:  # noqa: BLE001 - report any configuration problem
         logger.error("configuration error: {}", exc)
         return 2
@@ -119,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
         if not config.dashboard:
             _run(config)
             return 0
-        return _serve(config, run_now=args.run_now)
+        return _serve(config, run_now=args.run_now, sources=resolved.sources)
     except KeyboardInterrupt:
         logger.warning("interrupted")
         return 130

@@ -6,6 +6,7 @@ import json
 import mimetypes
 import socket
 import sys
+from collections.abc import Mapping
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
@@ -187,6 +188,7 @@ def start_station(
     port: int,
     *,
     base_config: ExperimentConfig | None = None,
+    base_sources: Mapping[str, str] | None = None,
     control: bool = True,
     open_browser: bool = False,
 ) -> Station | None:
@@ -198,6 +200,7 @@ def start_station(
             host,
             port,
             base_config=base_config,
+            base_sources=base_sources,
             control=control,
             open_browser=open_browser,
         )

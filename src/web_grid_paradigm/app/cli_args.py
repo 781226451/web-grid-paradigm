@@ -17,6 +17,13 @@ from loguru import logger
 
 from .. import __version__
 from ..core.config import ExperimentConfig
+from ..core.settings import (
+    DEFAULT_SOURCE,
+    FIELD_SCOPES,
+    SOURCE_CLI,
+    SOURCE_CONFIG,
+    SOURCE_REWARD,
+)
 
 DESCRIPTION = """\
 BCI Web-Grid: a PsychoPy target-selection paradigm.
@@ -420,15 +427,49 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def load_config(args: argparse.Namespace) -> ExperimentConfig:
-    config = (
-        ExperimentConfig.from_toml(args.config) if args.config else ExperimentConfig()
-    )
+@dataclasses.dataclass(frozen=True)
+class ResolvedConfig:
+    """A validated configuration plus the source of each field."""
+
+    config: ExperimentConfig
+    sources: dict[str, str]
+
+
+def _default_sources() -> dict[str, str]:
+    return {name: DEFAULT_SOURCE for name in FIELD_SCOPES}
+
+
+def _toml_keys(path: str | Path, known: set[str]) -> set[str]:
+    """Return the configuration keys explicitly present in a TOML file."""
+    data = tomllib.loads(Path(path).read_text(encoding="utf-8-sig"))
+    table = data.get("webgrid", data)
+    if not isinstance(table, Mapping):
+        return set()
+    keys = set(table)
+    nested = table.get("reward")
+    if isinstance(nested, Mapping):
+        keys.discard("reward")
+        keys.update(nested)
+    return {key for key in keys if key in known}
+
+
+def load_config_resolved(args: argparse.Namespace) -> ResolvedConfig:
+    """Load all configuration layers and retain the source of each field."""
+    sources = _default_sources()
+    config = ExperimentConfig()
+    if args.config:
+        config = ExperimentConfig.from_toml(args.config)
+        for name in _toml_keys(args.config, set(FIELD_SCOPES)):
+            sources[name] = SOURCE_CONFIG
+
     # Hardware settings live in their own file (per machine, not in git):
     # defaults <- --config <- reward TOML <- command line.
     reward_file = args.reward_config or default_reward_config()
     if reward_file is not None:
         config = apply_reward_config(config, reward_file)
+        for name in _toml_keys(reward_file, set(REWARD_KEYS)):
+            sources[name] = SOURCE_REWARD
+
     overrides: dict[str, Any] = {}
     fields = {
         "subject": "subject",
@@ -503,9 +544,16 @@ def load_config(args: argparse.Namespace) -> ExperimentConfig:
         overrides["dashboard_open"] = True
     if args.no_open_dashboard:
         overrides["dashboard_open"] = False
+    for field_name in overrides:
+        sources[field_name] = SOURCE_CLI
     config = dataclasses.replace(config, **overrides)
     config.validate()
-    return config
+    return ResolvedConfig(config=config, sources=sources)
+
+
+def load_config(args: argparse.Namespace) -> ExperimentConfig:
+    """Return only the resolved configuration (compatibility helper)."""
+    return load_config_resolved(args).config
 
 
 # ----------------------------------------------------------------------

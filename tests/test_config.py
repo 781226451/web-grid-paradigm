@@ -7,6 +7,16 @@ from pathlib import Path
 import pytest
 
 from web_grid_paradigm.core.config import ExperimentConfig
+from web_grid_paradigm.core.settings import (
+    BOOTSTRAP_FIELDS,
+    DEVICE_FIELDS,
+    EXPERIMENT_FIELDS,
+    FIELD_SCOPES,
+    SCOPE_BOOTSTRAP,
+    SCOPE_DEVICE,
+    SCOPE_EXPERIMENT,
+    scope_for,
+)
 
 
 def test_defaults_are_valid() -> None:
@@ -16,6 +26,17 @@ def test_defaults_are_valid() -> None:
     assert config.fullscreen is True
     assert config.data_dir.parts[-2] == "sub-01"
     assert config.data_dir.name.startswith("ses-")
+
+
+def test_every_config_field_has_exactly_one_scope() -> None:
+    fields = {field.name for field in dataclasses.fields(ExperimentConfig)}
+    assert set(FIELD_SCOPES) == fields
+    assert not (BOOTSTRAP_FIELDS & EXPERIMENT_FIELDS)
+    assert not (BOOTSTRAP_FIELDS & DEVICE_FIELDS)
+    assert not (EXPERIMENT_FIELDS & DEVICE_FIELDS)
+    assert scope_for("dashboard_host") == SCOPE_BOOTSTRAP
+    assert scope_for("rows") == SCOPE_EXPERIMENT
+    assert scope_for("joystick_port") == SCOPE_DEVICE
 
 
 def test_default_toml_matches_config_fields_and_defaults() -> None:

@@ -93,6 +93,24 @@ def test_config_endpoint_returns_schema_and_values(station) -> None:
     assert payload["control"] is True
     assert payload["values"]["blocks"] == station.base_config.blocks
     assert any(f["name"] == "targets" for f in payload["schema"])
+    assert payload["sources"]["blocks"] == "default"
+    assert payload["scopes"]["blocks"] == "experiment"
+    assert payload["editable"]["blocks"] is True
+
+
+def test_config_endpoint_reports_startup_source() -> None:
+    board = make_station(
+        base_config=ExperimentConfig(rows=8),
+        base_sources={"rows": "cli"},
+        open_browser=False,
+    )
+    try:
+        _, payload = _get(board, "/api/config")
+        assert payload["values"]["rows"] == 8
+        assert payload["sources"]["rows"] == "cli"
+        assert payload["sources"]["cols"] == "default"
+    finally:
+        board.close()
 
 
 def test_page_is_served(station) -> None:
@@ -122,8 +140,10 @@ def test_start_queues_a_validated_run(station) -> None:
     # The queued request is what serve() will pick up first.
     request = station._next_request()
     assert request is not None
-    config, source = request
+    config, source, sources = request
     assert (config.blocks, config.targets, source) == (2, 5, "web")
+    assert sources["blocks"] == "webui"
+    assert sources["dashboard_host"] == "default"
 
 
 def test_stop_before_start_does_nothing(station) -> None:
