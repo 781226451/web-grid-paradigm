@@ -129,8 +129,7 @@ class ExperimentConfig:
         A ``[reward]`` (or ``[webgrid.reward]``) table is folded into the same
         flat namespace, so a single file can hold both the paradigm settings
         and the reward hardware settings.  Unknown keys are rejected so typos
-        cannot silently change a session.  Removed input modes (UDP/keyboard)
-        and their settings are not accepted either.
+        cannot silently change a session.
         """
         path = Path(path)
         data = tomllib.loads(path.read_text(encoding="utf-8-sig"))
