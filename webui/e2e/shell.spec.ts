@@ -114,7 +114,7 @@ test.describe("control panel shell", () => {
     await expect(lslField.locator(".source")).toHaveText("设备配置");
     await expect(lslField.locator(".source")).toHaveAttribute(
       "title",
-      /lsl_outputs\.example\.toml/,
+      /device\.toml/,
     );
 
     await choose(page, "input", "joystick");
@@ -123,7 +123,7 @@ test.describe("control panel shell", () => {
     await expect(port.locator(".source")).toHaveText("设备配置");
     await expect(port.locator(".source")).toHaveAttribute(
       "title",
-      /velocity_input\.example\.toml/,
+      /device\.toml/,
     );
   });
 
