@@ -17,11 +17,22 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .settings import CONFIG_FILE_FIELDS, DEVICE_FIELDS
+
 _SAFE_LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _INPUT_MODES = ("mouse", "demo", "joystick", "lsl")
 _JOYSTICK_STREAM_MODES = ("periodic", "on_change")
 _SELECTION_MODES = ("click", "dwell")
 _LANGUAGES = ("zh", "en")
+
+# Which fields each TOML role writes.  "config" matches the --config file
+# (experiment + startup), "device" matches a --device-config module, and
+# "all" is a full snapshot that the CLI cannot consume as a single file.
+_TOML_ROLES: dict[str, frozenset[str] | None] = {
+    "config": CONFIG_FILE_FIELDS,
+    "device": DEVICE_FIELDS,
+    "all": None,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -253,17 +264,34 @@ class ExperimentConfig:
         data["output_dir"] = str(self.output_dir)
         return data
 
-    def to_toml(self) -> str:
-        """Serialise every field as a flat TOML document (``from_toml`` reads it)."""
-        lines = ["# BCI Web-Grid configuration", ""]
-        for name, value in self.to_dict().items():
+    def to_toml(self, *, role: str = "config") -> str:
+        """Serialise the configuration as a flat TOML file.
+
+        ``role="config"`` (the default) writes experiment and startup keys and
+        can be passed to ``--config``.  ``role="device"`` writes device keys
+        for ``--device-config``.  ``role="all"`` writes every field as a
+        snapshot; neither CLI flag accepts that file on its own.
+        """
+        try:
+            allowed = _TOML_ROLES[role]
+        except KeyError:
+            raise ValueError(
+                f"unknown TOML role {role!r}; use one of {tuple(_TOML_ROLES)}"
+            ) from None
+        data = self.to_dict()
+        if allowed is not None:
+            data = {
+                name: value for name, value in data.items() if name in allowed
+            }
+        lines = [f"# BCI Web-Grid configuration ({role})", ""]
+        for name, value in data.items():
             lines.append(f"{name} = {_toml_value(value)}")
         return "\n".join(lines) + "\n"
 
-    def save_toml(self, path: str | Path) -> Path:
+    def save_toml(self, path: str | Path, *, role: str = "config") -> Path:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(self.to_toml(), encoding="utf-8")
+        path.write_text(self.to_toml(role=role), encoding="utf-8")
         return path
 
 

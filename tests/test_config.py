@@ -70,6 +70,17 @@ def test_device_example_modules_partition_device_fields() -> None:
     assert seen == set(DEVICE_FIELDS)
 
 
+def test_to_toml_all_writes_every_field() -> None:
+    data = tomllib.loads(ExperimentConfig().to_toml(role="all"))
+    fields = {field.name for field in dataclasses.fields(ExperimentConfig)}
+    assert set(data) == fields
+
+
+def test_to_toml_rejects_unknown_role() -> None:
+    with pytest.raises(ValueError, match="unknown TOML role"):
+        ExperimentConfig().to_toml(role="everything")
+
+
 def test_toml_round_trip(tmp_path: Path) -> None:
     path = tmp_path / "config.toml"
     path.write_text(

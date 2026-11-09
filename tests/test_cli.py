@@ -9,6 +9,7 @@ from web_grid_paradigm.app.cli_args import (
     load_config,
     load_config_resolved,
 )
+from web_grid_paradigm.core.config import ExperimentConfig
 from web_grid_paradigm.core.i18n import STRINGS, Strings
 
 
@@ -102,6 +103,30 @@ def test_config_sources_track_file_and_cli(tmp_path: Path) -> None:
     assert resolved.sources["rows"] == "cli"
     assert resolved.sources["dashboard_host"] == "default"
     assert resolved.config.rows == 5
+
+
+def test_saved_config_file_is_accepted_by_cli(tmp_path: Path) -> None:
+    config = ExperimentConfig(rows=8, joystick_port="COM4", dashboard_port=9000)
+    path = config.save_toml(tmp_path / "config.toml", role="config")
+    resolved = load_config_resolved(
+        build_parser().parse_args(["--config", str(path)])
+    )
+    assert resolved.config.rows == 8
+    assert resolved.config.dashboard_port == 9000
+    assert resolved.config.joystick_port == ""
+    assert resolved.sources["rows"] == "config"
+
+
+def test_saved_device_file_is_accepted_by_cli(tmp_path: Path) -> None:
+    config = ExperimentConfig(joystick_port="COM4", reward_port="COM9", rows=8)
+    path = config.save_toml(tmp_path / "device.toml", role="device")
+    resolved = load_config_resolved(
+        build_parser().parse_args(["--device-config", str(path)])
+    )
+    assert resolved.config.joystick_port == "COM4"
+    assert resolved.config.reward_port == "COM9"
+    assert resolved.config.rows == 12
+    assert resolved.sources["joystick_port"] == "device"
 
 
 def test_device_config_layers_device_settings_only(tmp_path: Path) -> None:

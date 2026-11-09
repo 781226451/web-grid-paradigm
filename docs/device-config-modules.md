@@ -375,4 +375,5 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 - `--lab-config` / `--reward-config`、自动加载 `configs/reward.toml`、`[webgrid]`/`[reward]`/`[device]` 小节全部直接报错。
 - 示例拆为 `velocity_input.example.toml`、`reward.example.toml`、`lsl_outputs.example.toml`；`default.toml` 只保留实验 + 启动。
 - 面板 `/api/config` 返回 `source_files`；`/api/start` 显式拒绝 bootstrap 字段；徽章显示“设备配置”。
-- 全量测试通过（204 个用例）。
+- `ExperimentConfig.to_toml()` / `save_toml()` 支持 `role="config"`（默认，`--config` 可直接读取）和 `role="device"`（`--device-config` 可直接读取）；`role="all"` 是完整快照，不对应单一 CLI 通道。
+- 全量测试通过（208 个用例）。
