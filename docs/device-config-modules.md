@@ -1,6 +1,6 @@
 # 设备配置模块化重构计划
 
-> 状态：计划（未实现）
+> 状态：计划（未实现；模块粒度已确认：3 个）
 > 基线：`refactor/config-layering` @ `0ffc350`
 > 目标分支：`refactor/device-config-modules`
 > 范围：设备配置文件的组织、加载、校验与来源审计
@@ -73,7 +73,7 @@
 
 设备文件之间**没有优先级**：任意两个文件都不允许设置同一个键。因此这里的“顺序”只是书写顺序，不产生语义。
 
-### 3.3 模块划分（建议）
+### 3.3 模块划分
 
 按代码包切分，文件边界与维护边界一致：
 
@@ -85,7 +85,7 @@
 
 合计 27 个设备键，正好等于 `DEVICE_FIELDS`。
 
-可选更细的拆法（按设备而非代码模块）：
+备选（暂不采用）：按设备拆成 6 个文件：
 
 ```text
 configs/joystick.toml          10 个 joystick_* 键
@@ -95,7 +95,7 @@ configs/reward.toml             7 个 reward* 键
 configs/lsl_outputs.toml        5 个 LSL 输出键
 ```
 
-两种都合法；区别只是“模块”的粒度。推荐先用 3 个模块，确有独立维护需求时再拆细。
+已确定采用这 3 个模块。更细的 6 文件拆法暂不采用，避免文件数量、示例模板和 `.gitignore` 条目膨胀；加载器只依赖“设备文件 + 键互斥”，将来需要时再拆不需要改代码。
 
 ### 3.4 文件格式：平铺 + 全键名
 
@@ -359,9 +359,12 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 7. 全量测试通过；README 与升级文档同步。
 8. 旧配置的每一步迁移都有可执行的错误提示。
 
-## 10. 待确认
+## 10. 已确认决策
 
-1. **模块粒度**：默认 3 个模块（velocity_input / reward / lsl_outputs），还是 6 个（再拆 joystick / lsl_velocity / demo）？
-2. **`--config` 的 `[webgrid]` 兼容**：直接报错，还是保留一个版本的 WARNING？
-3. **来源命名**：统一 `device`，还是保留 `lab` 作为别名值？
-4. **profile/manifest**：命令行过长时是否现在就加，还是先接受多参数？
+- **模块粒度**：3 个设备模块（`velocity_input`、`reward`、`lsl_outputs`）；更细的 6 文件拆分暂不采用。加载器按“设备文件 + 键互斥”工作，将来拆细不需要改代码。
+
+## 11. 待确认
+
+1. **`--config` 的 `[webgrid]` 兼容**：直接报错，还是保留一个版本的 WARNING？
+2. **来源命名**：统一 `device`，还是保留 `lab` 作为别名值？
+3. **profile/manifest**：命令行过长时是否现在就加，还是先接受多参数？
