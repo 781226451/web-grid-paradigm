@@ -16,7 +16,6 @@ from web_grid_paradigm.core.settings import (
     SCOPE_BOOTSTRAP,
     SCOPE_DEVICE,
     SCOPE_EXPERIMENT,
-    scope_for,
 )
 
 
@@ -35,9 +34,9 @@ def test_every_config_field_has_exactly_one_scope() -> None:
     assert not (BOOTSTRAP_FIELDS & EXPERIMENT_FIELDS)
     assert not (BOOTSTRAP_FIELDS & DEVICE_FIELDS)
     assert not (EXPERIMENT_FIELDS & DEVICE_FIELDS)
-    assert scope_for("dashboard_host") == SCOPE_BOOTSTRAP
-    assert scope_for("rows") == SCOPE_EXPERIMENT
-    assert scope_for("joystick_port") == SCOPE_DEVICE
+    assert FIELD_SCOPES["dashboard_host"] == SCOPE_BOOTSTRAP
+    assert FIELD_SCOPES["rows"] == SCOPE_EXPERIMENT
+    assert FIELD_SCOPES["joystick_port"] == SCOPE_DEVICE
 
 
 def test_default_toml_covers_experiment_and_startup() -> None:

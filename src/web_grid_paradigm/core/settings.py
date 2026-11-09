@@ -104,11 +104,3 @@ FIELD_SCOPES: dict[str, str] = {
 # Keys accepted in the main --config file.  Device keys live in the files
 # passed with --device-config, one file per module.
 CONFIG_FILE_FIELDS: frozenset[str] = EXPERIMENT_FIELDS | BOOTSTRAP_FIELDS
-
-
-def scope_for(name: str) -> str:
-    """Return the configuration scope for ``name``."""
-    try:
-        return FIELD_SCOPES[name]
-    except KeyError as exc:
-        raise ValueError(f"unknown configuration field {name!r}") from exc
