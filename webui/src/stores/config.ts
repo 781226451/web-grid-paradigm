@@ -55,8 +55,7 @@ export const form = reactive<ConfigStore>({
 const SOURCE_LABELS: Record<string, string> = {
   default: "默认",
   config: "配置文件",
-  lab: "lab.toml",
-  reward: "奖励配置",
+  device: "设备配置",
   cli: "CLI",
   webui: "WebUI",
 };

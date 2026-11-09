@@ -116,39 +116,20 @@ class ExperimentConfig:
     # ------------------------------------------------------------------
     @classmethod
     def from_toml(cls, path: str | Path) -> ExperimentConfig:
-        """Load a configuration from a TOML file.
+        """Load a configuration from a flat TOML file.
 
-        Accepted shapes::
-
-            rows = 12                  # flat
-            [webgrid]                  # one named table
-            rows = 12
-            [reward]                   # optional section for hardware keys
-            reward_port = "COM3"
-
-        A ``[reward]`` (or ``[webgrid.reward]``) table is folded into the same
-        flat namespace, so a single file can hold both the paradigm settings
-        and the reward hardware settings.  Unknown keys are rejected so typos
-        cannot silently change a session.
+        Only top-level ``key = value`` pairs are accepted; sections are
+        rejected so every file has exactly one shape.  Unknown keys are
+        rejected so typos cannot silently change a session.
         """
-        path = Path(path)
-        data = tomllib.loads(path.read_text(encoding="utf-8-sig"))
-        table = data.get("webgrid", data)
-        if not isinstance(table, Mapping):
-            raise TypeError(f"{path}: [webgrid] must be a table")
-        table = _merge_reward_table(table, path)
-        known = {f.name for f in dataclasses.fields(cls)}
-        unknown = sorted(set(table) - known)
-        if unknown:
-            raise ValueError(
-                f"{path}: unknown configuration key(s): {', '.join(unknown)}"
-            )
-        try:
-            cfg = cls(**dict(table))
-        except TypeError as exc:  # pragma: no cover - defensive
-            raise ValueError(f"{path}: {exc}") from exc
-        cfg.validate()
-        return cfg
+        return cls.from_dict(read_config_table(path))
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> ExperimentConfig:
+        """Build and validate a configuration from a flat key/value mapping."""
+        config = cls(**dict(data))
+        config.validate()
+        return config
 
     # ------------------------------------------------------------------
     def validate(self) -> None:
@@ -286,19 +267,28 @@ class ExperimentConfig:
         return path
 
 
-def _merge_reward_table(table: Mapping[str, Any], path: Path) -> dict[str, Any]:
-    """Fold a ``[reward]`` section into the flat key namespace.
+def read_config_table(path: str | Path) -> dict[str, Any]:
+    """Parse a flat TOML configuration table.
 
-    ``reward = "serial"`` (a string) is the ordinary config field, while a
-    ``[reward]`` table is the optional hardware section; only the latter is
-    flattened.
+    Nested tables (``[webgrid]``, ``[reward]``, ``[device]`` ...) and unknown
+    keys are rejected: a file must use exactly one shape, and every key must
+    be a real setting.
     """
-    reward = table.get("reward")
-    if not isinstance(reward, Mapping):
-        return dict(table)
-    merged = {key: value for key, value in table.items() if key != "reward"}
-    merged.update(dict(reward))
-    return merged
+    path = Path(path)
+    data = tomllib.loads(path.read_text(encoding="utf-8-sig"))
+    nested = sorted(
+        name for name, value in data.items() if isinstance(value, Mapping)
+    )
+    if nested:
+        labels = ", ".join(f"[{name}]" for name in nested)
+        raise ValueError(f"{path}: {labels} tables are not supported; use flat keys")
+    known = {field.name for field in dataclasses.fields(ExperimentConfig)}
+    unknown = sorted(set(data) - known)
+    if unknown:
+        raise ValueError(
+            f"{path}: unknown configuration key(s): {', '.join(unknown)}"
+        )
+    return data
 
 
 def _toml_value(value: Any) -> str:

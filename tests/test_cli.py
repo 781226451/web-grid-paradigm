@@ -9,7 +9,6 @@ from web_grid_paradigm.app.cli_args import (
     load_config,
     load_config_resolved,
 )
-from web_grid_paradigm.core.config import ExperimentConfig
 from web_grid_paradigm.core.i18n import STRINGS, Strings
 
 
@@ -42,24 +41,25 @@ def test_cli_overrides_config() -> None:
 def test_boolean_cli_flags_can_override_toml_in_both_directions(
     tmp_path: Path,
 ) -> None:
-    source = ExperimentConfig(
-        auto_exit=True,
-        hide_cursor=True,
-        lsl=True,
-        lsl_state=True,
-        joystick_invert_x=True,
-        joystick_invert_y=True,
-        joystick_center_on_open=True,
-        dashboard=True,
+    config_path = tmp_path / "experiment.toml"
+    config_path.write_text(
+        "auto_exit = true\nhide_cursor = true\ndashboard = true\n",
+        encoding="utf-8",
     )
-    path = tmp_path / "booleans.toml"
-    path.write_text(source.to_toml(), encoding="utf-8")
+    device_path = tmp_path / "device.toml"
+    device_path.write_text(
+        "lsl = true\nlsl_state = true\njoystick_invert_x = true\n"
+        "joystick_invert_y = true\njoystick_center_on_open = true\n",
+        encoding="utf-8",
+    )
 
     parser = build_parser()
     args = parser.parse_args(
         [
             "--config",
-            str(path),
+            str(config_path),
+            "--device-config",
+            str(device_path),
             "--no-auto-exit",
             "--show-cursor",
             "--no-lsl",
@@ -104,22 +104,26 @@ def test_config_sources_track_file_and_cli(tmp_path: Path) -> None:
     assert resolved.config.rows == 5
 
 
-def test_lab_config_layers_device_settings_only(tmp_path: Path) -> None:
+def test_device_config_layers_device_settings_only(tmp_path: Path) -> None:
     experiment = tmp_path / "experiment.toml"
-    experiment.write_text("rows = 8\njoystick_port = 'COM1'\n", encoding="utf-8")
-    lab = tmp_path / "lab.toml"
-    lab.write_text(
-        "[device]\njoystick_port = 'COM7'\njoystick_baud = 19200\n",
+    experiment.write_text("rows = 8\n", encoding="utf-8")
+    velocity = tmp_path / "velocity_input.toml"
+    velocity.write_text(
+        "joystick_port = 'COM7'\njoystick_baud = 19200\n",
         encoding="utf-8",
     )
+    reward = tmp_path / "reward.toml"
+    reward.write_text("reward_port = 'COM3'\n", encoding="utf-8")
     parser = build_parser()
     resolved = load_config_resolved(
         parser.parse_args(
             [
                 "--config",
                 str(experiment),
-                "--lab-config",
-                str(lab),
+                "--device-config",
+                str(velocity),
+                "--device-config",
+                str(reward),
                 "--joystick-baud",
                 "9600",
             ]
@@ -128,45 +132,79 @@ def test_lab_config_layers_device_settings_only(tmp_path: Path) -> None:
     assert resolved.config.rows == 8
     assert resolved.config.joystick_port == "COM7"
     assert resolved.config.joystick_baud == 9600
+    assert resolved.config.reward_port == "COM3"
     assert resolved.sources["rows"] == "config"
-    assert resolved.sources["joystick_port"] == "lab"
+    assert resolved.sources["joystick_port"] == "device"
+    assert resolved.sources["reward_port"] == "device"
     assert resolved.sources["joystick_baud"] == "cli"
+    # A CLI override no longer claims the file it came from.
+    assert resolved.config_files == {
+        "joystick_port": str(velocity),
+        "reward_port": str(reward),
+    }
 
-    lab.write_text("[device]\nrows = 8\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="device keys"):
+
+def test_config_rejects_device_keys(tmp_path: Path) -> None:
+    experiment = tmp_path / "experiment.toml"
+    experiment.write_text("rows = 8\njoystick_port = 'COM1'\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="belong to device settings"):
         load_config_resolved(
-            parser.parse_args(
-                ["--config", str(experiment), "--lab-config", str(lab)]
+            build_parser().parse_args(["--config", str(experiment)])
+        )
+
+
+def test_device_config_rejects_config_keys(tmp_path: Path) -> None:
+    device = tmp_path / "device.toml"
+    device.write_text("rows = 8\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="only device keys"):
+        load_config_resolved(
+            build_parser().parse_args(["--device-config", str(device)])
+        )
+
+
+def test_device_config_files_must_not_overlap(tmp_path: Path) -> None:
+    first = tmp_path / "velocity_input.toml"
+    first.write_text("joystick_port = 'COM7'\n", encoding="utf-8")
+    second = tmp_path / "other.toml"
+    second.write_text("joystick_port = 'COM8'\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="both set joystick_port"):
+        load_config_resolved(
+            build_parser().parse_args(
+                [
+                    "--device-config",
+                    str(first),
+                    "--device-config",
+                    str(second),
+                ]
             )
         )
 
 
-@pytest.mark.parametrize(
-    "body",
-    [
-        'joystick_port = "COM4"\n\n[device]\njoystick_baud = 19200\n',
-        'joystick_port = "COM4"\n\n[webgrid.device]\njoystick_baud = 19200\n',
-        'joystick_port = "COM4"\n\n[webgrid]\n\n[webgrid.device]\n'
-        'joystick_baud = 19200\n',
-    ],
-)
-def test_lab_config_rejects_mixed_layouts(tmp_path: Path, body: str) -> None:
-    lab = tmp_path / "lab.toml"
-    lab.write_text(body, encoding="utf-8")
-    with pytest.raises(ValueError, match="cannot be combined|cannot combine"):
+def test_device_config_rejects_sections(tmp_path: Path) -> None:
+    device = tmp_path / "device.toml"
+    device.write_text("[device]\njoystick_port = 'COM4'\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="tables are not supported"):
         load_config_resolved(
-            build_parser().parse_args(["--lab-config", str(lab)])
+            build_parser().parse_args(["--device-config", str(device)])
         )
 
 
-def test_lab_config_accepts_a_webgrid_device_section(tmp_path: Path) -> None:
-    lab = tmp_path / "lab.toml"
-    lab.write_text('[webgrid.device]\njoystick_port = "COM5"\n', encoding="utf-8")
-    resolved = load_config_resolved(
-        build_parser().parse_args(["--lab-config", str(lab)])
-    )
-    assert resolved.config.joystick_port == "COM5"
-    assert resolved.sources["joystick_port"] == "lab"
+def test_legacy_device_flags_are_rejected(tmp_path: Path) -> None:
+    parser = build_parser()
+    for flag in ("--lab-config", "--reward-config"):
+        with pytest.raises(ValueError, match="was removed"):
+            load_config_resolved(
+                parser.parse_args([flag, str(tmp_path / "unused.toml")])
+            )
+
+
+def test_missing_device_config_file_is_an_error(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        load_config_resolved(
+            build_parser().parse_args(
+                ["--device-config", str(tmp_path / "nope.toml")]
+            )
+        )
 
 
 def test_blocks_trials_and_grid_options() -> None:

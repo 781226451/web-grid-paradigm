@@ -99,6 +99,7 @@ class Station:
         *,
         base_config: ExperimentConfig | None = None,
         base_sources: Mapping[str, str] | None = None,
+        base_config_files: Mapping[str, str] | None = None,
         control: bool = True,
         open_browser: bool = False,
     ) -> None:
@@ -106,6 +107,11 @@ class Station:
         self.base_sources = {
             name: (base_sources or {}).get(name, DEFAULT_SOURCE)
             for name in FIELD_SCOPES
+        }
+        self.base_config_files = {
+            name: str(path)
+            for name, path in (base_config_files or {}).items()
+            if name in FIELD_SCOPES
         }
         self.control = control
         self._cond = threading.Condition()
@@ -117,7 +123,9 @@ class Station:
         self._blocks: list[dict[str, Any]] = []
         self._logs: deque[tuple[int, str]] = deque(maxlen=400)
         self._log_seq = 0
-        self._pending: list[tuple[ExperimentConfig, str, dict[str, str]]] = []
+        self._pending: list[
+            tuple[ExperimentConfig, str, dict[str, str], dict[str, str]]
+        ] = []
         self._stop = threading.Event()
         self._current: dict[str, Any] | None = None
         self._runs: list[dict[str, Any]] = []
@@ -125,6 +133,7 @@ class Station:
         self._sink_id: int | None = None
         self._last_params: dict[str, Any] = {}
         self._last_sources: dict[str, str] = {}
+        self._last_config_files: dict[str, str] | None = None
         self._lsl_publisher: LslStatePublisher | None = None
         self._lsl_armed = False
         self._lsl_name = (base_config or ExperimentConfig()).lsl_state_stream
@@ -202,6 +211,7 @@ class Station:
         source: str = "web",
         *,
         sources: Mapping[str, str] | None = None,
+        config_files: Mapping[str, str] | None = None,
     ) -> None:
         with self._cond:
             if self._status != "idle":
@@ -209,7 +219,12 @@ class Station:
             merged_sources = dict(self.base_sources)
             if sources is not None:
                 merged_sources.update(sources)
-            self._pending.append((config, source, merged_sources))
+            files = (
+                dict(config_files)
+                if config_files is not None
+                else dict(self.base_config_files)
+            )
+            self._pending.append((config, source, merged_sources, files))
             self._cond.notify_all()
 
     def request_stop(self) -> bool:
@@ -227,6 +242,11 @@ class Station:
         with self._cond:
             values = self._last_params or self._base_values()
             sources = self._last_sources or self.base_sources
+            files = (
+                self._last_config_files
+                if self._last_config_files is not None
+                else self.base_config_files
+            )
             busy = self._status != "idle"
         visible = tuple(_FORM_BY_NAME)
         return {
@@ -236,10 +256,14 @@ class Station:
             "sources": {
                 name: sources.get(name, DEFAULT_SOURCE) for name in visible
             },
+            "source_files": {name: files.get(name) for name in visible},
             "base_values": self._base_values(),
             "base_sources": {
                 name: self.base_sources.get(name, DEFAULT_SOURCE)
                 for name in visible
+            },
+            "base_source_files": {
+                name: self.base_config_files.get(name) for name in visible
             },
             "scopes": {name: FIELD_SCOPES[name] for name in visible},
             "editable": {
@@ -556,8 +580,8 @@ class Station:
             request = self._next_request()
             if request is None:
                 return
-            config, source, sources = request
-            run_id = self._begin_run(config, source, sources)
+            config, source, sources, config_files = request
+            run_id = self._begin_run(config, source, sources, config_files)
             view = SessionView(self, run_id)
             try:
                 result = run(config, view)
@@ -574,7 +598,9 @@ class Station:
                 self._end_run(run_id, "aborted" if stopped else "finished",
                               summary=result)
 
-    def _next_request(self) -> tuple[ExperimentConfig, str, dict[str, str]] | None:
+    def _next_request(
+        self,
+    ) -> tuple[ExperimentConfig, str, dict[str, str], dict[str, str]] | None:
         with self._cond:
             while not self._pending and not self._closed:
                 self._cond.wait(0.5)
@@ -587,8 +613,14 @@ class Station:
         config: ExperimentConfig,
         source: str,
         sources: Mapping[str, str] | None = None,
+        config_files: Mapping[str, str] | None = None,
     ) -> int:
         sources = sources or self.base_sources
+        files = (
+            dict(config_files)
+            if config_files is not None
+            else dict(self.base_config_files)
+        )
         with self._cond:
             self._run_counter += 1
             run_id = self._run_counter
@@ -605,6 +637,7 @@ class Station:
                 "id": run_id,
                 "source": source,
                 "sources": dict(sources),
+                "config_files": dict(files),
                 "config": config,
                 "started": time.time(),
             }
@@ -616,6 +649,9 @@ class Station:
             self._last_params["output_dir"] = str(config.output_dir)
             self._last_sources = {
                 name: sources.get(name, DEFAULT_SOURCE) for name in _FORM_BY_NAME
+            }
+            self._last_config_files = {
+                name: files[name] for name in _FORM_BY_NAME if name in files
             }
             self._bump()
         logger.info(
@@ -736,6 +772,13 @@ class Station:
         """Validate form values and queue a run (HTTP thread)."""
         if not self.control:
             raise RuntimeError("此页面为只读监控")
+        blocked = sorted(
+            name
+            for name in payload
+            if FIELD_SCOPES.get(name) == SCOPE_BOOTSTRAP
+        )
+        if blocked:
+            raise ValueError(f"启动参数不能在面板中修改: {', '.join(blocked)}")
         config = coerce_params(payload, self.base_config)
         sources = {
             name: SOURCE_WEBUI
@@ -743,7 +786,17 @@ class Station:
             if name in _FORM_BY_NAME
             and getattr(config, name) != getattr(self.base_config, name)
         }
-        self.request_start(config, source="web", sources=sources)
+        config_files = {
+            name: path
+            for name, path in self.base_config_files.items()
+            if name not in sources
+        }
+        self.request_start(
+            config,
+            source="web",
+            sources=sources,
+            config_files=config_files,
+        )
         return config.to_dict()
 
     # ------------------------------------------------------------------
@@ -783,6 +836,14 @@ class SessionView:
             if current is None or current["id"] != self._run_id:
                 return {}
             return dict(current.get("sources") or {})
+
+    @property
+    def config_files(self) -> dict[str, str]:
+        with self._station._cond:
+            current = self._station._current
+            if current is None or current["id"] != self._run_id:
+                return {}
+            return dict(current.get("config_files") or {})
 
     @property
     def reward_sink(self) -> SerialRewardSink | None:

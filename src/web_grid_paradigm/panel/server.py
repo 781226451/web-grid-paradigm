@@ -189,6 +189,7 @@ def start_station(
     *,
     base_config: ExperimentConfig | None = None,
     base_sources: Mapping[str, str] | None = None,
+    base_config_files: Mapping[str, str] | None = None,
     control: bool = True,
     open_browser: bool = False,
 ) -> Station | None:
@@ -201,6 +202,7 @@ def start_station(
             port,
             base_config=base_config,
             base_sources=base_sources,
+            base_config_files=base_config_files,
             control=control,
             open_browser=open_browser,
         )

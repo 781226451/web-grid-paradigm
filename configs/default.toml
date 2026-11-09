@@ -1,81 +1,49 @@
-# BCI Web-Grid — example session configuration.
+# BCI Web-Grid — example session configuration (experiment + startup).
 #
-# Run with:  uv run webgrid --config configs/default.toml
-# Command-line values override the matching key here when supplied.
+# This file is flat: every key is an ExperimentConfig field.
+# Device settings (serial ports, LSL streams, reward hardware) belong in
+# --device-config files such as configs/velocity_input.toml and
+# configs/reward.toml.
+#
+# Run with:
+#   uv run webgrid --config configs/default.toml
 
 subject = "sub-01"
-session = ""                # empty -> local timestamp (YYYYMMDD-HHMMSS)
+session = ""                 # empty -> local timestamp (YYYYMMDD-HHMMSS)
 output_dir = "data"
-language = "zh"             # zh | en
+language = "zh"              # zh | en
 font = "Microsoft YaHei"
 
-# --- grid and task ---------------------------------------------------------
+# --- grid and task ----------------------------------------------------
 rows = 12
 cols = 12
-blocks = 1                  # number of blocks
-targets = 40                # trials (targets) per block
-block_rest = 10.0           # blank rest between blocks, seconds
-max_seconds = 300.0         # per-block safety limit; 0 disables
-selection = "click"         # click | dwell
-dwell_time = 1.0            # seconds, used when selection = "dwell"
-trial_timeout = 15.0        # per-target timeout; 0 disables
-click_types = 1             # 1..3; target colour / required button, and score
-feedback = 0.35             # hit/timeout feedback interval in seconds
-iti = 0.0                   # inter-trial rest after feedback (empty grid); 0 = none
+blocks = 1                   # number of blocks
+targets = 40                 # trials (targets) per block
+block_rest = 10.0            # blank rest between blocks, seconds
+max_seconds = 300.0          # per-block limit; 0 disables
+selection = "click"          # click | dwell
+dwell_time = 1.0             # used when selection = "dwell"
+trial_timeout = 15.0         # per-target timeout; 0 disables
+click_types = 1              # 1..3
+feedback = 0.35              # feedback interval, seconds
+iti = 0.0                    # inter-trial rest; 0 = none
 countdown_seconds = 2.0
 seed = 20261107
 
-# --- input -----------------------------------------------------------------
-input = "mouse"             # mouse | demo | joystick | lsl
-demo_speed = 2.2            # normalised units per second (demo autopilot)
+# --- input ------------------------------------------------------------
+input = "mouse"              # mouse | demo | joystick | lsl
 
-# serial hall-effect joystick (input = "joystick")
-joystick_port = ""          # e.g. "COM4"; required for input = "joystick"
-joystick_baud = 9600
-joystick_address = 0        # 0 = universal 9-byte frame; 1..64 = bus mode
-joystick_stream_mode = "periodic"  # periodic | on_change
-joystick_speed = 560.0      # full-deflection speed in px/s
-joystick_deadzone = 0.0     # normalised dead zone; 0 = off
-joystick_invert_x = false
-joystick_invert_y = false
-joystick_center_on_open = false  # send the set-centre calibration command
-joystick_stale_after = 0.4  # periodic-stream watchdog, seconds
-
-# LSL velocity decoder (input = "lsl")
-lsl_velocity_stream = "WebGridVelocity"
-lsl_velocity_type = "Velocity"
-lsl_velocity_timeout = 5.0
-lsl_velocity_stale_after = 1.0
-
-# --- display ---------------------------------------------------------------
+# --- display ----------------------------------------------------------
 fullscreen = true
 window_width = 1280
 window_height = 800
 screen = 0
 hide_cursor = true
-skip_instructions = true       # animal use: no text/instruction screen by default
+skip_instructions = true     # animal use: no instruction screen
 auto_exit = false
 
-# --- event markers ---------------------------------------------------------
-lsl = false
-lsl_stream = "WebGridMarkers"
-
-# LSL state stream: started from the web panel (or automatically with --lsl-state)
-lsl_state = false           # true = publish the state stream as soon as the panel starts
-lsl_state_stream = "WebGridState"
-lsl_state_rate = 10.0       # snapshots per second
-
-# --- reward ---------------------------------------------------------------
-reward = "serial"           # delivery: serial | test | off
-reward_policy = "per_hit"   # schedule: per_hit | ratio | none
-reward_ratio = 2            # N for the "ratio" policy (every N-th hit)
-reward_port = "COM3"        # Arduino serial port
-reward_baud = 9600
-reward_amount = 1           # reward units per payout (0 = no reward)
-reward_duration_ms = 50     # pulse length passed to the Arduino
-
-# --- web control panel -----------------------------------------------------
-dashboard = true            # start the web panel (parameters + start + live view)
-dashboard_host = "127.0.0.1"  # "0.0.0.0" lets other computers on the LAN connect
-dashboard_port = 8765       # 0 = pick any free port (see the log for the URL)
-dashboard_open = true       # open the browser automatically
+# --- web control panel (bootstrap) ------------------------------------
+dashboard = true
+dashboard_host = "127.0.0.1"  # "0.0.0.0" lets other computers connect
+dashboard_port = 8765         # 0 = pick any free port
+dashboard_open = true

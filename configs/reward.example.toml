@@ -1,14 +1,10 @@
-# Reward hardware settings — copy to configs/reward.toml and edit per machine.
+# Device module: reward hardware.
 #
-#   copy configs\reward.example.toml configs\reward.toml
+# Copy to configs/reward.toml (gitignored) and edit per machine.
+# It is flat: every key is an ExperimentConfig field.
 #
-# `webgrid` loads configs/reward.toml automatically when the file exists
-# (or point at another file with --reward-config).  Command-line flags still
-# win over this file, and the web panel lets you pick the delivery mode and
-# port per session without editing anything.
-#
-# This file is flat.  The keys may instead all live in one [reward] table,
-# but the two layouts cannot be mixed.
+#   uv run webgrid --config configs/default.toml \
+#       --device-config configs/reward.toml
 
 # How the pulse leaves the machine: serial | test | off
 reward = "serial"

@@ -24,10 +24,10 @@ pytest-of-songle/
 # Local screenshots (docs/preview.png is kept)
 _smoke*.png
 
-# Machine-specific reward hardware settings (copy from reward.example.toml)
+# Machine-specific device module settings (copy from *.example.toml)
+configs/velocity_input.toml
 configs/reward.toml
-
-# Machine-specific device/LSL/serial settings (copy from lab.example.toml)
+configs/lsl_outputs.toml
 configs/lab.toml
 
 # Front-end tooling (only needed to rebuild webui/)

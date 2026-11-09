@@ -10,8 +10,7 @@ from __future__ import annotations
 
 DEFAULT_SOURCE = "default"
 SOURCE_CONFIG = "config"
-SOURCE_LAB = "lab"
-SOURCE_REWARD = "reward"
+SOURCE_DEVICE = "device"
 SOURCE_CLI = "cli"
 SOURCE_WEBUI = "webui"
 
@@ -101,6 +100,10 @@ FIELD_SCOPES: dict[str, str] = {
     **{name: SCOPE_EXPERIMENT for name in EXPERIMENT_FIELDS},
     **{name: SCOPE_DEVICE for name in DEVICE_FIELDS},
 }
+
+# Keys accepted in the main --config file.  Device keys live in the files
+# passed with --device-config, one file per module.
+CONFIG_FILE_FIELDS: frozenset[str] = EXPERIMENT_FIELDS | BOOTSTRAP_FIELDS
 
 
 def scope_for(name: str) -> str:

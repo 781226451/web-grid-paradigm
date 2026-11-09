@@ -1,0 +1,28 @@
+# Device module: demo, joystick and LSL velocity input.
+#
+# Copy to configs/velocity_input.toml (gitignored) and edit per machine.
+# It is flat: every key is an ExperimentConfig field.
+#
+#   uv run webgrid --config configs/default.toml \
+#       --device-config configs/velocity_input.toml
+
+# --- demo autopilot ---------------------------------------------------
+demo_speed = 2.2
+
+# --- serial Hall joystick ---------------------------------------------
+joystick_port = "COM4"       # e.g. COM4; required for input = "joystick"
+joystick_baud = 9600
+joystick_address = 0         # 0 = universal frame; 1..64 = bus address
+joystick_stream_mode = "periodic"  # periodic | on_change
+joystick_speed = 560.0       # px/s at full deflection
+joystick_deadzone = 0.0      # normalised, 0 = off
+joystick_invert_x = false
+joystick_invert_y = false
+joystick_center_on_open = false
+joystick_stale_after = 0.4   # periodic-stream watchdog, seconds
+
+# --- LSL velocity decoder ---------------------------------------------
+lsl_velocity_stream = "WebGridVelocity"
+lsl_velocity_type = "Velocity"
+lsl_velocity_timeout = 5.0
+lsl_velocity_stale_after = 1.0

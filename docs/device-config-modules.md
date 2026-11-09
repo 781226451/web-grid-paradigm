@@ -1,8 +1,8 @@
 # 设备配置模块化重构计划
 
-> 状态：计划（未实现；已确认：3 个模块；不保留旧语法/旧参数兼容；profile 暂不做）
+> 状态：已实现（模块粒度 3；不保留旧语法/旧参数兼容；profile 暂不做）
 > 基线：`refactor/config-layering` @ `0ffc350`
-> 目标分支：`refactor/device-config-modules`
+> 实现分支：`refactor/device-config-modules`
 > 范围：设备配置文件的组织、加载、校验与来源审计
 > 原则：显式、互斥、可审计；不引入隐式文件，不保留文件间优先级
 
@@ -253,7 +253,7 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 | `configs/velocity_input.example.toml` | 新增（15 个设备键） |
 | `configs/reward.example.toml` | 改为模块文件，键不变 |
 | `configs/lsl_outputs.example.toml` | 新增（5 个 LSL 输出键） |
-| `configs/lab.example.toml` | 删除，或保留为“全设备参考”并在 README 说明只是组合示例 |
+| `configs/lab.example.toml` | 删除（由三个模块示例替代） |
 | `tests/test_config.py` | 平铺解析、scope 分区测试 |
 | `tests/test_cli.py` | 多设备文件、互斥、scope、旧 flag 报错、迁移错误 |
 | `tests/test_reward_hardware.py` | 删除 `apply_reward_config`/自动加载相关用例，改为 `--device-config` 用例 |
@@ -322,7 +322,7 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 | `/api/start` 传 bootstrap 字段 | 400 |
 | `config.json` | 含 `config_sources` + `config_files` |
 | 示例文件 | 覆盖 `DEVICE_FIELDS`、两两不相交 |
-| 全量回归 | 现有 199 个用例通过 |
+| 全量回归 | 全量测试通过（含新增的模块 / scope / 旧参数用例） |
 
 ## 7. 迁移指南
 
@@ -367,4 +367,12 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 - **来源命名**：统一 `SOURCE_DEVICE = "device"`，不保留 `lab` / `reward` 别名值；具体文件写入 `config_files`。
 - **profile/manifest**：本计划不做；继续使用可重复的 `--device-config`。以后命令行过长时再加显式 profile（只列文件，不写配置值）。
 
-计划当前没有待确认项；下一步为 Step 1。
+## 12. 实现结果
+
+- `--config` 只接受 experiment + bootstrap 键，平铺 TOML。
+- `--device-config` 可重复，只接受 device 键，文件之间键集合互斥。
+- 来源统一 `device`；`config.json` 同时写 `config_sources` 与 `config_files`。
+- `--lab-config` / `--reward-config`、自动加载 `configs/reward.toml`、`[webgrid]`/`[reward]`/`[device]` 小节全部直接报错。
+- 示例拆为 `velocity_input.example.toml`、`reward.example.toml`、`lsl_outputs.example.toml`；`default.toml` 只保留实验 + 启动。
+- 面板 `/api/config` 返回 `source_files`；`/api/start` 显式拒绝 bootstrap 字段；徽章显示“设备配置”。
+- 全量测试通过（204 个用例）。

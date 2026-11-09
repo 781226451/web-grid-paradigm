@@ -34,7 +34,7 @@ uv run webgrid --no-open-dashboard               # 只启动服务、不自动�
 
 输入方式下方的“输入设备”卡片会显示当前模式；点“配置…”只弹出该模式需要的参数（演示速度 / 摇杆串口等 / LSL 流参数），不再把摇杆和 LSL 的细节平铺在参数表里。
 
-非默认参数会显示来源标签（配置文件、`lab.toml`、CLI 或 WebUI）；点“重置为启动配置”可恢复启动时读到的值。
+非默认参数会显示来源标签（配置文件、设备配置、CLI 或 WebUI）；点“重置为启动配置”可恢复启动时读到的值。
 
 ![控制台](docs/dashboard.png)
 
@@ -335,88 +335,39 @@ uv run webgrid --reward serial --reward-port COM3 --reward-baud 9600
 uv run webgrid --reward test
 ```
 
-### 设备参数放在 lab.toml（推荐）
+### 设备参数按模块放在 TOML 里（推荐）
 
-实验设计放 `--config`，串口/LSL/奖励硬件放机器本地的 `--lab-config`：
+实验设计放 `--config`，设备参数按模块放在各自的 `--device-config` 文件里。仓库内置三个模块示例：
+
+```text
+configs/velocity_input.example.toml   # demo / 摇杆 / LSL 速度流
+configs/reward.example.toml           # 奖励硬件
+configs/lsl_outputs.example.toml      # LSL 标记流与状态流
+```
+
+复制成不带 `.example` 的本地文件（已 gitignore），然后显式传给 `--device-config`（可重复）：
 
 ```powershell
+copy configs\velocity_input.example.toml configs\velocity_input.toml
+copy configs\reward.example.toml configs\reward.toml
+copy configs\lsl_outputs.example.toml configs\lsl_outputs.toml
+
 uv run webgrid `
   --config configs/default.toml `
-  --lab-config configs/lab.toml
+  --device-config configs/velocity_input.toml `
+  --device-config configs/reward.toml `
+  --device-config configs/lsl_outputs.toml
 ```
 
-`lab.toml` 只接受设备相关键（串口、波特率、LSL 流、奖励硬件等），写错实验字段会直接报错，避免一台机器的配置悄悄改变实验设计。复制示例：
+规则：
 
-```powershell
-copy configs\lab.example.toml configs\lab.toml     # 只在本机保留
-```
+- 每个设备文件只允许设备键（串口、波特率、LSL 流、奖励硬件等）；写错实验字段会直接报错。
+- 所有文件都是平铺 TOML，键名就是 `ExperimentConfig` 字段名；没有 `[webgrid]`、`[reward]`、`[device]` 小节。
+- 不同设备文件不能设置同一个键；重叠会在启动时直接报错，不存在“后一个覆盖前一个”。
+- 没有隐式加载：`configs/reward.toml` 不再自动加载；所有文件都必须显式传入。
+- 一个文件装全部设备键也可以，例如 `--device-config configs/lab.toml`，但同样要遵守上面的规则。
 
-`--lab-config` 可以写成平铺键，也可以放在 `[device]` 小节：
-
-```toml
-[device]
-joystick_port = "COM4"
-joystick_baud = 9600
-lsl_velocity_stream = "WebGridVelocity"
-lsl_velocity_type = "Velocity"
-reward_port = "COM3"
-```
-
-两种写法只能选一种；混用（例如顶部留着 `joystick_port` 又加了 `[device]`）会直接报错，而不是悄悄忽略其中一部分。`configs/reward.toml` 同理：平铺或 `[reward]` 小节二选一。
-
-优先级：**默认值 → `--config` → `--lab-config` → `configs/reward.toml` / `--reward-config` → 命令行参数**。所以临时换端口不用改文件。
-
-### 硬件参数放在单独的 TOML 里（也可以只用一个文件）
-
-串口号是按机器不同的，**如果**你希望实验设计随仓库走、硬件只留在本机，就把示例文件复制一份填好：
-
-```powershell
-copy configs\reward.example.toml configs\reward.toml     # 只在本机保留
-```
-
-`configs/reward.toml` 存在时，`webgrid` 启动会**自动加载**它（日志会打印 `reward hardware settings loaded from ...`）；也可以用 `--reward-config 其他文件.toml` 指定。文件里只允许奖励相关键（写错键名会直接报错，避免静默改错）：
-
-```toml
-reward = "serial"           # serial | test | off
-reward_port = "COM3"
-reward_baud = 9600
-reward_policy = "per_hit"   # per_hit | ratio | none
-reward_ratio = 2
-reward_amount = 1
-reward_duration_ms = 50
-```
-
-**不需要两个文件**：单个 `--config` 文件里也可以直接写 `reward*` 键，或用一个 `[reward]` 小节把硬件参数分开写：
-
-```toml
-# configs/session.toml —— 一个文件搞定
-subject = "sub-07"
-rows = 8
-cols = 10
-blocks = 2
-targets = 5
-
-[reward]
-reward = "serial"
-reward_port = "COM9"
-reward_baud = 115200
-reward_policy = "ratio"
-reward_ratio = 3
-```
-
-```powershell
-uv run webgrid --config configs/session.toml
-```
-
-三种用法等价、按需选择：
-
-| 用法 | 适合场景 |
-| --- | --- |
-| 单个 `--config`（含 `reward*` 或 `[reward]`） | 单机、参数就一套 |
-| `--config` 范式 + 自动加载的 `configs/reward.toml` | 多台机器共用同一份实验设计，各自配硬件 |
-| `--config` + `--reward-config 文件` | 同一台机器多套硬件（例如两套 Arduino） |
-
-优先级：**默认值 → `--config` → `--lab-config` → `configs/reward.toml`（或 `--reward-config`）→ 命令行参数**。所以临时换端口不用改文件：`uv run webgrid --reward-port COM9`。
+优先级：**默认值 → `--config` → `--device-config`（互斥，无顺序）→ 命令行参数 → WebUI（仅本次运行）**。设备文件之间没有先后，所以临时换端口不用改文件：`uv run webgrid --reward-port COM9`。
 
 ### 在网页里连接与选择奖励方式
 
@@ -461,7 +412,7 @@ uv run webgrid --config configs/session.toml
 | POST | `/api/reward/test` | 用已连接设备发一次脉冲（未连接且非 test 模式时报错） |
 | GET | `/api/state` | 含 `reward_device`：连接状态、端口、波特率、已发送/失败次数、检测到的串口 |
 
-配置文件（`configs/reward.toml` / `--reward-config` / `[reward]`）里的端口、波特率只是**默认值**：弹窗里改了就按弹窗的来，不改则沿用配置。串口指令模板是**内置固定**的，不提供配置项。
+设备配置（`--device-config` 文件里的 `reward_port` / `reward_baud`）只是**默认值**：弹窗里改了就按弹窗的来，不改则沿用配置。串口指令模板是**内置固定**的，不提供配置项。
 
 **串口协议**（内置固定，不可配置）：
 
@@ -499,7 +450,7 @@ void loop() {
 data/
 └── sub-01/
     └── ses-20261107-140000/
-        ├── config.json      # 全部参数、参数来源、Python/PsychoPy 版本、平台
+        ├── config.json      # 全部参数、参数来源与文件、Python/PsychoPy 版本、平台
         ├── events.csv       # 事件日志：session/target/click/hit/reward/timeout...
         ├── trials.csv       # 每个目标一行（命中或超时）
         ├── rewards.csv      # 每次奖励一行（amount/duration/reason/sink）
@@ -577,8 +528,8 @@ data/
 | `--reward-baud` | 9600 | 串口波特率 |
 | `--reward-amount` | 1 | 每次命中的奖励量（0 = 不发） |
 | `--reward-duration-ms` | 50 | 奖励脉冲时长（毫秒） |
-| `--reward-config` | `configs/reward.toml`（存在时） | 硬件配置 TOML（端口/波特率等） |
-| `--lab-config` | 空 | 本机设备 TOML（串口、LSL、奖励硬件） |
+| `--config` | 空 | 实验 + 启动配置（平铺 TOML） |
+| `--device-config` | 空 | 设备模块 TOML（可重复；平铺，只允许设备键） |
 | `--debug` | 关 | 调试：DEBUG 日志、完整堆栈 |
 | `--log-file` | 空 | 额外写一份滚动日志文件（每个会话目录总会有 `session.log`） |
 | `--instructions` | 关 | 显示人用指导语页；动物实验保持关闭 |

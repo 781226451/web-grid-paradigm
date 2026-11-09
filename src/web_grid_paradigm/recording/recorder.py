@@ -85,9 +85,11 @@ class SessionRecorder:
         session_id: str | None = None,
         created_utc: str | None = None,
         sources: Mapping[str, str] | None = None,
+        config_files: Mapping[str, str] | None = None,
     ) -> None:
         self.config = config
         self.sources = dict(sources or {})
+        self.config_files = dict(config_files or {})
         self.session_id = session_id or config.session_id
         self.start_utc = created_utc or _utc_now()
         self.dir = self._allocate_dir(
@@ -103,6 +105,7 @@ class SessionRecorder:
             "platform": platform.platform(),
             "config": config.to_dict(),
             "config_sources": self.sources,
+            "config_files": self.config_files,
         }
         (self.dir / "config.json").write_text(
             json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"

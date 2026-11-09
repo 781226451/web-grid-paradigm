@@ -1,7 +1,7 @@
 # 配置与传参升级方案
 
 > 状态：草案  
-> 实施进度：Phase 1–3 已实现；Phase 4 已加入 scope/schema 一致性与 config_sources 审计，统一字段规范仍可作为后续工作；Phase 5 为收尾与文档  
+> 实施进度：Phase 1–3 已实现；Phase 4 已加入 scope/schema 一致性与 config_sources 审计；设备配置模块化已按 [device-config-modules.md](device-config-modules.md) 落地（`--device-config` 多文件、互斥、旧语法/旧参数直接报错）；统一字段规范仍可作为后续工作
 > 范围：实验参数、设备参数、启动参数、CLI、TOML、WebUI、配置落盘与审计  
 > 原则：本文件只描述方案，不包含代码修改
 

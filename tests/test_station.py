@@ -117,6 +117,25 @@ def test_config_endpoint_reports_startup_source() -> None:
         board.close()
 
 
+def test_config_endpoint_reports_source_files() -> None:
+    board = make_station(
+        base_config=ExperimentConfig(joystick_port="COM4"),
+        base_sources={"joystick_port": "device"},
+        base_config_files={"joystick_port": "configs/velocity_input.toml"},
+        open_browser=False,
+    )
+    try:
+        _, payload = _get(board, "/api/config")
+        assert payload["sources"]["joystick_port"] == "device"
+        assert (
+            payload["source_files"]["joystick_port"]
+            == "configs/velocity_input.toml"
+        )
+        assert payload["source_files"]["rows"] is None
+    finally:
+        board.close()
+
+
 def test_page_is_served(station) -> None:
     with urllib.request.urlopen(_url(station, "/"), timeout=5) as response:
         body = response.read().decode("utf-8")
@@ -135,6 +154,12 @@ def test_start_rejects_bad_parameters(station) -> None:
     assert status == 400 and "未知参数" in payload["error"]
 
 
+def test_start_rejects_bootstrap_fields(station) -> None:
+    status, payload = _post(station, "/api/start", {"dashboard_port": 9000})
+    assert status == 400
+    assert "启动参数" in payload["error"]
+
+
 def test_start_queues_a_validated_run(station) -> None:
     status, payload = _post(
         station, "/api/start", {"blocks": 2, "targets": 5, "rows": 6, "cols": 6}
@@ -144,10 +169,11 @@ def test_start_queues_a_validated_run(station) -> None:
     # The queued request is what serve() will pick up first.
     request = station._next_request()
     assert request is not None
-    config, source, sources = request
+    config, source, sources, files = request
     assert (config.blocks, config.targets, source) == (2, 5, "web")
     assert sources["blocks"] == "webui"
     assert sources["dashboard_host"] == "default"
+    assert files == {}
 
 
 def test_webui_source_marks_only_changed_fields() -> None:
@@ -161,7 +187,7 @@ def test_webui_source_marks_only_changed_fields() -> None:
         assert status == 200
         request = board._next_request()
         assert request is not None
-        _, _, sources = request
+        _, _, sources, _ = request
         assert sources["rows"] == "cli"
         assert sources["cols"] == "webui"
     finally:

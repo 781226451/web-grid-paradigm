@@ -28,6 +28,7 @@ def test_recorder_writes_config_events_trials_and_summary(tmp_path: Path) -> Non
         config,
         psychopy_version="test-version",
         sources={"subject": "cli", "rows": "config"},
+        config_files={"rows": "configs/default.toml"},
     ) as recorder:
         assert recorder.dir.name == "ses-test"
         assert (recorder.dir / "config.json").exists()
@@ -76,6 +77,7 @@ def test_recorder_writes_config_events_trials_and_summary(tmp_path: Path) -> Non
     assert meta["psychopy_version"] == "test-version"
     assert meta["config_sources"]["subject"] == "cli"
     assert meta["config_sources"]["rows"] == "config"
+    assert meta["config_files"]["rows"] == "configs/default.toml"
 
 
 def test_session_directory_collision_gets_suffix(tmp_path: Path) -> None:

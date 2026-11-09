@@ -1,4 +1,4 @@
-"""Reward hardware configuration file, port discovery and the panel self-test."""
+"""Reward hardware configuration, port discovery and the panel self-test."""
 
 from __future__ import annotations
 
@@ -9,9 +9,9 @@ from pathlib import Path
 import pytest
 
 from web_grid_paradigm.app.cli_args import (
-    apply_reward_config,
     build_parser,
     load_config,
+    reject_legacy_reward_config,
 )
 from web_grid_paradigm.core.config import ExperimentConfig
 from web_grid_paradigm.panel import Station
@@ -24,14 +24,16 @@ def write(path: Path, text: str) -> Path:
 
 
 # ---------------------------------------------------------------- reward TOML
-def test_reward_config_file_overrides_defaults(tmp_path: Path) -> None:
+def test_device_config_file_overrides_defaults(tmp_path: Path) -> None:
     path = write(
         tmp_path / "reward.toml",
         'reward = "test"\nreward_port = "COM7"\nreward_baud = 115200\n'
         "reward_amount = 3\n",
     )
     base = ExperimentConfig()
-    config = apply_reward_config(base, path)
+    config = load_config(
+        build_parser().parse_args(["--device-config", str(path)])
+    )
     assert config.reward == "test"
     assert config.reward_port == "COM7"
     assert config.reward_baud == 115200
@@ -40,71 +42,52 @@ def test_reward_config_file_overrides_defaults(tmp_path: Path) -> None:
     assert config.rows == base.rows
 
 
-def test_reward_config_accepts_a_table_and_rejects_unknown_keys(tmp_path: Path) -> None:
-    table = write(
-        tmp_path / "reward.toml",
-        '[reward]\nreward_port = "COM9"\nreward_duration_ms = 80\n',
-    )
-    config = apply_reward_config(ExperimentConfig(), table)
-    assert (config.reward_port, config.reward_duration_ms) == ("COM9", 80)
-
-    bad = write(tmp_path / "bad.toml", 'rows = 4\nreward_port = "COM1"\n')
-    with pytest.raises(ValueError, match="unknown reward key"):
-        apply_reward_config(ExperimentConfig(), bad)
+def test_device_config_rejects_unknown_keys(tmp_path: Path) -> None:
+    path = write(tmp_path / "reward.toml", 'reward_prot = "COM1"\n')
+    with pytest.raises(ValueError, match="unknown configuration key"):
+        load_config(build_parser().parse_args(["--device-config", str(path)]))
 
 
-def test_reward_config_rejects_mixed_layouts(tmp_path: Path) -> None:
+def test_reward_keys_belong_in_device_config(tmp_path: Path) -> None:
+    path = write(tmp_path / "config.toml", 'reward_port = "COM1"\n')
+    with pytest.raises(ValueError, match="belong to device settings"):
+        load_config(build_parser().parse_args(["--config", str(path)]))
+
+
+def test_cli_device_config_and_precedence(tmp_path: Path) -> None:
     path = write(
         tmp_path / "reward.toml",
-        'reward_port = "COM9"\n\n[reward]\nreward_baud = 19200\n',
-    )
-    with pytest.raises(ValueError, match="cannot be combined"):
-        apply_reward_config(ExperimentConfig(), path)
-
-
-def test_reward_config_accepts_a_single_flat_key(tmp_path: Path) -> None:
-    path = write(tmp_path / "reward.toml", 'reward = "test"\n')
-    assert apply_reward_config(ExperimentConfig(), path).reward == "test"
-
-
-def test_single_config_file_can_hold_a_reward_section(tmp_path: Path) -> None:
-    """One TOML is enough: paradigm keys plus a [reward] table."""
-    path = write(
-        tmp_path / "session.toml",
-        "subject = 'sub-07'\nrows = 8\ncols = 10\n\n"
-        "[reward]\nreward_port = 'COM11'\nreward_policy = 'ratio'\n",
-    )
-    config = ExperimentConfig.from_toml(path)
-    assert (config.subject, config.rows, config.cols) == ("sub-07", 8, 10)
-    assert (config.reward_port, config.reward_policy) == ("COM11", "ratio")
-
-
-def test_nested_reward_section_under_webgrid(tmp_path: Path) -> None:
-    path = write(
-        tmp_path / "session.toml",
-        "[webgrid]\nrows = 6\n\n[webgrid.reward]\nreward_port = 'COM5'\n",
-    )
-    config = ExperimentConfig.from_toml(path)
-    assert (config.rows, config.reward_port) == (6, "COM5")
-
-
-def test_cli_reward_config_and_precedence(tmp_path: Path) -> None:
-    path = write(
-        tmp_path / "reward.toml", 'reward = "test"\nreward_port = "COM5"\n'
+        'reward = "test"\nreward_port = "COM5"\n',
     )
     parser = build_parser()
-    config = load_config(parser.parse_args(["--reward-config", str(path)]))
+    config = load_config(parser.parse_args(["--device-config", str(path)]))
     assert (config.reward, config.reward_port) == ("test", "COM5")
     # Command line still wins over the file.
     config = load_config(
-        parser.parse_args(["--reward-config", str(path), "--reward", "off"])
+        parser.parse_args(["--device-config", str(path), "--reward", "off"])
     )
     assert config.reward == "off"
 
 
-def test_missing_reward_config_file_is_an_error(tmp_path: Path) -> None:
+def test_missing_device_config_file_is_an_error(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
-        apply_reward_config(ExperimentConfig(), tmp_path / "nope.toml")
+        load_config(
+            build_parser().parse_args(
+                ["--device-config", str(tmp_path / "nope.toml")]
+            )
+        )
+
+
+def test_legacy_reward_file_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "configs").mkdir()
+    write(tmp_path / "configs" / "reward.toml", 'reward = "test"\n')
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ValueError, match="no longer loaded automatically"):
+        reject_legacy_reward_config([])
+    # Passing it explicitly as a device file is allowed.
+    reject_legacy_reward_config([Path("configs/reward.toml")])
 
 
 # ---------------------------------------------------------------- port list
