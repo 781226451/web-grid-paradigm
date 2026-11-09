@@ -38,7 +38,7 @@
 3. 没有隐式加载：所有文件都由命令行显式给出。
 4. 文件格式统一为平铺 TOML，键名与 `ExperimentConfig` 字段一一对应。
 5. 来源可追溯：逻辑来源（`device`）+ 具体文件路径都写入会话目录。
-6. 迁移路径明确：旧参数、旧文件都有可执行的迁移提示。
+6. 旧参数/旧文件不会被静默接受：旧 flag 由 argparse 拒绝，旧 `configs/reward.toml` 忽略；迁移方式写在文档里。
 
 ### 2.2 非目标
 
@@ -288,7 +288,7 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 - `/api/start` 显式 scope 校验；来源标签 `device`。
 - 测试：`config_files`、面板 payload、bootstrap 字段拒绝。
 
-### Step 4：示例、文档与迁移提示
+### Step 4：示例、文档与迁移说明
 
 - `default.toml` 已在 Step 1 裁剪；新增 `velocity_input.example.toml`、`lsl_outputs.example.toml`，改造 `reward.example.toml`，删除/改造 `lab.example.toml`。
 - `configs/reward.toml` 不再被读取，也不会报错（旧文件直接忽略）；旧 flag 由 argparse 拒绝；README、`.gitignore`。

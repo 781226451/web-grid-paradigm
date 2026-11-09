@@ -591,5 +591,5 @@ def load_config_resolved(args: argparse.Namespace) -> ResolvedConfig:
 
 
 def load_config(args: argparse.Namespace) -> ExperimentConfig:
-    """Return only the resolved configuration (compatibility helper)."""
+    """Return only the resolved configuration (convenience helper)."""
     return load_config_resolved(args).config
