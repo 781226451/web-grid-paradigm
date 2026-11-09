@@ -24,8 +24,10 @@ interface ConfigStore {
   groups: string[];
   values: Record<string, string | number | boolean>;
   sources: Record<string, string>;
+  sourceFiles: Record<string, string | null>;
   baseValues: Record<string, string | number | boolean>;
   baseSources: Record<string, string>;
+  baseSourceFiles: Record<string, string | null>;
   scopes: Record<string, string>;
   editable: Record<string, boolean>;
   control: boolean;
@@ -41,8 +43,10 @@ export const form = reactive<ConfigStore>({
   groups: [],
   values: {},
   sources: {},
+  sourceFiles: {},
   baseValues: {},
   baseSources: {},
+  baseSourceFiles: {},
   scopes: {},
   editable: {},
   control: true,
@@ -65,14 +69,23 @@ export function sourceLabel(source: string | undefined): string {
   return SOURCE_LABELS[source] ?? source;
 }
 
+/** Tooltip for the source badge; device values also name their file. */
+export function sourceTitle(name: string): string {
+  const label = sourceLabel(form.sources[name]);
+  const file = form.sourceFiles[name];
+  return file ? `当前值来源：${label}（${file}）` : `当前值来源：${label}`;
+}
+
 export function setValue(name: string, value: string | number | boolean): void {
   form.values[name] = value;
   form.sources[name] = "webui";
+  delete form.sourceFiles[name];
 }
 
 export function resetConfig(): void {
   form.values = { ...form.baseValues };
   form.sources = { ...form.baseSources };
+  form.sourceFiles = { ...form.baseSourceFiles };
   form.error = "";
   form.message = "";
 }
@@ -92,8 +105,10 @@ export async function loadConfig(): Promise<void> {
       groups: string[];
       values: Record<string, string | number | boolean>;
       sources?: Record<string, string>;
+      source_files?: Record<string, string | null>;
       base_values?: Record<string, string | number | boolean>;
       base_sources?: Record<string, string>;
+      base_source_files?: Record<string, string | null>;
       scopes?: Record<string, string>;
       editable?: Record<string, boolean>;
       control: boolean;
@@ -102,8 +117,12 @@ export async function loadConfig(): Promise<void> {
     form.groups = data.groups;
     form.values = { ...data.values };
     form.sources = { ...(data.sources ?? {}) };
+    form.sourceFiles = { ...(data.source_files ?? {}) };
     form.baseValues = { ...(data.base_values ?? data.values) };
     form.baseSources = { ...(data.base_sources ?? data.sources ?? {}) };
+    form.baseSourceFiles = {
+      ...(data.base_source_files ?? data.source_files ?? {}),
+    };
     form.scopes = { ...(data.scopes ?? {}) };
     form.editable = { ...(data.editable ?? {}) };
     form.control = data.control;

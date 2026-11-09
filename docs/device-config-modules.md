@@ -233,9 +233,9 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 
 ### 3.8 面板与 WebUI
 
-- `/api/config`：`sources` 增加 `device`；`base_sources` 同步；可选增加 `source_files` 供 tooltip 使用。
+- `/api/config`：`sources` 增加 `device`；`base_sources` 同步；返回 `source_files` / `base_source_files` 供来源 tooltip 使用。
 - `/api/start`：显式校验 payload 的键都属于 `EXPERIMENT_FIELDS | DEVICE_FIELDS`，bootstrap 字段一律拒绝（当前靠表单白名单间接实现，改为显式校验）。
-- 前端 `SOURCE_LABELS`：`lab` / `reward` 合并为 `device: "设备配置"`；设备字段的 tooltip 可显示文件名。
+- 前端 `SOURCE_LABELS`：`lab` / `reward` 合并为 `device: "设备配置"`；设备字段的 tooltip 显示文件名，输入设备弹窗里的字段同样显示来源徽章。
 - 设备弹窗（`InputDevice`）与奖励设备连接逻辑不变；`base_config.reward_port` 仍来自最终配置。
 
 ## 4. 代码改动清单
@@ -374,7 +374,7 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 - 来源统一 `device`；`config.json` 同时写 `config_sources` 与 `config_files`。
 - `--lab-config` / `--reward-config`、自动加载 `configs/reward.toml`、`[webgrid]`/`[reward]`/`[device]` 小节全部直接报错。
 - 示例拆为 `velocity_input.example.toml`、`reward.example.toml`、`lsl_outputs.example.toml`；`default.toml` 只保留实验 + 启动。
-- 面板 `/api/config` 返回 `source_files`；`/api/start` 显式拒绝 bootstrap 字段；徽章显示“设备配置”。
+- 面板 `/api/config` 返回 `source_files`；`/api/start` 显式拒绝 bootstrap 字段；来源徽章显示“设备配置”，tooltip 显示具体文件（输入设备弹窗同样）。
 - `ExperimentConfig.to_toml()` / `save_toml()` 支持 `role="config"`（默认，`--config` 可直接读取）和 `role="device"`（`--device-config` 可直接读取）；`role="all"` 是完整快照，不对应单一 CLI 通道。
 - 启动日志会列出每个 `--config` / `--device-config` 文件及其键数。
-- 全量测试通过（209 个用例）。
+- 全量测试通过（209 个用例 + 12 个 Playwright e2e）。

@@ -3,7 +3,7 @@ import { NForm, NFormItem } from "naive-ui";
 import { computed } from "vue";
 
 import SchemaField from "@/components/SchemaField.vue";
-import { form, isBusy, setValue, sourceLabel } from "@/stores/config";
+import { form, isBusy, setValue, sourceLabel, sourceTitle } from "@/stores/config";
 
 const disabled = computed(() => !form.control || isBusy());
 const disabledFor = (name: string): boolean =>
@@ -43,7 +43,7 @@ const groups = computed(() =>
           <span
             v-if="form.sources[field.name] && form.sources[field.name] !== 'default'"
             class="source"
-            :title="`当前值来源：${sourceLabel(form.sources[field.name])}`"
+            :title="sourceTitle(field.name)"
           >
             {{ sourceLabel(form.sources[field.name]) }}
           </span>

@@ -3,7 +3,7 @@ import { NButton, NFormItem, NModal } from "naive-ui";
 import { computed, reactive, ref } from "vue";
 
 import SchemaField from "@/components/SchemaField.vue";
-import { form, isBusy, setValue } from "@/stores/config";
+import { form, isBusy, setValue, sourceLabel, sourceTitle } from "@/stores/config";
 
 const show = ref(false);
 const message = ref("");
@@ -104,11 +104,21 @@ function cancel(): void {
       <n-form-item
         v-for="field in fields"
         :key="field.name"
-        :label="field.label"
+        :data-field="field.name"
         label-placement="left"
         :show-feedback="false"
         class="compact"
       >
+        <template #label>
+          <span class="field-label">{{ field.label }}</span>
+          <span
+            v-if="form.sources[field.name] && form.sources[field.name] !== 'default'"
+            class="source"
+            :title="sourceTitle(field.name)"
+          >
+            {{ sourceLabel(form.sources[field.name]) }}
+          </span>
+        </template>
         <div class="control">
           <SchemaField
             v-model="draft[field.name]"
@@ -155,6 +165,17 @@ function cancel(): void {
 
 .control {
   width: 100%;
+}
+
+.source {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 4px;
+  color: var(--blue);
+  border: 1px solid color-mix(in srgb, var(--blue), transparent 65%);
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 15px;
 }
 
 .hint {

@@ -107,6 +107,26 @@ test.describe("control panel shell", () => {
     await expect(subject.locator(".source")).toHaveText("CLI");
   });
 
+  test("source badges name the device config file", async ({ page }) => {
+    await page.goto("/");
+
+    const lslField = page.locator('[data-field="lsl"]');
+    await expect(lslField.locator(".source")).toHaveText("设备配置");
+    await expect(lslField.locator(".source")).toHaveAttribute(
+      "title",
+      /lsl_outputs\.example\.toml/,
+    );
+
+    await choose(page, "input", "joystick");
+    await page.getByRole("button", { name: "配置…" }).click();
+    const port = page.locator('.n-modal [data-field="joystick_port"]');
+    await expect(port.locator(".source")).toHaveText("设备配置");
+    await expect(port.locator(".source")).toHaveAttribute(
+      "title",
+      /velocity_input\.example\.toml/,
+    );
+  });
+
   test("LSL state card starts from the configured stream and rate", async ({ page }) => {
     await page.goto("/");
 
