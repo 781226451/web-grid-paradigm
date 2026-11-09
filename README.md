@@ -475,6 +475,8 @@ data/
 
 | 参数 | 默认 | 说明 |
 | --- | --- | --- |
+| `--config` | 空 | 实验 + 启动配置（平铺 TOML） |
+| `--device-config` | 空 | 设备模块 TOML（可重复；平铺，只允许设备键） |
 | `--subject` | `sub-01` | 被试标签，进入目录名 |
 | `--session` | 时间戳 | 会话标签 |
 | `--output-dir` | `data` | 数据根目录 |
@@ -530,8 +532,6 @@ data/
 | `--reward-baud` | 9600 | 串口波特率 |
 | `--reward-amount` | 1 | 每次命中的奖励量（0 = 不发） |
 | `--reward-duration-ms` | 50 | 奖励脉冲时长（毫秒） |
-| `--config` | 空 | 实验 + 启动配置（平铺 TOML） |
-| `--device-config` | 空 | 设备模块 TOML（可重复；平铺，只允许设备键） |
 | `--debug` | 关 | 调试：DEBUG 日志、完整堆栈 |
 | `--log-file` | 空 | 额外写一份滚动日志文件（每个会话目录总会有 `session.log`） |
 | `--instructions` | 关 | 显示人用指导语页；动物实验保持关闭 |
