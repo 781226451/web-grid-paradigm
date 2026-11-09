@@ -19,6 +19,8 @@ test("a short demo run completes and fills the tables", async ({ page }) => {
   // Parameters lock while the session runs.
   await expect(page.getByRole("button", { name: "中止" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "启动实验" })).toBeDisabled();
+  // Exporting configuration is a non-experiment action.
+  await expect(page.locator('[data-action="export"]')).toBeDisabled();
 
   // Three demo trials finish by themselves; the KPI card then shows 3 hits.
   await expect(page.locator('[data-kpi="命中"] .value')).toHaveText("3", {
@@ -28,6 +30,7 @@ test("a short demo run completes and fills the tables", async ({ page }) => {
 
   // The run goes back to idle on its own (auto-exit) and unlocks the form.
   await expect(page.getByRole("button", { name: "启动实验" })).toBeEnabled({ timeout: 60_000 });
+  await expect(page.locator('[data-action="export"]')).toBeEnabled();
   await expect(page.locator(".device[data-device=reward] .status")).toContainText("test 模式");
 
   // The finished run is listed in the history card.

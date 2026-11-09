@@ -13,7 +13,7 @@ GET      ``/api/state``             full JSON snapshot (scripts, debugging)
 GET      ``/api/config``            form schema, defaults and last used values
 POST     ``/api/start``             validate the parameters and start a run
 POST     ``/api/stop``              abort the running session (same as Esc)
-POST     ``/api/config/export``     download the current parameters as a ZIP
+POST     ``/api/config/export``     download the current parameters as a ZIP (idle only)
 POST     ``/api/lsl``               enable/disable the LSL state stream
 =======  ==========================  =====================================
 

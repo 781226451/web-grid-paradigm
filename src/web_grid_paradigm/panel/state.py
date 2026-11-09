@@ -785,11 +785,20 @@ class Station:
     ) -> tuple[bytes, str]:
         """Build the ZIP archive for the parameters currently in the page.
 
-        Read-only panels can export too: nothing is started or written.  The
-        payload mirrors ``/api/start``, so the archive holds exactly the values
-        the next run would use, including settings the page keeps outside the
-        form (LSL card, reward device dialog).
+        Only an idle panel may export: during a session the render loop owns
+        the timing, and configuration work belongs outside a run.  A run that
+        is queued but not started yet is still idle.  Read-only panels can
+        export too; nothing is started or written.  The payload mirrors
+        ``/api/start``, so the archive holds the values the next run would
+        use, including settings kept outside the form (LSL card, reward
+        device dialog).
         """
+        with self._cond:
+            busy = self._status != "idle"
+        if busy:
+            raise RuntimeError(
+                "实验进行中不能导出配置，请等本次运行结束后再导出"
+            )
         config, sources, files = self._form_config(payload or {})
         overrides = self._panel_overrides()
         changed = sorted(

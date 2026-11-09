@@ -188,10 +188,15 @@ export async function stopRun(): Promise<void> {
 
 /**
  * Download the current parameters as a ZIP (config.toml, one TOML per device
- * module, config.json and a README).  Works in read-only monitoring too.
+ * module, config.json and a README).  Only allowed while the panel is idle:
+ * configuration work stays outside an experiment.
  */
 export async function exportConfig(): Promise<void> {
   if (!form.loaded || form.exporting) {
+    return;
+  }
+  if (isBusy()) {
+    form.error = "实验进行中，结束后才能导出配置";
     return;
   }
   form.exporting = true;

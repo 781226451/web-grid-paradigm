@@ -18,7 +18,7 @@
   `naive-ui` 单独缓存）。
 - **Phase 5（已完成）**：配置导出——参数卡片底部“导出配置 (zip)”下载 `config.toml`、
   三个设备模块、`config.json` 与 `README.md`；文件名取自 `Content-Disposition`，
-  纯读取操作，运行中也可导出。
+  仅非实验阶段可用（运行中按钮禁用，接口返回 409）。
 - 旧单文件页面与 `/legacy` 路由已删除，Git 历史里仍可找回。
 
 ## 命令

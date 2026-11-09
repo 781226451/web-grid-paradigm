@@ -308,6 +308,27 @@ def test_config_export_captures_panel_level_settings() -> None:
         board.close()
 
 
+def test_config_export_requires_an_idle_panel(station) -> None:
+    """An export must never compete with a running session."""
+    station._begin_run(ExperimentConfig(blocks=1, targets=1), "test")
+    run_id = station._current["id"]
+    try:
+        status, payload = _post(station, "/api/config/export", {})
+        assert status == 409
+        assert "实验进行中" in payload["error"]
+
+        assert station.request_stop() is True  # run is now stopping
+        status, payload = _post(station, "/api/config/export", {})
+        assert status == 409
+    finally:
+        station._end_run(run_id, "finished")
+
+    status, headers, body = _post_bytes(station, "/api/config/export", {})
+    assert status == 200
+    assert headers["Content-Type"] == "application/zip"
+    assert body.startswith(b"PK")
+
+
 def test_readonly_panel_can_export() -> None:
     board = make_station(control=False, open_browser=False)
     try:

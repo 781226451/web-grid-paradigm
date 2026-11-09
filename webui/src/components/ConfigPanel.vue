@@ -21,6 +21,14 @@ const busy = computed(() => isBusy());
 const canStart = computed(() => form.control && !busy.value && form.loaded);
 const canStop = computed(() => form.control && busy.value && station.status !== "stopping");
 const canReset = computed(() => form.control && !busy.value && form.loaded);
+const canExport = computed(
+  () => form.loaded && !form.exporting && !form.starting && !busy.value,
+);
+const exportTitle = computed(() =>
+  busy.value
+    ? "实验进行中，结束后才能导出"
+    : "下载 zip：config.toml + 三个设备模块 + config.json + README",
+);
 
 onMounted(() => {
   if (!form.loaded) {
@@ -83,9 +91,9 @@ onMounted(() => {
         </n-button>
         <n-button
           data-action="export"
-          :disabled="!form.loaded || form.exporting"
+          :disabled="!canExport"
           :loading="form.exporting"
-          title="下载 zip：config.toml + 三个设备模块 + config.json + README"
+          :title="exportTitle"
           @click="exportConfig"
         >
           导出配置 (zip)

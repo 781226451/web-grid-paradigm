@@ -378,7 +378,7 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 - 面板 `/api/config` 返回 `source_files`；`/api/start` 显式拒绝 bootstrap 字段；来源徽章显示“设备配置”，tooltip 显示具体文件（输入设备弹窗同样）。
 - `ExperimentConfig.to_toml()` / `save_toml()` 支持 `role="config"`（默认，`--config` 可直接读取）和 `role="device"`（`--device-config` 可直接读取）；`role="all"` 是完整快照，不对应单一 CLI 通道。
 - 启动日志会列出每个 `--config` / `--device-config` 文件及其键数。
-- WebUI 可把页面当前参数导出为同一套模块文件（“导出配置 (zip)”）：`config.toml` +
+- WebUI 可把页面当前参数导出为同一套模块文件（“导出配置 (zip)”，仅非实验阶段可用）：`config.toml` +
   `velocity_input.toml` / `reward.toml` / `lsl_outputs.toml` + `config.json` + `README.md`；
   行尾 `# source: ...` 标注非默认值的来源，归档直接在浏览器下载，不写控制台机器。
 - 测试覆盖面板来源清理、`SessionView.config_files` 和 `_run` → recorder 的元数据传递。
