@@ -165,17 +165,23 @@ def _snapshot(
 
 def _readme(config: ExperimentConfig, exported: datetime, stem: str) -> str:
     local = exported.strftime("%Y-%m-%d %H:%M:%S %Z").strip()
-    utc = exported.astimezone(UTC).isoformat(timespec="seconds")
+    utc = exported.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
     rows = [
-        f"| `{CONFIG_DOCUMENT}` | `--config` | 实验设计 + 启动项 | "
-        f"{len(CONFIG_FILE_FIELDS)} |",
+        (
+            f"| `{CONFIG_DOCUMENT}` | `--config` | 实验设计 + 启动项 | "
+            f"{len(CONFIG_FILE_FIELDS)} |"
+        ),
         *(
-            f"| `{module_document(module)}` | `--device-config` | "
-            f"{_MODULE_SUMMARY.get(module, module)} | {len(names)} |"
+            (
+                f"| `{module_document(module)}` | `--device-config` | "
+                f"{_MODULE_SUMMARY.get(module, module)} | {len(names)} |"
+            )
             for module, names in DEVICE_MODULES.items()
         ),
-        f"| `{SNAPSHOT_DOCUMENT}` | — | 全量快照：全部字段 + 来源 + 版本 | "
-        f"{len(config.to_dict())} |",
+        (
+            f"| `{SNAPSHOT_DOCUMENT}` | — | 全量快照：全部字段 + 来源 + 版本 | "
+            f"{len(config.to_dict())} |"
+        ),
     ]
     usage = [
         "uv run webgrid `",
@@ -210,15 +216,22 @@ def _readme(config: ExperimentConfig, exported: datetime, stem: str) -> str:
             "",
             "## 说明",
             "",
-            "- 所有 TOML 都是平铺的，键名与 `ExperimentConfig` 字段一一对应，"
-            "可直接被 CLI 读取；`config.toml` 只含实验与启动键，"
-            "三个设备文件只含设备键。",
-            "- 行尾 `# source: ...` 记录该值在导出时的来源：`webui`（本页面改过）、"
-            "`device`（来自设备配置文件，括号内是文件名）、`cli`（命令行）、"
-            "`config`（`--config` 文件）。没有该注释的行是代码默认值；注释不参与解析。",
+            (
+                "- 所有 TOML 都是平铺的，键名与 `ExperimentConfig` 字段一一对应，"
+                "可直接被 CLI 读取；`config.toml` 只含实验与启动键，"
+                f"{len(DEVICE_MODULES)} 个设备文件只含设备键。"
+            ),
+            (
+                "- 行尾 `# source: ...` 记录该值在导出时的来源："
+                "`webui`（本页面改过）、`device`（来自设备配置文件，括号内是文件名）、"
+                "`cli`（命令行）、`config`（`--config` 文件）。"
+                "没有该注释的行是代码默认值；注释不参与解析。"
+            ),
             f"- `{SNAPSHOT_DOCUMENT}` 不是 CLI 输入，只用于审计或给其他程序读取。",
-            "- 导出只读取页面上的当前参数：不启动实验，"
-            "也不在控制台所在机器上写文件。",
+            (
+                "- 导出只读取页面上的当前参数：不启动实验，"
+                "也不在控制台所在机器上写文件。"
+            ),
             "",
         ]
     )

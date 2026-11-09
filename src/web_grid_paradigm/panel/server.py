@@ -143,6 +143,8 @@ def _make_handler(station: Station) -> type[BaseHTTPRequestHandler]:
                 self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
             except RuntimeError as exc:
                 self._json(HTTPStatus.CONFLICT, {"error": str(exc)})
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                return  # browser tab closed mid-download
 
         def _read_json(self) -> dict[str, Any]:
             length = int(self.headers.get("Content-Length") or 0)

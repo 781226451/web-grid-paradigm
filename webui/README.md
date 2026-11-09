@@ -12,7 +12,7 @@
   （text / int / float / bool / choice），启动/中止按钮，运行中锁定参数，服务端 400 错误显示在表单顶部。
 - **Phase 3（已完成）**：奖励设备区（连接…弹窗填串口/波特率、断开、测试一次、按交付方式显示状态）
   与 LSL 状态流卡（启停、推送计数）。
-- **Phase 4（已完成）**：Playwright E2E（Edge，5 条：外壳/表单/监控卡/启动到完成/校验错误）、
+- **Phase 4（已完成）**：Playwright E2E（Edge：外壳/表单/监控卡/启动到完成/校验错误）、
   窄屏（≤1000px 单列、表单不再内部滚动）、`test:e2e` 脚本。
 - **收尾（已完成）**：历史运行表（补齐旧页最后一个区块）、vendor 拆包（应用 chunk 23.6 KB，
   `naive-ui` 单独缓存）。
@@ -58,5 +58,5 @@ cd webui; pnpm dev
   （`channel: "msedge"`），不需要下载浏览器：
 
   ```powershell
-  pnpm test:e2e        # 5 条，约 10 s；第一次会等 webgrid 启动
+  pnpm test:e2e        # 13 条，约 20 s；第一次会等 webgrid 启动
   ```

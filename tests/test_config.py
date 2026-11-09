@@ -80,6 +80,20 @@ def test_device_modules_partition_device_fields() -> None:
     assert seen == set(DEVICE_FIELDS)
 
 
+def test_device_modules_match_the_example_files() -> None:
+    """The export writes DEVICE_MODULES; the shipped examples must agree."""
+    configs = Path(__file__).resolve().parents[1] / "configs"
+    examples = {
+        "velocity_input": "velocity_input.example.toml",
+        "reward": "reward.example.toml",
+        "lsl_outputs": "lsl_outputs.example.toml",
+    }
+    assert set(examples) == set(DEVICE_MODULES)
+    for module, filename in examples.items():
+        data = tomllib.loads((configs / filename).read_text(encoding="utf-8"))
+        assert set(data) == set(DEVICE_MODULES[module]), module
+
+
 def test_to_toml_all_writes_every_field() -> None:
     data = tomllib.loads(ExperimentConfig().to_toml(role="all"))
     fields = {field.name for field in dataclasses.fields(ExperimentConfig)}
