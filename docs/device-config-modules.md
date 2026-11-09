@@ -1,6 +1,6 @@
 # 设备配置模块化重构计划
 
-> 状态：计划（未实现；已确认：3 个模块；不保留旧语法/旧参数兼容）
+> 状态：计划（未实现；已确认：3 个模块；不保留旧语法/旧参数兼容；profile 暂不做）
 > 基线：`refactor/config-layering` @ `0ffc350`
 > 目标分支：`refactor/device-config-modules`
 > 范围：设备配置文件的组织、加载、校验与来源审计
@@ -44,7 +44,7 @@
 
 - 不改变任何实验参数的语义、默认值或校验规则。
 - 不把 `ExperimentConfig` 拆成嵌套对象（`config.device.joystick.port` 之类），那是后续独立重构。
-- 不做 profile/manifest、环境变量、配置版本号；这些可以在本计划落地后再评估。
+- 本计划不做 profile/manifest、环境变量、配置版本号；profile 只作为后续便利层（显式清单，只列文件）。
 - 不改变 WebUI 表单字段集合（`panel/schema.py` 的 `_FORM`）。
 
 ## 3. 目标设计
@@ -365,7 +365,6 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 - **模块粒度**：3 个设备模块（`velocity_input`、`reward`、`lsl_outputs`）；更细的 6 文件拆分暂不采用。加载器按“设备文件 + 键互斥”工作，将来拆细不需要改代码。
 - **不保留兼容**：`[webgrid]` / `[reward]` / `[device]` 小节，以及 `--lab-config` / `--reward-config` 旧参数，一律直接报错并给出迁移提示；不设 WARNING 过渡期，也不提供别名。
 - **来源命名**：统一 `SOURCE_DEVICE = "device"`，不保留 `lab` / `reward` 别名值；具体文件写入 `config_files`。
+- **profile/manifest**：本计划不做；继续使用可重复的 `--device-config`。以后命令行过长时再加显式 profile（只列文件，不写配置值）。
 
-## 11. 待确认
-
-1. **profile/manifest**：命令行过长时是否现在就加，还是先接受多参数？
+计划当前没有待确认项；下一步为 Step 1。
