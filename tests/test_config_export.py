@@ -16,6 +16,7 @@ from web_grid_paradigm.panel.export import (
     README_DOCUMENT,
     SNAPSHOT_DOCUMENT,
     build_config_archive,
+    module_document,
 )
 
 EXPORTED = datetime(2026, 11, 9, 22, 47, 25, tzinfo=UTC)
@@ -106,6 +107,23 @@ def test_archive_round_trips_through_the_config_loaders(tmp_path: Path) -> None:
     path.write_bytes(plain_documents[CONFIG_DOCUMENT])
     experiment = ExperimentConfig.from_toml(path)
     assert (experiment.rows, experiment.cols, experiment.blocks) == (8, 10, 2)
+
+
+def test_archive_is_loaded_by_the_real_cli(tmp_path: Path) -> None:
+    """The strongest check: `webgrid` accepts the extracted files as they are."""
+    from web_grid_paradigm.app.cli_args import build_parser, load_config
+
+    config = _config()
+    _, documents = _documents(build_config_archive(config, exported=EXPORTED).body)
+    for name, body in documents.items():
+        if name.endswith(".toml"):
+            (tmp_path / name).write_bytes(body)
+    arguments = ["--config", str(tmp_path / CONFIG_DOCUMENT)]
+    for module in DEVICE_MODULES:
+        arguments += ["--device-config", str(tmp_path / module_document(module))]
+
+    loaded = load_config(build_parser().parse_args(arguments))
+    assert loaded == config
 
 
 def test_provenance_becomes_a_comment_and_a_snapshot() -> None:

@@ -251,6 +251,24 @@ def test_device_config_layers_device_settings_only(tmp_path: Path) -> None:
     }
 
 
+def test_config_file_may_rely_on_device_values(tmp_path: Path) -> None:
+    """input = "joystick" lives in --config, the port in a device module."""
+    experiment = tmp_path / "experiment.toml"
+    experiment.write_text(
+        'input = "joystick"\nsubject = "split"\n', encoding="utf-8"
+    )
+    device = tmp_path / "velocity_input.toml"
+    device.write_text('joystick_port = "COM9"\n', encoding="utf-8")
+
+    config = load_config(
+        build_parser().parse_args(
+            ["--config", str(experiment), "--device-config", str(device)]
+        )
+    )
+    assert (config.input, config.joystick_port) == ("joystick", "COM9")
+    assert config.subject == "split"
+
+
 def test_config_rejects_device_keys(tmp_path: Path) -> None:
     experiment = tmp_path / "experiment.toml"
     experiment.write_text("rows = 8\njoystick_port = 'COM1'\n", encoding="utf-8")

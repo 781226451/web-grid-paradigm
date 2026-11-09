@@ -476,7 +476,11 @@ def load_config_resolved(args: argparse.Namespace) -> ResolvedConfig:
     if args.config:
         table = read_config_table(args.config)
         _reject_device_keys_in_config(args.config, table)
-        config = ExperimentConfig.from_dict(table)
+        # Deliberately not validated yet: a valid --config may rely on values
+        # from a device module (for example input = "joystick" with
+        # joystick_port in a --device-config file).  The complete layer is
+        # validated once all files and CLI overrides are merged.
+        config = ExperimentConfig(**table)
         logger.info(
             "configuration file {}: {} key(s)", args.config, len(table)
         )
