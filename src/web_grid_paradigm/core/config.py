@@ -264,13 +264,19 @@ class ExperimentConfig:
         data["output_dir"] = str(self.output_dir)
         return data
 
-    def to_toml(self, *, role: str = "config") -> str:
+    def to_toml(
+        self, *, role: str = "config", comments: Mapping[str, str] | None = None
+    ) -> str:
         """Serialise the configuration as a flat TOML file.
 
         ``role="config"`` (the default) writes experiment and startup keys and
         can be passed to ``--config``.  ``role="device"`` writes device keys
         for ``--device-config``.  ``role="all"`` writes every field as a
         snapshot; neither CLI flag accepts that file on its own.
+
+        ``comments`` maps a field name to a note appended after its value, so
+        an exported file can record where each value came from without
+        changing what the CLI parses.
         """
         try:
             allowed = _TOML_ROLES[role]
@@ -283,16 +289,39 @@ class ExperimentConfig:
             data = {
                 name: value for name, value in data.items() if name in allowed
             }
-        lines = [f"# BCI Web-Grid configuration ({role})", ""]
-        for name, value in data.items():
-            lines.append(f"{name} = {_toml_value(value)}")
-        return "\n".join(lines) + "\n"
+        return toml_document(
+            data,
+            title=f"# BCI Web-Grid configuration ({role})",
+            comments=comments,
+        )
 
     def save_toml(self, path: str | Path, *, role: str = "config") -> Path:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self.to_toml(role=role), encoding="utf-8")
         return path
+
+
+def toml_document(
+    data: Mapping[str, Any],
+    *,
+    title: str,
+    comments: Mapping[str, str] | None = None,
+) -> str:
+    """Serialise flat key/value pairs as a TOML document.
+
+    ``comments`` becomes a trailing ``# note`` on the matching keys.  TOML
+    ignores it, and a ``#`` inside a quoted string stays part of the value, so
+    adding notes never changes what a loader reads back.
+    """
+    lines = [title, ""]
+    for name, value in data.items():
+        line = f"{name} = {_toml_value(value)}"
+        note = (comments or {}).get(name)
+        if note:
+            line = f"{line}  # {' '.join(str(note).split())}"
+        lines.append(line)
+    return "\n".join(lines) + "\n"
 
 
 def read_config_table(path: str | Path) -> dict[str, Any]:

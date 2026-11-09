@@ -2,6 +2,7 @@
 
 import { reactive } from "vue";
 
+import { fetchConfigArchive } from "@/api";
 import { station } from "@/stores/station";
 
 export interface FieldSchema {
@@ -35,6 +36,7 @@ interface ConfigStore {
   error: string;
   message: string;
   starting: boolean;
+  exporting: boolean;
 }
 
 export const form = reactive<ConfigStore>({
@@ -54,6 +56,7 @@ export const form = reactive<ConfigStore>({
   error: "",
   message: "",
   starting: false,
+  exporting: false,
 });
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -181,6 +184,42 @@ export async function stopRun(): Promise<void> {
   } catch (err) {
     form.error = `中止失败：${err instanceof Error ? err.message : String(err)}`;
   }
+}
+
+/**
+ * Download the current parameters as a ZIP (config.toml, one TOML per device
+ * module, config.json and a README).  Works in read-only monitoring too.
+ */
+export async function exportConfig(): Promise<void> {
+  if (!form.loaded || form.exporting) {
+    return;
+  }
+  form.exporting = true;
+  form.error = "";
+  form.message = "";
+  try {
+    const { blob, filename } = await fetchConfigArchive(payload());
+    saveBlob(blob, filename);
+    form.message = `已导出 ${filename}`;
+  } catch (err) {
+    form.error = `导出失败：${err instanceof Error ? err.message : String(err)}`;
+  } finally {
+    form.exporting = false;
+  }
+}
+
+function saveBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Revoke on a later task: browsers cancel the download if the object URL
+  // disappears in the same task as the click.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 export function clearMessages(): void {

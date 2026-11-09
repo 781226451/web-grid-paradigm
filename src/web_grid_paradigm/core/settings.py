@@ -95,6 +95,52 @@ DEVICE_FIELDS = frozenset(
     }
 )
 
+# Device settings, grouped into the module files described in
+# docs/device-config-modules.md.  The groups partition DEVICE_FIELDS: every
+# device key belongs to exactly one module, so a configuration can always be
+# written as one TOML file per module and fed back to --device-config.
+DEVICE_MODULES: dict[str, frozenset[str]] = {
+    "velocity_input": frozenset(
+        {
+            "demo_speed",
+            "joystick_port",
+            "joystick_baud",
+            "joystick_address",
+            "joystick_stream_mode",
+            "joystick_speed",
+            "joystick_deadzone",
+            "joystick_invert_x",
+            "joystick_invert_y",
+            "joystick_center_on_open",
+            "joystick_stale_after",
+            "lsl_velocity_stream",
+            "lsl_velocity_type",
+            "lsl_velocity_timeout",
+            "lsl_velocity_stale_after",
+        }
+    ),
+    "reward": frozenset(
+        {
+            "reward",
+            "reward_policy",
+            "reward_ratio",
+            "reward_port",
+            "reward_baud",
+            "reward_amount",
+            "reward_duration_ms",
+        }
+    ),
+    "lsl_outputs": frozenset(
+        {
+            "lsl",
+            "lsl_stream",
+            "lsl_state",
+            "lsl_state_stream",
+            "lsl_state_rate",
+        }
+    ),
+}
+
 FIELD_SCOPES: dict[str, str] = {
     **{name: SCOPE_BOOTSTRAP for name in BOOTSTRAP_FIELDS},
     **{name: SCOPE_EXPERIMENT for name in EXPERIMENT_FIELDS},

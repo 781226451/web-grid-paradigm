@@ -7,6 +7,7 @@ by one condition variable, so the render loop never blocks on the network.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import socket
 import threading
@@ -32,6 +33,7 @@ from ..reward.sink import (
     format_command,
     serial_ports,
 )
+from .export import build_config_archive
 from .lsl_state import LslStatePublisher
 from .schema import _FORM_BY_NAME, _FORM_GROUPS, coerce_params, form_schema
 from .server import _make_handler, _Server
@@ -772,32 +774,85 @@ class Station:
         """Validate form values and queue a run (HTTP thread)."""
         if not self.control:
             raise RuntimeError("此页面为只读监控")
-        blocked = sorted(
+        config, sources, files = self._form_config(payload)
+        self.request_start(
+            config, source="web", sources=sources, config_files=files
+        )
+        return config.to_dict()
+
+    def export_config(
+        self, payload: Mapping[str, Any] | None = None
+    ) -> tuple[bytes, str]:
+        """Build the ZIP archive for the parameters currently in the page.
+
+        Read-only panels can export too: nothing is started or written.  The
+        payload mirrors ``/api/start``, so the archive holds exactly the values
+        the next run would use, including settings the page keeps outside the
+        form (LSL card, reward device dialog).
+        """
+        config, sources, files = self._form_config(payload or {})
+        overrides = self._panel_overrides()
+        changed = sorted(
             name
-            for name in payload
-            if FIELD_SCOPES.get(name) == SCOPE_BOOTSTRAP
+            for name, value in overrides.items()
+            if getattr(config, name) != value
+        )
+        if changed:
+            config = dataclasses.replace(config, **overrides)
+            try:
+                config.validate()
+            except ValueError as exc:
+                raise ValueError(
+                    f"当前参数无法导出为可加载的配置：{exc}"
+                ) from exc
+            for name in changed:
+                sources[name] = SOURCE_WEBUI
+                files.pop(name, None)
+        archive = build_config_archive(
+            config, sources=sources, config_files=files
+        )
+        logger.info(
+            "configuration exported as {} ({} documents)",
+            archive.filename,
+            len(archive.documents),
+        )
+        return archive.body, archive.filename
+
+    def _form_config(
+        self, payload: Mapping[str, Any]
+    ) -> tuple[ExperimentConfig, dict[str, str], dict[str, str]]:
+        """Run config for the submitted form values, plus their provenance."""
+        blocked = sorted(
+            name for name in payload if FIELD_SCOPES.get(name) == SCOPE_BOOTSTRAP
         )
         if blocked:
             raise ValueError(f"启动参数不能在面板中修改: {', '.join(blocked)}")
-        config = coerce_params(payload, self.base_config)
-        sources = {
-            name: SOURCE_WEBUI
-            for name in payload
-            if name in _FORM_BY_NAME
-            and getattr(config, name) != getattr(self.base_config, name)
-        }
-        config_files = {
-            name: path
-            for name, path in self.base_config_files.items()
-            if name not in sources
-        }
-        self.request_start(
-            config,
-            source="web",
-            sources=sources,
-            config_files=config_files,
-        )
-        return config.to_dict()
+        config = coerce_params(dict(payload), self.base_config)
+        sources = dict(self.base_sources)
+        files = dict(self.base_config_files)
+        for name in payload:
+            if name not in _FORM_BY_NAME:
+                continue
+            if getattr(config, name) != getattr(self.base_config, name):
+                sources[name] = SOURCE_WEBUI
+                files.pop(name, None)
+        return config, sources, files
+
+    def _panel_overrides(self) -> dict[str, Any]:
+        """Settings the page keeps outside the parameter form.
+
+        The LSL card and the reward dialog change the panel's effective
+        settings without changing the submitted form values, so an export has
+        to overlay them to reproduce what the panel would actually do.
+        """
+        with self._cond:
+            return {
+                "lsl_state": self._lsl_armed,
+                "lsl_state_stream": self._lsl_name,
+                "lsl_state_rate": self._lsl_rate,
+                "reward_port": self._reward_port,
+                "reward_baud": self._reward_baud,
+            }
 
     # ------------------------------------------------------------------
     def close(self) -> None:

@@ -113,6 +113,9 @@ def _make_handler(station: Station) -> type[BaseHTTPRequestHandler]:
                 elif path == "/api/stop":
                     stopped = station.request_stop()
                     self._json(HTTPStatus.OK, {"ok": True, "stopping": stopped})
+                elif path == "/api/config/export":
+                    body, filename = station.export_config(self._read_json())
+                    self._download(filename, body)
                 elif path == "/api/lsl":
                     payload = self._read_json()
                     if payload.get("enabled", True):
@@ -168,6 +171,18 @@ def _make_handler(station: Station) -> type[BaseHTTPRequestHandler]:
         def _json(self, status: HTTPStatus, payload: dict[str, Any]) -> None:
             body = json.dumps(payload, ensure_ascii=False, default=str).encode()
             self._send(status, body, "application/json; charset=utf-8")
+
+        def _download(self, filename: str, body: bytes) -> None:
+            """Send an attachment; the browser saves it under ``filename``."""
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header(
+                "Content-Disposition", f'attachment; filename="{filename}"'
+            )
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
 
         def _send(self, status: HTTPStatus, body: bytes, content_type: str) -> None:
             self.send_response(status)

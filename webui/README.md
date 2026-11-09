@@ -16,6 +16,9 @@
   窄屏（≤1000px 单列、表单不再内部滚动）、`test:e2e` 脚本。
 - **收尾（已完成）**：历史运行表（补齐旧页最后一个区块）、vendor 拆包（应用 chunk 23.6 KB，
   `naive-ui` 单独缓存）。
+- **Phase 5（已完成）**：配置导出——参数卡片底部“导出配置 (zip)”下载 `config.toml`、
+  三个设备模块、`config.json` 与 `README.md`；文件名取自 `Content-Disposition`，
+  纯读取操作，运行中也可导出。
 - 旧单文件页面与 `/legacy` 路由已删除，Git 历史里仍可找回。
 
 ## 命令
@@ -42,7 +45,8 @@ cd webui; pnpm dev
 - 只在构建期需要 Node ≥ 22 与 pnpm；运行时只依赖 Python 与浏览器。
 - 目标浏览器 `chrome100+`；不引入 CDN、不下载网络字体（中文用系统字体）。
 - 服务端 API 契约保持不变：`/api/state`、`/api/config`、`/events`(SSE)、
-  `/api/start`、`/api/stop`、`/api/lsl`、`/api/reward/{connect,disconnect,test}`。
+  `/api/start`、`/api/stop`、`/api/config/export`、`/api/lsl`、
+  `/api/reward/{connect,disconnect,test}`。
 - 表单继续由服务端 `/api/config` 的 `schema`/`groups` 驱动（`SchemaForm.vue`）。
 - 当前 block 的 BPS 由前端计算（`lib/metrics.ts`，与 `scoring.py` 同公式），
   `useBlockMetrics()` 提供实时值；SSE 里的 `block_bps` 保留用于对照。

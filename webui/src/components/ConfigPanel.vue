@@ -5,7 +5,16 @@ import { computed, onMounted } from "vue";
 import InputDevice from "@/components/InputDevice.vue";
 import RewardDevice from "@/components/RewardDevice.vue";
 import SchemaForm from "@/components/SchemaForm.vue";
-import { clearMessages, form, isBusy, loadConfig, resetConfig, startRun, stopRun } from "@/stores/config";
+import {
+  clearMessages,
+  exportConfig,
+  form,
+  isBusy,
+  loadConfig,
+  resetConfig,
+  startRun,
+  stopRun,
+} from "@/stores/config";
 import { station } from "@/stores/station";
 
 const busy = computed(() => isBusy());
@@ -72,6 +81,15 @@ onMounted(() => {
         >
           重置为启动配置
         </n-button>
+        <n-button
+          data-action="export"
+          :disabled="!form.loaded || form.exporting"
+          :loading="form.exporting"
+          title="下载 zip：config.toml + 三个设备模块 + config.json + README"
+          @click="exportConfig"
+        >
+          导出配置 (zip)
+        </n-button>
       </div>
     </template>
   </n-card>
@@ -90,5 +108,6 @@ onMounted(() => {
 .actions {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
 }
 </style>

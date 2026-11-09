@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+
 import { expect, test } from "@playwright/test";
 
 import { choose } from "./helpers";
@@ -132,6 +134,40 @@ test.describe("control panel shell", () => {
 
     await expect(page.locator('[data-lsl="stream"] input')).toHaveValue("E2EState");
     await expect(page.locator('[data-lsl="rate"] input')).toHaveValue("25");
+  });
+
+  test("exports the current parameters as a zip download", async ({ page }) => {
+    await page.goto("/");
+
+    await page.locator('[data-field="subject"] input').fill("e2e-export");
+
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.locator('[data-action="export"]').click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(
+      /^webgrid-config-e2e-export-\d{8}-\d{6}\.zip$/,
+    );
+
+    const path = await download.path();
+    expect(path).toBeTruthy();
+    const body = await readFile(path as string);
+    expect(body.subarray(0, 2).toString("latin1")).toBe("PK");
+    // Entry names are stored as plain text in the ZIP headers.
+    for (const name of [
+      "README.md",
+      "config.toml",
+      "velocity_input.toml",
+      "reward.toml",
+      "lsl_outputs.toml",
+      "config.json",
+    ]) {
+      expect(body.includes(name)).toBe(true);
+    }
+
+    await expect(page.locator(".n-alert")).toContainText(
+      "已导出 webgrid-config-e2e-export-",
+    );
   });
 
   test("shows the monitoring and hardware cards", async ({ page }) => {

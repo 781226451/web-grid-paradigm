@@ -11,6 +11,7 @@ from web_grid_paradigm.core.settings import (
     BOOTSTRAP_FIELDS,
     CONFIG_FILE_FIELDS,
     DEVICE_FIELDS,
+    DEVICE_MODULES,
     EXPERIMENT_FIELDS,
     FIELD_SCOPES,
     SCOPE_BOOTSTRAP,
@@ -66,6 +67,16 @@ def test_device_example_modules_partition_device_fields() -> None:
         data = tomllib.loads((configs / name).read_text(encoding="utf-8"))
         assert not (set(data) & seen), f"{name} overlaps another module"
         seen |= set(data)
+    assert seen == set(DEVICE_FIELDS)
+
+
+def test_device_modules_partition_device_fields() -> None:
+    """The export writes one TOML per module, so the groups must partition."""
+    seen: set[str] = set()
+    for name, keys in DEVICE_MODULES.items():
+        assert keys <= DEVICE_FIELDS, (name, keys - DEVICE_FIELDS)
+        assert not (keys & seen), f"{name} overlaps another module"
+        seen |= keys
     assert seen == set(DEVICE_FIELDS)
 
 

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import io
 import json
 import threading
 import time
+import tomllib
 import urllib.error
 import urllib.request
+import zipfile
 
 import pytest
 
@@ -54,6 +57,21 @@ def _post(station, path: str, payload: dict | None = None) -> tuple[int, dict]:
             return response.status, json.loads(response.read())
     except urllib.error.HTTPError as exc:
         return exc.code, json.loads(exc.read())
+
+
+def _post_bytes(
+    station, path: str, payload: dict | None = None
+) -> tuple[int, dict, bytes]:
+    """POST and return the raw body (for downloads that are not JSON)."""
+    data = json.dumps(payload or {}).encode()
+    request = urllib.request.Request(
+        _url(station, path), data=data, headers={"Content-Type": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, dict(response.headers), response.read()
+    except urllib.error.HTTPError as exc:
+        return exc.code, dict(exc.headers), exc.read()
 
 
 # ---------------------------------------------------------------- parameters
@@ -228,6 +246,73 @@ def test_webui_unchanged_device_field_keeps_file_provenance() -> None:
         _, _, sources, files = request
         assert sources["joystick_port"] == "device"
         assert files == {"joystick_port": "configs/velocity_input.toml"}
+    finally:
+        board.close()
+
+
+# ------------------------------------------------- configuration export
+def test_config_export_returns_a_zip_attachment(station) -> None:
+    status, headers, body = _post_bytes(
+        station, "/api/config/export", {"subject": "web-export", "rows": 8}
+    )
+    assert status == 200
+    assert headers["Content-Type"] == "application/zip"
+    assert headers["Content-Disposition"].startswith(
+        'attachment; filename="webgrid-config-web-export-'
+    )
+    with zipfile.ZipFile(io.BytesIO(body)) as archive:
+        root = archive.namelist()[0].split("/", 1)[0]
+        config_toml = archive.read(f"{root}/config.toml").decode("utf-8")
+        device_toml = archive.read(f"{root}/velocity_input.toml").decode("utf-8")
+        snapshot = json.loads(archive.read(f"{root}/config.json"))
+    assert 'subject = "web-export"' in config_toml
+    assert "rows = 8" in config_toml
+    assert snapshot["config"]["subject"] == "web-export"
+    assert snapshot["config_sources"]["subject"] == "webui"
+    assert snapshot["config_sources"]["cols"] == "default"
+    # Device modules are written even when the input mode is not joystick.
+    assert "joystick_port" in device_toml
+
+
+def test_config_export_rejects_invalid_values(station) -> None:
+    status, payload = _post(station, "/api/config/export", {"rows": 1})
+    assert status == 400 and "rows" in payload["error"]
+    status, payload = _post(station, "/api/config/export", {"bogus": True})
+    assert status == 400 and "未知参数" in payload["error"]
+
+
+def test_config_export_captures_panel_level_settings() -> None:
+    board = make_station(open_browser=False)
+    try:
+        board.start_lsl_state("RigState", 20)
+        with board._cond:
+            board._reward_port = "COM9"
+            board._reward_baud = 19200
+        status, _, body = _post_bytes(board, "/api/config/export", {})
+        assert status == 200
+        with zipfile.ZipFile(io.BytesIO(body)) as archive:
+            root = archive.namelist()[0].split("/", 1)[0]
+            lsl = tomllib.loads(
+                archive.read(f"{root}/lsl_outputs.toml").decode("utf-8")
+            )
+            reward = tomllib.loads(
+                archive.read(f"{root}/reward.toml").decode("utf-8")
+            )
+            snapshot = json.loads(archive.read(f"{root}/config.json"))
+        assert (lsl["lsl_state"], lsl["lsl_state_stream"]) == (True, "RigState")
+        assert lsl["lsl_state_rate"] == 20.0
+        assert (reward["reward_port"], reward["reward_baud"]) == ("COM9", 19200)
+        assert snapshot["config_sources"]["lsl_state"] == "webui"
+        assert snapshot["config_sources"]["reward_port"] == "webui"
+    finally:
+        board.close()
+
+
+def test_readonly_panel_can_export() -> None:
+    board = make_station(control=False, open_browser=False)
+    try:
+        status, _, body = _post_bytes(board, "/api/config/export", {"rows": 6})
+        assert status == 200 and body.startswith(b"PK")
     finally:
         board.close()
 

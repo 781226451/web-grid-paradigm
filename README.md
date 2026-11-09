@@ -371,6 +371,36 @@ uv run webgrid `
 
 优先级：**默认值 → `--config` → `--device-config`（互斥，无顺序）→ 命令行参数 → WebUI（仅本次运行）**。设备文件之间没有先后，所以临时换端口不用改文件：`uv run webgrid --reward-port COM9`。
 
+### 从网页导出当前配置（zip）
+
+反过来，页面上的当前参数也能**导出成同一套模块文件**：点参数卡片底部的“导出配置 (zip)”，浏览器直接下载
+`webgrid-config-<subject>-<YYYYMMDD-HHMMSS>.zip`，解压后是一个目录：
+
+```text
+webgrid-config-sub-01-20261109-224725/
+├── README.md             # 用法与各文件说明
+├── config.toml           # --config：实验设计 + 启动项
+├── velocity_input.toml   # --device-config：输入设备（demo / 摇杆 / LSL 速度流）
+├── reward.toml           # --device-config：奖励硬件
+├── lsl_outputs.toml      # --device-config：LSL 标记流与状态流
+└── config.json           # 全量快照：所有字段 + 每个值的来源 + 版本
+```
+
+```powershell
+cd webgrid-config-sub-01-20261109-224725
+uv run webgrid `
+  --config config.toml `
+  --device-config velocity_input.toml `
+  --device-config reward.toml `
+  --device-config lsl_outputs.toml
+```
+
+- 导出用的是**页面当前的值**：没改过的字段取启动配置，页面上单独设置的 LSL 状态流开关/名称/频率、
+  奖励串口和波特率也会一并写入；
+- 非默认值的行尾带 `# source: webui`（或 `device (文件名)` / `cli` / `config`）注释，指明这个值从哪来，注释不参与解析；
+- 归档在浏览器里生成下载，控制台所在机器**不会**写文件，因此从局域网另一台电脑打开控制台也能导出；
+- 导出是纯读取操作：不启动实验，运行中也可以点。
+
 ### 在网页里连接与选择奖励方式
 
 网页里的奖励分成两组：
@@ -591,6 +621,7 @@ src/web_grid_paradigm/
     ├── schema.py        # 参数表单描述与校验
     ├── state.py         # 运行队列、实时快照、SessionView
     ├── server.py        # HTTP 路由、SSE、页面资源（`/` 新界面、`/assets/*`）
+    ├── export.py        # 配置导出：zip（TOML 模块 + JSON 快照 + README）
     ├── lsl_state.py     # LSL 状态流推送线程
     └── static/          # Vue 控制台的构建产物（由 webui/ 生成，随 wheel 分发）
 ```

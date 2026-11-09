@@ -6,21 +6,23 @@ again, so the page can start another session without restarting anything.
 
 Endpoints:
 
-======  ==================================================================
-GET     ``/``            the page (parameter form + live monitoring)
-GET     ``/events``      Server-Sent Events stream (live updates)
-GET     ``/api/state``   full JSON snapshot (scripts, debugging)
-GET     ``/api/config``  form schema, defaults and the last used values
-POST    ``/api/start``   validate the submitted parameters and start a run
-POST    ``/api/stop``    abort the running session (same as pressing Esc)
-POST    ``/api/lsl``     enable/disable the LSL state stream
-======  ==================================================================
+=======  ==========================  =====================================
+GET      ``/``                      the page (parameter form + monitoring)
+GET      ``/events``                Server-Sent Events stream (live updates)
+GET      ``/api/state``             full JSON snapshot (scripts, debugging)
+GET      ``/api/config``            form schema, defaults and last used values
+POST     ``/api/start``             validate the parameters and start a run
+POST     ``/api/stop``              abort the running session (same as Esc)
+POST     ``/api/config/export``     download the current parameters as a ZIP
+POST     ``/api/lsl``               enable/disable the LSL state stream
+=======  ==========================  =====================================
 
 Modules:
 
 ``schema``      parameter form description and validation
 ``state``       run queue, live snapshot, per-run ``SessionView``
 ``server``      HTTP routes, SSE stream and the page asset
+``export``      configuration archive (TOML modules + JSON snapshot)
 ``lsl_state``   the LSL state stream publisher
 
 The render loop only ever touches in-memory state (lock + dict assignment);
@@ -30,6 +32,7 @@ never disturbs stimulus timing.
 
 from __future__ import annotations
 
+from .export import build_config_archive
 from .lsl_state import LslStatePublisher
 from .schema import coerce_params, form_schema
 from .server import start_station
@@ -39,6 +42,7 @@ __all__ = [
     "LslStatePublisher",
     "SessionView",
     "Station",
+    "build_config_archive",
     "coerce_params",
     "form_schema",
     "start_station",
