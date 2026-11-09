@@ -249,13 +249,11 @@ def test_device_config_rejects_sections(tmp_path: Path) -> None:
         )
 
 
-def test_legacy_device_flags_are_rejected(tmp_path: Path) -> None:
+def test_legacy_device_flags_are_not_recognised() -> None:
     parser = build_parser()
     for flag in ("--lab-config", "--reward-config"):
-        with pytest.raises(ValueError, match="was removed"):
-            load_config_resolved(
-                parser.parse_args([flag, str(tmp_path / "unused.toml")])
-            )
+        with pytest.raises(SystemExit):
+            parser.parse_args([flag, "unused.toml"])
 
 
 def test_missing_device_config_file_is_an_error(tmp_path: Path) -> None:

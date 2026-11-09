@@ -15,11 +15,7 @@ from loguru import logger
 from .. import __version__
 from ..core.config import ExperimentConfig
 from ..recording.recorder import SessionRecorder
-from .cli_args import (
-    build_parser,
-    load_config_resolved,
-    reject_legacy_reward_config,
-)
+from .cli_args import build_parser, load_config_resolved
 from .log import add_session_log, setup_logging
 
 
@@ -141,7 +137,6 @@ def main(argv: list[str] | None = None) -> int:
     logger.debug("webgrid {} started with argv={}", __version__, argv)
     try:
         resolved = load_config_resolved(args)
-        reject_legacy_reward_config(args.device_config or [])
         config = resolved.config
     except Exception as exc:  # noqa: BLE001 - report any configuration problem
         logger.error("configuration error: {}", exc)

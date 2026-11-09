@@ -11,7 +11,6 @@ import pytest
 from web_grid_paradigm.app.cli_args import (
     build_parser,
     load_config,
-    reject_legacy_reward_config,
 )
 from web_grid_paradigm.core.config import ExperimentConfig
 from web_grid_paradigm.panel import Station
@@ -76,18 +75,6 @@ def test_missing_device_config_file_is_an_error(tmp_path: Path) -> None:
                 ["--device-config", str(tmp_path / "nope.toml")]
             )
         )
-
-
-def test_legacy_reward_file_is_rejected(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    (tmp_path / "configs").mkdir()
-    write(tmp_path / "configs" / "reward.toml", 'reward = "test"\n')
-    monkeypatch.chdir(tmp_path)
-    with pytest.raises(ValueError, match="no longer loaded automatically"):
-        reject_legacy_reward_config([])
-    # Passing it explicitly as a device file is allowed.
-    reject_legacy_reward_config([Path("configs/reward.toml")])
 
 
 # ---------------------------------------------------------------- port list

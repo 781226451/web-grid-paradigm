@@ -364,7 +364,7 @@ uv run webgrid `
 - 每个设备文件只允许设备键（串口、波特率、LSL 流、奖励硬件等）；写错实验字段会直接报错。
 - 所有文件都是平铺 TOML，键名就是 `ExperimentConfig` 字段名；没有 `[webgrid]`、`[reward]`、`[device]` 小节。
 - 不同设备文件不能设置同一个键；重叠会在启动时直接报错，不存在“后一个覆盖前一个”。
-- 没有隐式加载：`configs/reward.toml` 不再自动加载；所有文件都必须显式传入。
+- 没有隐式加载：`configs/reward.toml` 不再自动加载（旧文件会被忽略且不报错）；旧的 `--lab-config` / `--reward-config` 也不再识别。
 - 启动日志会列出每个 `--config` / `--device-config` 文件及键数，漏传时容易发现。
 - 设备参数的来源徽章 tooltip 会显示具体文件名（输入设备弹窗里的字段也会显示）。
 - 一个文件装全部设备键也可以，例如 `--device-config configs/lab.toml`，但同样要遵守上面的规则。

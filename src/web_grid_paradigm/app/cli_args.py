@@ -80,19 +80,6 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="FILE",
         help="device settings (flat TOML; repeat for several module files)",
     )
-    # Removed flags are still parsed so the error names the replacement.
-    parser.add_argument(
-        "--lab-config",
-        dest="legacy_lab_config",
-        metavar="FILE",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--reward-config",
-        dest="legacy_reward_config",
-        metavar="FILE",
-        help=argparse.SUPPRESS,
-    )
     parser.add_argument(
         "--run-now",
         action="store_true",
@@ -482,11 +469,6 @@ def _reject_config_keys_in_device(
 
 def load_config_resolved(args: argparse.Namespace) -> ResolvedConfig:
     """Load all configuration layers and retain the source of each field."""
-    if getattr(args, "legacy_lab_config", None):
-        raise ValueError("--lab-config was removed; use --device-config")
-    if getattr(args, "legacy_reward_config", None):
-        raise ValueError("--reward-config was removed; use --device-config")
-
     sources = _default_sources()
     config_files: dict[str, str] = {}
     config = ExperimentConfig()
@@ -611,24 +593,3 @@ def load_config_resolved(args: argparse.Namespace) -> ResolvedConfig:
 def load_config(args: argparse.Namespace) -> ExperimentConfig:
     """Return only the resolved configuration (compatibility helper)."""
     return load_config_resolved(args).config
-
-
-# ----------------------------------------------------------------------
-# Legacy layout: the implicit configs/reward.toml is gone
-# ----------------------------------------------------------------------
-LEGACY_REWARD_CONFIG = Path("configs/reward.toml")
-
-
-def reject_legacy_reward_config(device_configs: list[Path]) -> None:
-    """Refuse to silently ignore a leftover implicit reward file."""
-    legacy = LEGACY_REWARD_CONFIG
-    if not legacy.is_file():
-        return
-    explicit = {Path(path).resolve() for path in device_configs}
-    if legacy.resolve() in explicit:
-        return
-    raise ValueError(
-        "configs/reward.toml is no longer loaded automatically; pass "
-        "--device-config configs/reward.toml or merge it into another "
-        "device file"
-    )
