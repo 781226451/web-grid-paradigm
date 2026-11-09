@@ -461,19 +461,51 @@ def _toml_keys(path: str | Path, known: set[str]) -> set[str]:
     return {key for key in keys if key in known}
 
 
+def _reject_mixed(
+    path: str | Path,
+    table: Mapping[str, Any],
+    section: str,
+    label: str,
+    where: str,
+) -> None:
+    """Fast-fail when keys sit next to a section instead of inside it."""
+    extra = sorted(set(table) - {section})
+    if extra:
+        raise ValueError(
+            f"{path}: {where} keys cannot be combined with the {label} table "
+            f"(found: {', '.join(extra)}); use one layout per file"
+        )
+
+
+def _section(path: str | Path, value: Any, name: str) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{path}: [{name}] must be a table")
+    return dict(value)
+
+
 def _lab_table(path: str | Path) -> dict[str, Any]:
-    """Read a flat lab TOML or its ``[device]`` section."""
+    """Read a flat lab TOML, its ``[device]`` section, or a ``[webgrid]`` wrapper.
+
+    A lab file must use exactly one layout: either every key at the top level,
+    or every key inside ``[device]`` (also under ``[webgrid]``).  Mixing the
+    two is rejected instead of silently ignoring the shadowed keys.
+    """
     data = tomllib.loads(Path(path).read_text(encoding="utf-8-sig"))
-    device = data.get("device")
-    if isinstance(device, Mapping):
-        return dict(device)
-    table = data.get("webgrid", data)
-    if not isinstance(table, Mapping):
-        raise TypeError(f"{path}: [webgrid] must be a table")
-    nested = table.get("device")
-    if isinstance(nested, Mapping):
-        return dict(nested)
-    return dict(table)
+    if "device" in data:
+        if "webgrid" in data:
+            raise ValueError(
+                f"{path}: cannot combine [device] and [webgrid]; use one layout"
+            )
+        _reject_mixed(path, data, "device", "[device]", "top-level")
+        return _section(path, data["device"], "device")
+    if "webgrid" in data:
+        _reject_mixed(path, data, "webgrid", "[webgrid]", "top-level")
+        table = _section(path, data["webgrid"], "webgrid")
+        if "device" in table:
+            _reject_mixed(path, table, "device", "[device]", "[webgrid]")
+            return _section(path, table["device"], "device")
+        return table
+    return dict(data)
 
 
 def apply_lab_config(
@@ -628,17 +660,20 @@ def apply_reward_config(
 ) -> ExperimentConfig:
     """Layer the hardware settings from ``path`` over ``config``.
 
-    The file may be flat or use a ``[reward]`` table; only reward keys are
+    The file is either flat or uses a single ``[reward]`` table; mixing the
+    two is rejected so no key can be shadowed silently.  Only reward keys are
     allowed, so a typo cannot silently change the paradigm.
     """
     path = Path(path)
     data = tomllib.loads(path.read_text(encoding="utf-8-sig"))
-    table = data
     nested = data.get("reward")
     if isinstance(nested, Mapping):
-        table = nested
-    elif nested is not None and len(data) == 1:
-        raise TypeError(f"{path}: 'reward' must be a string or a [reward] table")
+        _reject_mixed(path, data, "reward", "[reward]", "top-level")
+        table = dict(nested)
+    else:
+        if nested is not None and len(data) == 1 and not isinstance(nested, str):
+            raise TypeError(f"{path}: 'reward' must be a string or a [reward] table")
+        table = data
     unknown = sorted(set(table) - set(REWARD_KEYS))
     if unknown:
         raise ValueError(f"{path}: unknown reward key(s): {', '.join(unknown)}")

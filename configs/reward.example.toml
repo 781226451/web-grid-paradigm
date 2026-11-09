@@ -6,6 +6,9 @@
 # (or point at another file with --reward-config).  Command-line flags still
 # win over this file, and the web panel lets you pick the delivery mode and
 # port per session without editing anything.
+#
+# This file is flat.  The keys may instead all live in one [reward] table,
+# but the two layouts cannot be mixed.
 
 # How the pulse leaves the machine: serial | test | off
 reward = "serial"

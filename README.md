@@ -362,6 +362,8 @@ lsl_velocity_type = "Velocity"
 reward_port = "COM3"
 ```
 
+两种写法只能选一种；混用（例如顶部留着 `joystick_port` 又加了 `[device]`）会直接报错，而不是悄悄忽略其中一部分。`configs/reward.toml` 同理：平铺或 `[reward]` 小节二选一。
+
 优先级：**默认值 → `--config` → `--lab-config` → `configs/reward.toml` / `--reward-config` → 命令行参数**。所以临时换端口不用改文件。
 
 ### 硬件参数放在单独的 TOML 里（也可以只用一个文件）

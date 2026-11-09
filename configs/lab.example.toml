@@ -7,6 +7,9 @@
 #
 # Only device-scope keys are accepted here; experiment design belongs in the
 # main --config file.
+#
+# This file uses the flat layout.  The keys may instead all live in a
+# [device] table, but never both: mixing the two layouts is an error.
 
 # --- serial Hall joystick -------------------------------------------------
 joystick_port = "COM4"

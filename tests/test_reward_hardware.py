@@ -53,6 +53,20 @@ def test_reward_config_accepts_a_table_and_rejects_unknown_keys(tmp_path: Path) 
         apply_reward_config(ExperimentConfig(), bad)
 
 
+def test_reward_config_rejects_mixed_layouts(tmp_path: Path) -> None:
+    path = write(
+        tmp_path / "reward.toml",
+        'reward_port = "COM9"\n\n[reward]\nreward_baud = 19200\n',
+    )
+    with pytest.raises(ValueError, match="cannot be combined"):
+        apply_reward_config(ExperimentConfig(), path)
+
+
+def test_reward_config_accepts_a_single_flat_key(tmp_path: Path) -> None:
+    path = write(tmp_path / "reward.toml", 'reward = "test"\n')
+    assert apply_reward_config(ExperimentConfig(), path).reward == "test"
+
+
 def test_single_config_file_can_hold_a_reward_section(tmp_path: Path) -> None:
     """One TOML is enough: paradigm keys plus a [reward] table."""
     path = write(

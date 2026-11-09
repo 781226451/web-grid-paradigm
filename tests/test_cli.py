@@ -141,6 +141,34 @@ def test_lab_config_layers_device_settings_only(tmp_path: Path) -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "body",
+    [
+        'joystick_port = "COM4"\n\n[device]\njoystick_baud = 19200\n',
+        'joystick_port = "COM4"\n\n[webgrid.device]\njoystick_baud = 19200\n',
+        'joystick_port = "COM4"\n\n[webgrid]\n\n[webgrid.device]\n'
+        'joystick_baud = 19200\n',
+    ],
+)
+def test_lab_config_rejects_mixed_layouts(tmp_path: Path, body: str) -> None:
+    lab = tmp_path / "lab.toml"
+    lab.write_text(body, encoding="utf-8")
+    with pytest.raises(ValueError, match="cannot be combined|cannot combine"):
+        load_config_resolved(
+            build_parser().parse_args(["--lab-config", str(lab)])
+        )
+
+
+def test_lab_config_accepts_a_webgrid_device_section(tmp_path: Path) -> None:
+    lab = tmp_path / "lab.toml"
+    lab.write_text('[webgrid.device]\njoystick_port = "COM5"\n', encoding="utf-8")
+    resolved = load_config_resolved(
+        build_parser().parse_args(["--lab-config", str(lab)])
+    )
+    assert resolved.config.joystick_port == "COM5"
+    assert resolved.sources["joystick_port"] == "lab"
+
+
 def test_blocks_trials_and_grid_options() -> None:
     parser = build_parser()
     config = load_config(
