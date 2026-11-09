@@ -258,7 +258,7 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 | `tests/test_reward_hardware.py` | 删除 `apply_reward_config`/自动加载相关用例，改为 `--device-config` 用例 |
 | `tests/test_station.py` | 来源、`/api/start` scope |
 | `tests/test_recorder.py` | `config_files` |
-| `README.md`、`docs/config-parameters-upgrade.md` | 新模型、迁移、优先级 |
+| `README.md` | 新模型、迁移、优先级 |
 
 ## 5. 实施步骤
 
@@ -291,7 +291,7 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 ### Step 4：示例、文档与迁移提示
 
 - `default.toml` 已在 Step 1 裁剪；新增 `velocity_input.example.toml`、`lsl_outputs.example.toml`，改造 `reward.example.toml`，删除/改造 `lab.example.toml`。
-- `configs/reward.toml` 不再被读取，也不会报错（旧文件直接忽略）；旧 flag 由 argparse 拒绝；README、升级文档、`.gitignore`。
+- `configs/reward.toml` 不再被读取，也不会报错（旧文件直接忽略）；旧 flag 由 argparse 拒绝；README、`.gitignore`。
 - 测试：示例文件覆盖/互斥；迁移错误。
 
 ### Step 5：清理与全量验证
@@ -358,7 +358,7 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 4. `config.json` 同时记录 `config_sources` 与 `config_files`。
 5. 三个模块示例文件的键集合两两不相交，并集等于 `DEVICE_FIELDS`。
 6. 旧参数（`--lab-config`/`--reward-config`）由 argparse 拒绝；旧语法（`[webgrid]`/`[reward]`/`[device]`）报错；旧 `configs/reward.toml` 被忽略。不提供别名或过渡期。
-7. 全量测试通过；README 与升级文档同步。
+7. 全量测试通过；README 同步。
 8. 旧语法有错误提示；旧参数/旧文件由文档说明迁移方式。
 
 ## 10. 已确认决策
