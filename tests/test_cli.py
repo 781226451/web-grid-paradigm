@@ -105,6 +105,41 @@ def test_config_sources_track_file_and_cli(tmp_path: Path) -> None:
     assert resolved.config.rows == 5
 
 
+def test_loader_logs_loaded_config_files(tmp_path: Path) -> None:
+    from loguru import logger
+
+    config_path = tmp_path / "experiment.toml"
+    config_path.write_text("rows = 8\n", encoding="utf-8")
+    device_path = tmp_path / "velocity_input.toml"
+    device_path.write_text(
+        "joystick_port = 'COM4'\ndemo_speed = 2.5\n", encoding="utf-8"
+    )
+
+    messages: list[str] = []
+    sink_id = logger.add(
+        lambda message: messages.append(str(message)), level="INFO"
+    )
+    try:
+        load_config_resolved(
+            build_parser().parse_args(
+                [
+                    "--config",
+                    str(config_path),
+                    "--device-config",
+                    str(device_path),
+                ]
+            )
+        )
+    finally:
+        logger.remove(sink_id)
+
+    combined = "\n".join(messages)
+    assert str(config_path) in combined
+    assert str(device_path) in combined
+    assert "1 key(s)" in combined
+    assert "2 key(s)" in combined
+
+
 def test_saved_config_file_is_accepted_by_cli(tmp_path: Path) -> None:
     config = ExperimentConfig(rows=8, joystick_port="COM4", dashboard_port=9000)
     path = config.save_toml(tmp_path / "config.toml", role="config")

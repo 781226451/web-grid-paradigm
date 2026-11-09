@@ -365,6 +365,7 @@ uv run webgrid `
 - 所有文件都是平铺 TOML，键名就是 `ExperimentConfig` 字段名；没有 `[webgrid]`、`[reward]`、`[device]` 小节。
 - 不同设备文件不能设置同一个键；重叠会在启动时直接报错，不存在“后一个覆盖前一个”。
 - 没有隐式加载：`configs/reward.toml` 不再自动加载；所有文件都必须显式传入。
+- 启动日志会列出每个 `--config` / `--device-config` 文件及键数，漏传时容易发现。
 - 一个文件装全部设备键也可以，例如 `--device-config configs/lab.toml`，但同样要遵守上面的规则。
 
 优先级：**默认值 → `--config` → `--device-config`（互斥，无顺序）→ 命令行参数 → WebUI（仅本次运行）**。设备文件之间没有先后，所以临时换端口不用改文件：`uv run webgrid --reward-port COM9`。

@@ -12,6 +12,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from loguru import logger
+
 from .. import __version__
 from ..core.config import ExperimentConfig, read_config_table
 from ..core.settings import (
@@ -493,6 +495,10 @@ def load_config_resolved(args: argparse.Namespace) -> ResolvedConfig:
         table = read_config_table(args.config)
         _reject_device_keys_in_config(args.config, table)
         config = ExperimentConfig.from_dict(table)
+        logger.info(
+            "configuration file {}: {} key(s)", args.config, len(table)
+        )
+        logger.debug("configuration keys: {}", ", ".join(sorted(table)))
         for name in table:
             sources[name] = SOURCE_CONFIG
 
@@ -513,6 +519,10 @@ def load_config_resolved(args: argparse.Namespace) -> ResolvedConfig:
             sources[name] = SOURCE_DEVICE
             config_files[name] = str(path)
         config = dataclasses.replace(config, **table)
+        logger.info("device configuration {}: {} key(s)", path, len(table))
+        logger.debug(
+            "device configuration keys {}: {}", path, ", ".join(sorted(table))
+        )
 
     overrides: dict[str, Any] = {}
     fields = {
