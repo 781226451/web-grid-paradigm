@@ -1,6 +1,6 @@
 # 设备配置模块化重构计划
 
-> 状态：计划（未实现；模块粒度已确认：3 个）
+> 状态：计划（未实现；已确认：3 个模块；不保留旧语法/旧参数兼容）
 > 基线：`refactor/config-layering` @ `0ffc350`
 > 目标分支：`refactor/device-config-modules`
 > 范围：设备配置文件的组织、加载、校验与来源审计
@@ -103,6 +103,7 @@ configs/lsl_outputs.toml        5 个 LSL 输出键
 - 键名必须是完整字段名：`joystick.toml` 里也必须写 `joystick_port`，不能写 `port`。
 - **文件名不参与语义**：加载器不根据文件名推断模块，只看键属于哪个 scope。
 - 注释可以按功能分块，但注释不参与解析。
+- 旧语法（`[webgrid]` / `[reward]` / `[device]`）不设兼容期：解析到任何小节都直接报错，并提示改成平铺键。
 
 示例：
 
@@ -177,7 +178,7 @@ configs/joystick.toml: rows is an experiment key; move it to --config
 configs/joystick.toml and configs/velocity_input.toml both set joystick_port;
 keep each key in exactly one file
 configs/lab.toml: [device] tables are no longer supported; use flat keys
---lab-config is deprecated; use --device-config
+--lab-config was removed; use --device-config
 configs/reward.toml is no longer loaded automatically; pass
   --device-config configs/reward.toml or merge it into another device file
 ```
@@ -208,9 +209,8 @@ configs/reward.toml is no longer loaded automatically; pass
 ### 3.7 CLI
 
 - `--device-config FILE`：`action="append"`，可重复，默认空列表。
-- `--lab-config`：过渡期保留为 `--device-config` 的别名，追加到同一列表，并打 WARNING；一个版本后移除。
-- `--reward-config`：同上，过渡期别名。
-- 自动加载 `configs/reward.toml` **立即移除**；启动时如果检测到该文件且没有被任何显式设备文件（含 `--lab-config` / `--reward-config` 别名）引用，打 ERROR 并给出迁移命令（避免静默使用默认值）。
+- `--lab-config` / `--reward-config`：**移除**，不提供兼容别名；解析到旧参数时直接报错并提示改用 `--device-config`。
+- 自动加载 `configs/reward.toml` **立即移除**；启动时如果检测到该文件且没有被显式设备文件引用，打 ERROR 并给出迁移命令（避免静默使用默认值）。
 - `--config` 帮助文本改为“实验与启动配置（平铺 TOML）”。
 - `--device-config` 帮助文本：`device settings (flat TOML; may be given multiple times)`。
 
@@ -244,7 +244,7 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 | --- | --- |
 | `src/web_grid_paradigm/core/settings.py` | 增加 `CONFIG_FILE_FIELDS`、`DEVICE_MODULES`（或删除）；`SOURCE_LAB`/`SOURCE_REWARD` → `SOURCE_DEVICE` |
 | `src/web_grid_paradigm/core/config.py` | 新增 `read_config_table()`：平铺解析，拒绝 Mapping 值，拒绝未知键；`from_toml` 复用；删除 `_merge_reward_table` 与 `[webgrid]`/`[reward]` 支持 |
-| `src/web_grid_paradigm/app/cli_args.py` | `load_config_resolved` 改为多设备文件；删 `apply_reward_config`、`REWARD_KEYS`、`default_reward_config`、`DEFAULT_REWARD_CONFIG`；`--device-config` 可重复；`--lab-config`/`--reward-config` 过渡别名；scope 校验与互斥检查；`sources` 记录 |
+| `src/web_grid_paradigm/app/cli_args.py` | `load_config_resolved` 改为多设备文件；删 `apply_reward_config`、`REWARD_KEYS`、`default_reward_config`、`DEFAULT_REWARD_CONFIG`；`--device-config` 可重复；移除 `--lab-config`/`--reward-config`（解析时报错并提示 `--device-config`）；scope 校验与互斥检查；`sources` 记录 |
 | `src/web_grid_paradigm/app/cli.py` | 传递 `sources` 不变；设备文件加载日志由加载器输出 |
 | `src/web_grid_paradigm/recording/recorder.py` | `SessionRecorder` 增加 `config_files` 参数，`config.json` 新增字段 |
 | `src/web_grid_paradigm/panel/state.py` | `_begin_run` 保存 `config_files`；`/api/start` scope 校验；来源标签 |
@@ -255,7 +255,7 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 | `configs/lsl_outputs.example.toml` | 新增（5 个 LSL 输出键） |
 | `configs/lab.example.toml` | 删除，或保留为“全设备参考”并在 README 说明只是组合示例 |
 | `tests/test_config.py` | 平铺解析、scope 分区测试 |
-| `tests/test_cli.py` | 多设备文件、互斥、scope、别名、迁移错误 |
+| `tests/test_cli.py` | 多设备文件、互斥、scope、旧 flag 报错、迁移错误 |
 | `tests/test_reward_hardware.py` | 删除 `apply_reward_config`/自动加载相关用例，改为 `--device-config` 用例 |
 | `tests/test_station.py` | 来源、`/api/start` scope |
 | `tests/test_recorder.py` | `config_files` |
@@ -276,11 +276,11 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 
 ### Step 2：多设备文件与 `--device-config`
 
-- 增加可重复的 `--device-config`；`--lab-config` / `--reward-config` 立即变成追加别名（WARNING）。
+- 增加可重复的 `--device-config`；移除 `--lab-config` / `--reward-config`，解析到旧参数时直接报错并提示 `--device-config`（不提供兼容别名）。
 - `load_config_resolved` 读取设备文件列表；逐文件校验 device scope；键互斥检查；记录 `sources=device` 与文件路径。
 - 删除 `apply_reward_config`、`REWARD_KEYS`、`default_reward_config`、`DEFAULT_REWARD_CONFIG` 与自动加载。
 - 把 `tests/test_reward_hardware.py` 中 `apply_reward_config` / 自动加载相关用例改为 `--device-config` 用例。
-- 测试：单文件、多文件、重叠、非设备键、来源、缺失文件、别名。
+- 测试：单文件、多文件、重叠、非设备键、来源、缺失文件、旧 flag 报错。
 - 验收：`pytest tests/test_cli.py tests/test_reward_hardware.py` 通过。
 
 ### Step 3：审计与面板
@@ -292,12 +292,12 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 ### Step 4：示例、文档与迁移提示
 
 - `default.toml` 已在 Step 1 裁剪；新增 `velocity_input.example.toml`、`lsl_outputs.example.toml`，改造 `reward.example.toml`，删除/改造 `lab.example.toml`。
-- `configs/reward.toml` 存在但未被显式加载时 ERROR；旧 flag 的 WARNING 文案；README、升级文档、`.gitignore`。
+- `configs/reward.toml` 存在但未被显式加载时 ERROR；旧 flag / 旧语法的迁移错误文案；README、升级文档、`.gitignore`。
 - 测试：示例文件覆盖/互斥；迁移错误。
 
 ### Step 5：清理与全量验证
 
-- 删除 `_lab_table` 中不再需要的分节分支、`SOURCE_LAB`/`SOURCE_REWARD`、过渡代码。
+- 删除 `_lab_table` 中不再需要的分节分支、`SOURCE_LAB`/`SOURCE_REWARD`、旧语法/旧 flag 的临时处理。
 - 全量 `pytest`；如有 webui 改动，重新构建 `panel/static` 并跑 e2e。
 
 ## 6. 测试矩阵
@@ -313,8 +313,8 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 | 设备文件含实验/启动键 | `ValueError` |
 | 设备文件含未知键 | `ValueError` |
 | 设备文件含小节 | `ValueError` |
-| `--lab-config` 别名 | 通过 + WARNING |
-| `--reward-config` 别名 | 通过 + WARNING |
+| `--lab-config` 旧 flag | 报错，提示改用 `--device-config` |
+| `--reward-config` 旧 flag | 报错，提示改用 `--device-config` |
 | `configs/reward.toml` 自动加载 | 不再发生；存在时 ERROR |
 | 无设备文件 | 默认值，source=default |
 | CLI 覆盖设备文件 | 值来自 CLI，source=cli |
@@ -328,8 +328,8 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 
 对使用旧配置的机器：
 
-1. `--lab-config lab.toml` → `--device-config lab.toml`（别名仍可用一个版本）。
-2. `--reward-config reward.toml` → `--device-config reward.toml`（别名仍可用一个版本）。
+1. `--lab-config lab.toml` → `--device-config lab.toml`（旧参数会直接报错，不提供别名）。
+2. `--reward-config reward.toml` → `--device-config reward.toml`（旧参数会直接报错，不提供别名）。
 3. 自动加载的 `configs/reward.toml`：显式加 `--device-config configs/reward.toml`，或把键并入其他设备文件后删除。
 4. `--config` 里的设备键：移到对应的设备模块文件；`--config` 只保留实验 + 启动键。
 5. `[webgrid]` / `[reward]` / `[device]` 小节：去掉小节，改成平铺键（`[reward] reward_port` → `reward_port`）。
@@ -343,8 +343,9 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 | 忘记传某个设备文件 | 静默回落默认值 | 启动日志列出已加载文件与键数；文档强调显式 |
 | 文件间键重叠 | 行为不确定 | 加载时不相交检查，fast fail |
 | 模块边界与代码漂移 | 维护混乱 | 测试断言每个 example 的键 ⊆ 模块字段、并集 = `DEVICE_FIELDS` |
-| `--config` 旧文件含设备键 | 启动失败 | 明确错误 + 迁移文档；可在过渡期给 WARNING 而不是 ERROR |
-| `[webgrid]` 旧语法 | 启动失败 | 过渡期 WARNING，一个版本后移除 |
+| `--config` 旧文件含设备键 | 启动失败 | 直接 ERROR + 迁移文档；不保留过渡期 |
+| `[webgrid]` / `[reward]` / `[device]` 旧语法 | 启动失败 | 直接报错并给出平铺提示；不保留兼容 |
+| `--lab-config` / `--reward-config` 旧参数 | 启动失败 | 直接报错并提示 `--device-config`；不提供别名 |
 | 自动 reward.toml 用户 | 参数不再生效 | 存在即 ERROR，强制显式迁移 |
 | `config.json` 新增字段 | 旧读取方 | 只增不改；`config_sources` 保持原结构 |
 
@@ -355,16 +356,16 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 3. 没有隐式文件加载；`configs/reward.toml` 不再自动生效。
 4. `config.json` 同时记录 `config_sources` 与 `config_files`。
 5. 三个模块示例文件的键集合两两不相交，并集等于 `DEVICE_FIELDS`。
-6. `--lab-config`/`--reward-config` 至少有一个版本的迁移别名与 WARNING。
+6. 旧参数（`--lab-config`/`--reward-config`）与旧语法（`[webgrid]`/`[reward]`/`[device]`）直接报错并给出迁移提示，不提供别名或过渡期。
 7. 全量测试通过；README 与升级文档同步。
 8. 旧配置的每一步迁移都有可执行的错误提示。
 
 ## 10. 已确认决策
 
 - **模块粒度**：3 个设备模块（`velocity_input`、`reward`、`lsl_outputs`）；更细的 6 文件拆分暂不采用。加载器按“设备文件 + 键互斥”工作，将来拆细不需要改代码。
+- **不保留兼容**：`[webgrid]` / `[reward]` / `[device]` 小节，以及 `--lab-config` / `--reward-config` 旧参数，一律直接报错并给出迁移提示；不设 WARNING 过渡期，也不提供别名。
+- **来源命名**：统一 `SOURCE_DEVICE = "device"`，不保留 `lab` / `reward` 别名值；具体文件写入 `config_files`。
 
 ## 11. 待确认
 
-1. **`--config` 的 `[webgrid]` 兼容**：直接报错，还是保留一个版本的 WARNING？
-2. **来源命名**：统一 `device`，还是保留 `lab` 作为别名值？
-3. **profile/manifest**：命令行过长时是否现在就加，还是先接受多参数？
+1. **profile/manifest**：命令行过长时是否现在就加，还是先接受多参数？
