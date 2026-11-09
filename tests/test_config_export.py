@@ -152,6 +152,7 @@ def test_provenance_becomes_a_comment_and_a_snapshot() -> None:
     ]
     assert snapshot["webgrid_version"]
     assert snapshot["python_version"].startswith("3.")
+    assert snapshot["platform"]  # resolved once, at import
 
 
 def test_readme_names_every_document() -> None:

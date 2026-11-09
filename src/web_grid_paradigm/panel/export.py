@@ -41,6 +41,11 @@ _MODULE_SUMMARY = {
 # name that cannot escape the download folder.
 _UNSAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
 
+# Resolved once, when the panel process starts.  platform.platform() queries
+# the OS and occasionally takes ~10 ms; an export must never spend that inside
+# a frame, so the snapshot only reads this constant.
+_PLATFORM = platform.platform()
+
 
 @dataclass(frozen=True, slots=True)
 class ConfigArchive:
@@ -144,7 +149,7 @@ def _snapshot(
         ),
         "webgrid_version": __version__,
         "python_version": sys.version,
-        "platform": platform.platform(),
+        "platform": _PLATFORM,
         "config": config.to_dict(),
         "config_sources": dict(sorted((sources or {}).items())),
         "config_files": dict(sorted((config_files or {}).items())),
