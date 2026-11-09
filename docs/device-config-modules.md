@@ -317,7 +317,9 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 | `configs/reward.toml` 自动加载 | 不再发生；文件被忽略，不报错 |
 | 无设备文件 | 默认值，source=default |
 | CLI 覆盖设备文件 | 值来自 CLI，source=cli |
-| WebUI 改设备字段 | 值生效，source=webui |
+| WebUI 改设备字段 | 值生效，source=webui，`config_files` 中移除该键 |
+| WebUI 未改设备字段 | source=device，`config_files` 保留 |
+| 面板运行 → recorder | `SessionRecorder.config_files` 与视图一致 |
 | `/api/start` 传 bootstrap 字段 | 400 |
 | `config.json` | 含 `config_sources` + `config_files` |
 | 示例文件 | 覆盖 `DEVICE_FIELDS`、两两不相交 |
@@ -376,4 +378,5 @@ uv run webgrid --config configs/default.toml --device-config configs/lab.toml
 - 面板 `/api/config` 返回 `source_files`；`/api/start` 显式拒绝 bootstrap 字段；来源徽章显示“设备配置”，tooltip 显示具体文件（输入设备弹窗同样）。
 - `ExperimentConfig.to_toml()` / `save_toml()` 支持 `role="config"`（默认，`--config` 可直接读取）和 `role="device"`（`--device-config` 可直接读取）；`role="all"` 是完整快照，不对应单一 CLI 通道。
 - 启动日志会列出每个 `--config` / `--device-config` 文件及其键数。
-- 全量测试通过（208 个用例 + 12 个 Playwright e2e）。
+- 测试覆盖面板来源清理、`SessionView.config_files` 和 `_run` → recorder 的元数据传递。
+- 全量测试通过（212 个用例 + 12 个 Playwright e2e）。

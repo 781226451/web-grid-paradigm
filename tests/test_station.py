@@ -194,6 +194,58 @@ def test_webui_source_marks_only_changed_fields() -> None:
         board.close()
 
 
+def test_webui_device_edit_drops_file_provenance() -> None:
+    board = make_station(
+        base_config=ExperimentConfig(joystick_port="COM4"),
+        base_sources={"joystick_port": "device"},
+        base_config_files={"joystick_port": "configs/velocity_input.toml"},
+        open_browser=False,
+    )
+    try:
+        status, _ = _post(board, "/api/start", {"joystick_port": "COM9"})
+        assert status == 200
+        request = board._next_request()
+        assert request is not None
+        _, _, sources, files = request
+        assert sources["joystick_port"] == "webui"
+        assert "joystick_port" not in files
+    finally:
+        board.close()
+
+
+def test_webui_unchanged_device_field_keeps_file_provenance() -> None:
+    board = make_station(
+        base_config=ExperimentConfig(joystick_port="COM4"),
+        base_sources={"joystick_port": "device"},
+        base_config_files={"joystick_port": "configs/velocity_input.toml"},
+        open_browser=False,
+    )
+    try:
+        status, _ = _post(board, "/api/start", {"joystick_port": "COM4"})
+        assert status == 200
+        request = board._next_request()
+        assert request is not None
+        _, _, sources, files = request
+        assert sources["joystick_port"] == "device"
+        assert files == {"joystick_port": "configs/velocity_input.toml"}
+    finally:
+        board.close()
+
+
+def test_session_view_exposes_config_files(station) -> None:
+    station._begin_run(
+        ExperimentConfig(blocks=1, targets=1),
+        "test",
+        config_files={"joystick_port": "configs/velocity_input.toml"},
+    )
+    run_id = station._current["id"]
+    view = SessionView(station, run_id)
+    assert view.config_files == {
+        "joystick_port": "configs/velocity_input.toml"
+    }
+    station._end_run(run_id, "finished")
+
+
 def test_stop_before_start_does_nothing(station) -> None:
     assert station.request_stop() is False
 

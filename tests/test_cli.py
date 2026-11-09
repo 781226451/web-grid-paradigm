@@ -164,6 +164,53 @@ def test_saved_device_file_is_accepted_by_cli(tmp_path: Path) -> None:
     assert resolved.sources["joystick_port"] == "device"
 
 
+def test_run_passes_config_files_to_recorder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sys
+    import types
+
+    from loguru import logger
+
+    from web_grid_paradigm.app import cli
+
+    captured: dict[str, object] = {}
+
+    def fake_run(config, recorder, monitor=None):
+        captured["sources"] = dict(recorder.sources)
+        captured["config_files"] = dict(recorder.config_files)
+        return {}
+
+    # Do not import the real runner/psychopy: this only exercises the
+    # source/file hand-off inside _run.  The session log sink uses an
+    # enqueued handler, which the sandbox cannot create, so use a plain sink.
+    fake_runner = types.ModuleType("web_grid_paradigm.app.runner")
+    fake_runner.run_experiment = fake_run  # type: ignore[attr-defined]
+    fake_psychopy = types.ModuleType("psychopy")
+    fake_psychopy.__version__ = "test"  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "web_grid_paradigm.app.runner", fake_runner)
+    monkeypatch.setitem(sys.modules, "psychopy", fake_psychopy)
+    monkeypatch.setattr(
+        cli,
+        "add_session_log",
+        lambda directory: logger.add(
+            lambda message: None, level="DEBUG", enqueue=False
+        ),
+    )
+
+    class View:
+        config_sources = {"rows": "config"}
+        config_files = {"joystick_port": "configs/velocity_input.toml"}
+
+    config = ExperimentConfig(subject="sub-run", session="run", output_dir=tmp_path)
+    cli._run(config, View())
+
+    assert captured["sources"] == {"rows": "config"}
+    assert captured["config_files"] == {
+        "joystick_port": "configs/velocity_input.toml"
+    }
+
+
 def test_device_config_layers_device_settings_only(tmp_path: Path) -> None:
     experiment = tmp_path / "experiment.toml"
     experiment.write_text("rows = 8\n", encoding="utf-8")
