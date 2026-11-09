@@ -13,13 +13,19 @@ import threading
 import time
 import webbrowser
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from typing import Any
 
 from loguru import logger
 
 from ..core.config import ExperimentConfig
+from ..core.settings import (
+    DEFAULT_SOURCE,
+    FIELD_SCOPES,
+    SCOPE_BOOTSTRAP,
+    SOURCE_WEBUI,
+)
 from ..reward.sink import (
     DryRunRewardSink,
     SerialRewardSink,
@@ -92,10 +98,21 @@ class Station:
         port: int = 8765,
         *,
         base_config: ExperimentConfig | None = None,
+        base_sources: Mapping[str, str] | None = None,
+        base_config_files: Mapping[str, str] | None = None,
         control: bool = True,
         open_browser: bool = False,
     ) -> None:
         self.base_config = base_config or ExperimentConfig()
+        self.base_sources = {
+            name: (base_sources or {}).get(name, DEFAULT_SOURCE)
+            for name in FIELD_SCOPES
+        }
+        self.base_config_files = {
+            name: str(path)
+            for name, path in (base_config_files or {}).items()
+            if name in FIELD_SCOPES
+        }
         self.control = control
         self._cond = threading.Condition()
         self._version = 0
@@ -106,13 +123,17 @@ class Station:
         self._blocks: list[dict[str, Any]] = []
         self._logs: deque[tuple[int, str]] = deque(maxlen=400)
         self._log_seq = 0
-        self._pending: list[tuple[ExperimentConfig, str]] = []
+        self._pending: list[
+            tuple[ExperimentConfig, str, dict[str, str], dict[str, str]]
+        ] = []
         self._stop = threading.Event()
         self._current: dict[str, Any] | None = None
         self._runs: list[dict[str, Any]] = []
         self._run_counter = 0
         self._sink_id: int | None = None
         self._last_params: dict[str, Any] = {}
+        self._last_sources: dict[str, str] = {}
+        self._last_config_files: dict[str, str] | None = None
         self._lsl_publisher: LslStatePublisher | None = None
         self._lsl_armed = False
         self._lsl_name = (base_config or ExperimentConfig()).lsl_state_stream
@@ -184,11 +205,26 @@ class Station:
             self._bump()
 
     # --- control (called from HTTP threads) -------------------------------
-    def request_start(self, config: ExperimentConfig, source: str = "web") -> None:
+    def request_start(
+        self,
+        config: ExperimentConfig,
+        source: str = "web",
+        *,
+        sources: Mapping[str, str] | None = None,
+        config_files: Mapping[str, str] | None = None,
+    ) -> None:
         with self._cond:
             if self._status != "idle":
                 raise RuntimeError("已有实验在运行，请先中止或等待结束")
-            self._pending.append((config, source))
+            merged_sources = dict(self.base_sources)
+            if sources is not None:
+                merged_sources.update(sources)
+            files = (
+                dict(config_files)
+                if config_files is not None
+                else dict(self.base_config_files)
+            )
+            self._pending.append((config, source, merged_sources, files))
             self._cond.notify_all()
 
     def request_stop(self) -> bool:
@@ -205,11 +241,34 @@ class Station:
         """Form defaults: base config, last used values, schema, extra info."""
         with self._cond:
             values = self._last_params or self._base_values()
+            sources = self._last_sources or self.base_sources
+            files = (
+                self._last_config_files
+                if self._last_config_files is not None
+                else self.base_config_files
+            )
             busy = self._status != "idle"
+        visible = tuple(_FORM_BY_NAME)
         return {
             "schema": form_schema(),
             "groups": _FORM_GROUPS,
             "values": values,
+            "sources": {
+                name: sources.get(name, DEFAULT_SOURCE) for name in visible
+            },
+            "source_files": {name: files.get(name) for name in visible},
+            "base_values": self._base_values(),
+            "base_sources": {
+                name: self.base_sources.get(name, DEFAULT_SOURCE)
+                for name in visible
+            },
+            "base_source_files": {
+                name: self.base_config_files.get(name) for name in visible
+            },
+            "scopes": {name: FIELD_SCOPES[name] for name in visible},
+            "editable": {
+                name: FIELD_SCOPES[name] != SCOPE_BOOTSTRAP for name in visible
+            },
             "busy": busy,
             "control": self.control,
             "base_config": self.base_config.to_dict(),
@@ -521,8 +580,8 @@ class Station:
             request = self._next_request()
             if request is None:
                 return
-            config, source = request
-            run_id = self._begin_run(config, source)
+            config, source, sources, config_files = request
+            run_id = self._begin_run(config, source, sources, config_files)
             view = SessionView(self, run_id)
             try:
                 result = run(config, view)
@@ -539,7 +598,9 @@ class Station:
                 self._end_run(run_id, "aborted" if stopped else "finished",
                               summary=result)
 
-    def _next_request(self) -> tuple[ExperimentConfig, str] | None:
+    def _next_request(
+        self,
+    ) -> tuple[ExperimentConfig, str, dict[str, str], dict[str, str]] | None:
         with self._cond:
             while not self._pending and not self._closed:
                 self._cond.wait(0.5)
@@ -547,7 +608,19 @@ class Station:
                 return None
             return self._pending.pop(0)
 
-    def _begin_run(self, config: ExperimentConfig, source: str) -> int:
+    def _begin_run(
+        self,
+        config: ExperimentConfig,
+        source: str,
+        sources: Mapping[str, str] | None = None,
+        config_files: Mapping[str, str] | None = None,
+    ) -> int:
+        sources = sources or self.base_sources
+        files = (
+            dict(config_files)
+            if config_files is not None
+            else dict(self.base_config_files)
+        )
         with self._cond:
             self._run_counter += 1
             run_id = self._run_counter
@@ -563,6 +636,8 @@ class Station:
             self._current = {
                 "id": run_id,
                 "source": source,
+                "sources": dict(sources),
+                "config_files": dict(files),
                 "config": config,
                 "started": time.time(),
             }
@@ -572,6 +647,12 @@ class Station:
                 name: getattr(config, name) for name in _FORM_BY_NAME
             }
             self._last_params["output_dir"] = str(config.output_dir)
+            self._last_sources = {
+                name: sources.get(name, DEFAULT_SOURCE) for name in _FORM_BY_NAME
+            }
+            self._last_config_files = {
+                name: files[name] for name in _FORM_BY_NAME if name in files
+            }
             self._bump()
         logger.info(
             "run #{} started from the web panel ({}): {} block(s) x {} trials, "
@@ -691,8 +772,31 @@ class Station:
         """Validate form values and queue a run (HTTP thread)."""
         if not self.control:
             raise RuntimeError("此页面为只读监控")
+        blocked = sorted(
+            name
+            for name in payload
+            if FIELD_SCOPES.get(name) == SCOPE_BOOTSTRAP
+        )
+        if blocked:
+            raise ValueError(f"启动参数不能在面板中修改: {', '.join(blocked)}")
         config = coerce_params(payload, self.base_config)
-        self.request_start(config, source="web")
+        sources = {
+            name: SOURCE_WEBUI
+            for name in payload
+            if name in _FORM_BY_NAME
+            and getattr(config, name) != getattr(self.base_config, name)
+        }
+        config_files = {
+            name: path
+            for name, path in self.base_config_files.items()
+            if name not in sources
+        }
+        self.request_start(
+            config,
+            source="web",
+            sources=sources,
+            config_files=config_files,
+        )
         return config.to_dict()
 
     # ------------------------------------------------------------------
@@ -724,6 +828,22 @@ class SessionView:
     @property
     def stop_requested(self) -> bool:
         return self._station._stop.is_set()
+
+    @property
+    def config_sources(self) -> dict[str, str]:
+        with self._station._cond:
+            current = self._station._current
+            if current is None or current["id"] != self._run_id:
+                return {}
+            return dict(current.get("sources") or {})
+
+    @property
+    def config_files(self) -> dict[str, str]:
+        with self._station._cond:
+            current = self._station._current
+            if current is None or current["id"] != self._run_id:
+                return {}
+            return dict(current.get("config_files") or {})
 
     @property
     def reward_sink(self) -> SerialRewardSink | None:

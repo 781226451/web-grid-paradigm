@@ -6,6 +6,7 @@ The command-line options themselves live in :mod:`.cli_args`.
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +15,7 @@ from loguru import logger
 from .. import __version__
 from ..core.config import ExperimentConfig
 from ..recording.recorder import SessionRecorder
-from .cli_args import build_parser, load_config
+from .cli_args import build_parser, load_config_resolved
 from .log import add_session_log, setup_logging
 
 
@@ -33,13 +34,26 @@ def _preview(config: ExperimentConfig, path: Path) -> int:
     return 0
 
 
-def _run(config: ExperimentConfig, view: Any = None) -> dict[str, Any]:
+def _run(
+    config: ExperimentConfig,
+    view: Any = None,
+    *,
+    sources: Mapping[str, str] | None = None,
+    config_files: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
     """Run one session; ``view`` receives live progress for the web panel."""
     import psychopy
 
     from .runner import run_experiment
 
-    recorder = SessionRecorder(config, psychopy_version=psychopy.__version__)
+    run_sources = getattr(view, "config_sources", None) or sources
+    run_files = getattr(view, "config_files", None) or config_files
+    recorder = SessionRecorder(
+        config,
+        psychopy_version=psychopy.__version__,
+        sources=run_sources,
+        config_files=run_files,
+    )
     sink_id = add_session_log(recorder.dir)
     try:
         logger.info(
@@ -78,7 +92,13 @@ def _run(config: ExperimentConfig, view: Any = None) -> dict[str, Any]:
         logger.remove(sink_id)
 
 
-def _serve(config: ExperimentConfig, *, run_now: bool) -> int:
+def _serve(
+    config: ExperimentConfig,
+    *,
+    run_now: bool,
+    sources: dict[str, str] | None = None,
+    config_files: dict[str, str] | None = None,
+) -> int:
     """Start the web control panel and run whatever the page asks for."""
     from ..panel import start_station
 
@@ -86,17 +106,24 @@ def _serve(config: ExperimentConfig, *, run_now: bool) -> int:
         config.dashboard_host,
         config.dashboard_port,
         base_config=config,
+        base_sources=sources,
+        base_config_files=config_files,
         control=True,
         open_browser=config.dashboard_open,
     )
     if station is None:
         logger.warning("web panel unavailable; running once from the command line")
-        _run(config)
+        _run(config, sources=sources, config_files=config_files)
         return 0
     logger.info("open {} and press 启动实验 (Ctrl+C quits)", station.url)
     try:
         if run_now:
-            station.request_start(config, source="cli")
+            station.request_start(
+                config,
+                source="cli",
+                sources=sources,
+                config_files=config_files,
+            )
         station.serve(lambda cfg, view: _run(cfg, view))
     finally:
         station.close()
@@ -109,7 +136,8 @@ def main(argv: list[str] | None = None) -> int:
     setup_logging(debug=args.debug, log_file=args.log_file)
     logger.debug("webgrid {} started with argv={}", __version__, argv)
     try:
-        config = load_config(args)
+        resolved = load_config_resolved(args)
+        config = resolved.config
     except Exception as exc:  # noqa: BLE001 - report any configuration problem
         logger.error("configuration error: {}", exc)
         return 2
@@ -117,9 +145,18 @@ def main(argv: list[str] | None = None) -> int:
         if args.screenshot is not None:
             return _preview(config, args.screenshot)
         if not config.dashboard:
-            _run(config)
+            _run(
+                config,
+                sources=resolved.sources,
+                config_files=resolved.config_files,
+            )
             return 0
-        return _serve(config, run_now=args.run_now)
+        return _serve(
+            config,
+            run_now=args.run_now,
+            sources=resolved.sources,
+            config_files=resolved.config_files,
+        )
     except KeyboardInterrupt:
         logger.warning("interrupted")
         return 130

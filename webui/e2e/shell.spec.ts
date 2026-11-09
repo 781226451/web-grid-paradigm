@@ -16,7 +16,7 @@ test.describe("control panel shell", () => {
       await expect(page.locator(".group-title", { hasText: group })).toBeVisible();
     }
 
-    await expect(page.locator("[data-field=subject] input")).toHaveValue(/sub-/);
+    await expect(page.locator("[data-field=subject] input")).toHaveValue("e2e-cli");
     await expect(page.locator("[data-field=blocks] input")).toHaveValue(/\d+/);
   });
 
@@ -88,6 +88,42 @@ test.describe("control panel shell", () => {
     await page.getByRole("button", { name: "确定" }).click();
     await expect(page.locator(".device[data-device=input] .status")).toContainText(
       "WebGridVelocity",
+    );
+  });
+
+  test("config form shows startup source and resets to it", async ({ page }) => {
+    await page.goto("/");
+
+    const subject = page.locator('[data-field="subject"]');
+    await page.locator('[data-action="reset"]').click();
+    await expect(subject.locator("input")).toHaveValue("e2e-cli");
+    await expect(subject.locator(".source")).toHaveText("CLI");
+
+    await subject.locator("input").fill("e2e-web");
+    await expect(subject.locator(".source")).toHaveText("WebUI");
+
+    await page.locator('[data-action="reset"]').click();
+    await expect(subject.locator("input")).toHaveValue("e2e-cli");
+    await expect(subject.locator(".source")).toHaveText("CLI");
+  });
+
+  test("source badges name the device config file", async ({ page }) => {
+    await page.goto("/");
+
+    const lslField = page.locator('[data-field="lsl"]');
+    await expect(lslField.locator(".source")).toHaveText("设备配置");
+    await expect(lslField.locator(".source")).toHaveAttribute(
+      "title",
+      /device\.toml/,
+    );
+
+    await choose(page, "input", "joystick");
+    await page.getByRole("button", { name: "配置…" }).click();
+    const port = page.locator('.n-modal [data-field="joystick_port"]');
+    await expect(port.locator(".source")).toHaveText("设备配置");
+    await expect(port.locator(".source")).toHaveAttribute(
+      "title",
+      /device\.toml/,
     );
   });
 

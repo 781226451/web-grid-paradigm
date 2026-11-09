@@ -17,11 +17,22 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .settings import CONFIG_FILE_FIELDS, DEVICE_FIELDS
+
 _SAFE_LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _INPUT_MODES = ("mouse", "demo", "joystick", "lsl")
 _JOYSTICK_STREAM_MODES = ("periodic", "on_change")
 _SELECTION_MODES = ("click", "dwell")
 _LANGUAGES = ("zh", "en")
+
+# Which fields each TOML role writes.  "config" matches the --config file
+# (experiment + startup), "device" matches a --device-config module, and
+# "all" is a full snapshot that the CLI cannot consume as a single file.
+_TOML_ROLES: dict[str, frozenset[str] | None] = {
+    "config": CONFIG_FILE_FIELDS,
+    "device": DEVICE_FIELDS,
+    "all": None,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,39 +127,20 @@ class ExperimentConfig:
     # ------------------------------------------------------------------
     @classmethod
     def from_toml(cls, path: str | Path) -> ExperimentConfig:
-        """Load a configuration from a TOML file.
+        """Load a configuration from a flat TOML file.
 
-        Accepted shapes::
-
-            rows = 12                  # flat
-            [webgrid]                  # one named table
-            rows = 12
-            [reward]                   # optional section for hardware keys
-            reward_port = "COM3"
-
-        A ``[reward]`` (or ``[webgrid.reward]``) table is folded into the same
-        flat namespace, so a single file can hold both the paradigm settings
-        and the reward hardware settings.  Unknown keys are rejected so typos
-        cannot silently change a session.
+        Only top-level ``key = value`` pairs are accepted; sections are
+        rejected so every file has exactly one shape.  Unknown keys are
+        rejected so typos cannot silently change a session.
         """
-        path = Path(path)
-        data = tomllib.loads(path.read_text(encoding="utf-8-sig"))
-        table = data.get("webgrid", data)
-        if not isinstance(table, Mapping):
-            raise TypeError(f"{path}: [webgrid] must be a table")
-        table = _merge_reward_table(table, path)
-        known = {f.name for f in dataclasses.fields(cls)}
-        unknown = sorted(set(table) - known)
-        if unknown:
-            raise ValueError(
-                f"{path}: unknown configuration key(s): {', '.join(unknown)}"
-            )
-        try:
-            cfg = cls(**dict(table))
-        except TypeError as exc:  # pragma: no cover - defensive
-            raise ValueError(f"{path}: {exc}") from exc
-        cfg.validate()
-        return cfg
+        return cls.from_dict(read_config_table(path))
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> ExperimentConfig:
+        """Build and validate a configuration from a flat key/value mapping."""
+        config = cls(**dict(data))
+        config.validate()
+        return config
 
     # ------------------------------------------------------------------
     def validate(self) -> None:
@@ -272,33 +264,59 @@ class ExperimentConfig:
         data["output_dir"] = str(self.output_dir)
         return data
 
-    def to_toml(self) -> str:
-        """Serialise every field as a flat TOML document (``from_toml`` reads it)."""
-        lines = ["# BCI Web-Grid configuration", ""]
-        for name, value in self.to_dict().items():
+    def to_toml(self, *, role: str = "config") -> str:
+        """Serialise the configuration as a flat TOML file.
+
+        ``role="config"`` (the default) writes experiment and startup keys and
+        can be passed to ``--config``.  ``role="device"`` writes device keys
+        for ``--device-config``.  ``role="all"`` writes every field as a
+        snapshot; neither CLI flag accepts that file on its own.
+        """
+        try:
+            allowed = _TOML_ROLES[role]
+        except KeyError:
+            raise ValueError(
+                f"unknown TOML role {role!r}; use one of {tuple(_TOML_ROLES)}"
+            ) from None
+        data = self.to_dict()
+        if allowed is not None:
+            data = {
+                name: value for name, value in data.items() if name in allowed
+            }
+        lines = [f"# BCI Web-Grid configuration ({role})", ""]
+        for name, value in data.items():
             lines.append(f"{name} = {_toml_value(value)}")
         return "\n".join(lines) + "\n"
 
-    def save_toml(self, path: str | Path) -> Path:
+    def save_toml(self, path: str | Path, *, role: str = "config") -> Path:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(self.to_toml(), encoding="utf-8")
+        path.write_text(self.to_toml(role=role), encoding="utf-8")
         return path
 
 
-def _merge_reward_table(table: Mapping[str, Any], path: Path) -> dict[str, Any]:
-    """Fold a ``[reward]`` section into the flat key namespace.
+def read_config_table(path: str | Path) -> dict[str, Any]:
+    """Parse a flat TOML configuration table.
 
-    ``reward = "serial"`` (a string) is the ordinary config field, while a
-    ``[reward]`` table is the optional hardware section; only the latter is
-    flattened.
+    Nested tables (``[webgrid]``, ``[reward]``, ``[device]`` ...) and unknown
+    keys are rejected: a file must use exactly one shape, and every key must
+    be a real setting.
     """
-    reward = table.get("reward")
-    if not isinstance(reward, Mapping):
-        return dict(table)
-    merged = {key: value for key, value in table.items() if key != "reward"}
-    merged.update(dict(reward))
-    return merged
+    path = Path(path)
+    data = tomllib.loads(path.read_text(encoding="utf-8-sig"))
+    nested = sorted(
+        name for name, value in data.items() if isinstance(value, Mapping)
+    )
+    if nested:
+        labels = ", ".join(f"[{name}]" for name in nested)
+        raise ValueError(f"{path}: {labels} tables are not supported; use flat keys")
+    known = {field.name for field in dataclasses.fields(ExperimentConfig)}
+    unknown = sorted(set(data) - known)
+    if unknown:
+        raise ValueError(
+            f"{path}: unknown configuration key(s): {', '.join(unknown)}"
+        )
+    return data
 
 
 def _toml_value(value: Any) -> str:

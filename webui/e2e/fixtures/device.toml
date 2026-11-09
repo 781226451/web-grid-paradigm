@@ -1,0 +1,5 @@
+# Deterministic device settings for the Playwright control-panel tests.
+# Keep this file stable: the e2e tests assert that source badges point at it.
+
+joystick_port = "COM_TEST"
+lsl = false

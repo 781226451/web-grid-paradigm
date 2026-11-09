@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
-import tomllib
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -16,7 +15,15 @@ from typing import Any
 from loguru import logger
 
 from .. import __version__
-from ..core.config import ExperimentConfig
+from ..core.config import ExperimentConfig, read_config_table
+from ..core.settings import (
+    DEFAULT_SOURCE,
+    DEVICE_FIELDS,
+    FIELD_SCOPES,
+    SOURCE_CLI,
+    SOURCE_CONFIG,
+    SOURCE_DEVICE,
+)
 
 DESCRIPTION = """\
 BCI Web-Grid: a PsychoPy target-selection paradigm.
@@ -37,7 +44,8 @@ The session starts as soon as you press 启动实验 in the web panel (or run wi
 
 examples:
   uv run webgrid                       # open the web panel, set params, start
-  uv run webgrid --config configs/default.toml   # same, pre-filled
+  uv run webgrid --config configs/default.toml   # experiment + startup
+  uv run webgrid --config configs/default.toml --device-config configs/velocity_input.toml
   uv run webgrid --run-now --input demo --targets 8 --auto-exit
   uv run webgrid --no-dashboard --input mouse --lsl
   uv run webgrid --input joystick --joystick-port COM4
@@ -59,7 +67,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
     parser.add_argument(
-        "--config", type=Path, metavar="FILE", help="load parameters from TOML"
+        "--config",
+        type=Path,
+        metavar="FILE",
+        help="experiment and startup settings (flat TOML)",
+    )
+    parser.add_argument(
+        "--device-config",
+        dest="device_config",
+        type=Path,
+        action="append",
+        metavar="FILE",
+        help="device settings (flat TOML; repeat for several module files)",
     )
     parser.add_argument(
         "--run-now",
@@ -352,13 +371,6 @@ def build_parser() -> argparse.ArgumentParser:
     reward.add_argument(
         "--reward-duration-ms", type=int, help="pulse length in ms (default: 50)"
     )
-    reward.add_argument(
-        "--reward-config",
-        type=Path,
-        metavar="FILE",
-        help="TOML with hardware settings (reward_port, reward_baud, ...); "
-        "defaults to configs/reward.toml when that file exists",
-    )
 
     dash = parser.add_argument_group("web dashboard")
     dash_mode = dash.add_mutually_exclusive_group()
@@ -420,15 +432,80 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def load_config(args: argparse.Namespace) -> ExperimentConfig:
-    config = (
-        ExperimentConfig.from_toml(args.config) if args.config else ExperimentConfig()
-    )
-    # Hardware settings live in their own file (per machine, not in git):
-    # defaults <- --config <- reward TOML <- command line.
-    reward_file = args.reward_config or default_reward_config()
-    if reward_file is not None:
-        config = apply_reward_config(config, reward_file)
+@dataclasses.dataclass(frozen=True)
+class ResolvedConfig:
+    """A validated configuration plus the source of each field."""
+
+    config: ExperimentConfig
+    sources: dict[str, str]
+    config_files: dict[str, str] = dataclasses.field(default_factory=dict)
+
+
+def _default_sources() -> dict[str, str]:
+    return {name: DEFAULT_SOURCE for name in FIELD_SCOPES}
+
+
+def _reject_device_keys_in_config(
+    path: str | Path, table: Mapping[str, Any]
+) -> None:
+    wrong = sorted(set(table) & DEVICE_FIELDS)
+    if wrong:
+        raise ValueError(
+            f"{path}: {', '.join(wrong)} belong to device settings; "
+            "move them to a --device-config file"
+        )
+
+
+def _reject_config_keys_in_device(
+    path: str | Path, table: Mapping[str, Any]
+) -> None:
+    wrong = sorted(set(table) - DEVICE_FIELDS)
+    if wrong:
+        raise ValueError(
+            f"{path}: only device keys are allowed in --device-config; "
+            f"move {', '.join(wrong)} to the --config file"
+        )
+
+
+def load_config_resolved(args: argparse.Namespace) -> ResolvedConfig:
+    """Load all configuration layers and retain the source of each field."""
+    sources = _default_sources()
+    config_files: dict[str, str] = {}
+    config = ExperimentConfig()
+
+    if args.config:
+        table = read_config_table(args.config)
+        _reject_device_keys_in_config(args.config, table)
+        config = ExperimentConfig.from_dict(table)
+        logger.info(
+            "configuration file {}: {} key(s)", args.config, len(table)
+        )
+        logger.debug("configuration keys: {}", ", ".join(sorted(table)))
+        for name in table:
+            sources[name] = SOURCE_CONFIG
+
+    owners: dict[str, Path] = {}
+    for path in args.device_config or []:
+        path = Path(path)
+        table = read_config_table(path)
+        _reject_config_keys_in_device(path, table)
+        overlaps = sorted(set(table) & set(owners))
+        if overlaps:
+            files = sorted({str(owners[name]) for name in overlaps} | {str(path)})
+            raise ValueError(
+                f"{' and '.join(files)} both set {', '.join(overlaps)}; "
+                "keep each key in exactly one device file"
+            )
+        for name in table:
+            owners[name] = path
+            sources[name] = SOURCE_DEVICE
+            config_files[name] = str(path)
+        config = dataclasses.replace(config, **table)
+        logger.info("device configuration {}: {} key(s)", path, len(table))
+        logger.debug(
+            "device configuration keys {}: {}", path, ", ".join(sorted(table))
+        )
+
     overrides: dict[str, Any] = {}
     fields = {
         "subject": "subject",
@@ -503,50 +580,16 @@ def load_config(args: argparse.Namespace) -> ExperimentConfig:
         overrides["dashboard_open"] = True
     if args.no_open_dashboard:
         overrides["dashboard_open"] = False
+    for field_name in overrides:
+        sources[field_name] = SOURCE_CLI
+        config_files.pop(field_name, None)
     config = dataclasses.replace(config, **overrides)
     config.validate()
-    return config
+    return ResolvedConfig(
+        config=config, sources=sources, config_files=config_files
+    )
 
 
-# ----------------------------------------------------------------------
-# Reward hardware configuration (separate TOML, per machine)
-# ----------------------------------------------------------------------
-DEFAULT_REWARD_CONFIG = Path("configs/reward.toml")
-REWARD_KEYS = (
-    "reward",
-    "reward_policy",
-    "reward_ratio",
-    "reward_port",
-    "reward_baud",
-    "reward_amount",
-    "reward_duration_ms",
-)
-
-
-def default_reward_config() -> Path | None:
-    """``configs/reward.toml`` when it exists (written once per setup machine)."""
-    return DEFAULT_REWARD_CONFIG if DEFAULT_REWARD_CONFIG.is_file() else None
-
-
-def apply_reward_config(
-    config: ExperimentConfig, path: str | Path
-) -> ExperimentConfig:
-    """Layer the hardware settings from ``path`` over ``config``.
-
-    The file may be flat or use a ``[reward]`` table; only reward keys are
-    allowed, so a typo cannot silently change the paradigm.
-    """
-    path = Path(path)
-    data = tomllib.loads(path.read_text(encoding="utf-8-sig"))
-    table = data
-    nested = data.get("reward")
-    if isinstance(nested, Mapping):
-        table = nested
-    elif nested is not None and len(data) == 1:
-        raise TypeError(f"{path}: 'reward' must be a string or a [reward] table")
-    unknown = sorted(set(table) - set(REWARD_KEYS))
-    if unknown:
-        raise ValueError(f"{path}: unknown reward key(s): {', '.join(unknown)}")
-    updated = dataclasses.replace(config, **dict(table))
-    logger.info("reward hardware settings loaded from {}", path)
-    return updated
+def load_config(args: argparse.Namespace) -> ExperimentConfig:
+    """Return only the resolved configuration (convenience helper)."""
+    return load_config_resolved(args).config

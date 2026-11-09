@@ -1,0 +1,16 @@
+# Device module: LSL marker and state streams (outputs, not input).
+#
+# Copy to configs/lsl_outputs.toml (gitignored) and edit per machine.
+# It is flat: every key is an ExperimentConfig field.
+#
+#   uv run webgrid --config configs/default.toml \
+#       --device-config configs/lsl_outputs.toml
+
+# --- event markers ----------------------------------------------------
+lsl = false
+lsl_stream = "WebGridMarkers"
+
+# --- LSL state stream -------------------------------------------------
+lsl_state = false
+lsl_state_stream = "WebGridState"
+lsl_state_rate = 10.0

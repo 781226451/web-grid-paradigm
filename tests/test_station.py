@@ -11,6 +11,7 @@ import pytest
 from web_grid_paradigm.app.cli_args import build_parser, load_config
 from web_grid_paradigm.core.config import ExperimentConfig
 from web_grid_paradigm.core.monitor import NullMonitor
+from web_grid_paradigm.core.settings import FIELD_SCOPES, SCOPE_BOOTSTRAP
 from web_grid_paradigm.panel import (
     SessionView,
     coerce_params,
@@ -60,6 +61,9 @@ def test_form_schema_matches_config_fields() -> None:
     names = {field["name"] for field in form_schema()}
     config_fields = set(ExperimentConfig().to_dict())
     assert names <= config_fields, names - config_fields
+    for field in form_schema():
+        assert field["name"] in FIELD_SCOPES
+        assert FIELD_SCOPES[field["name"]] != SCOPE_BOOTSTRAP
     for required in ("blocks", "targets", "rows", "cols", "iti"):
         assert required in names
     # The LSL start-command trigger has been removed.
@@ -93,6 +97,43 @@ def test_config_endpoint_returns_schema_and_values(station) -> None:
     assert payload["control"] is True
     assert payload["values"]["blocks"] == station.base_config.blocks
     assert any(f["name"] == "targets" for f in payload["schema"])
+    assert payload["sources"]["blocks"] == "default"
+    assert payload["scopes"]["blocks"] == "experiment"
+    assert payload["editable"]["blocks"] is True
+
+
+def test_config_endpoint_reports_startup_source() -> None:
+    board = make_station(
+        base_config=ExperimentConfig(rows=8),
+        base_sources={"rows": "cli"},
+        open_browser=False,
+    )
+    try:
+        _, payload = _get(board, "/api/config")
+        assert payload["values"]["rows"] == 8
+        assert payload["sources"]["rows"] == "cli"
+        assert payload["sources"]["cols"] == "default"
+    finally:
+        board.close()
+
+
+def test_config_endpoint_reports_source_files() -> None:
+    board = make_station(
+        base_config=ExperimentConfig(joystick_port="COM4"),
+        base_sources={"joystick_port": "device"},
+        base_config_files={"joystick_port": "configs/velocity_input.toml"},
+        open_browser=False,
+    )
+    try:
+        _, payload = _get(board, "/api/config")
+        assert payload["sources"]["joystick_port"] == "device"
+        assert (
+            payload["source_files"]["joystick_port"]
+            == "configs/velocity_input.toml"
+        )
+        assert payload["source_files"]["rows"] is None
+    finally:
+        board.close()
 
 
 def test_page_is_served(station) -> None:
@@ -113,6 +154,12 @@ def test_start_rejects_bad_parameters(station) -> None:
     assert status == 400 and "未知参数" in payload["error"]
 
 
+def test_start_rejects_bootstrap_fields(station) -> None:
+    status, payload = _post(station, "/api/start", {"dashboard_port": 9000})
+    assert status == 400
+    assert "启动参数" in payload["error"]
+
+
 def test_start_queues_a_validated_run(station) -> None:
     status, payload = _post(
         station, "/api/start", {"blocks": 2, "targets": 5, "rows": 6, "cols": 6}
@@ -122,8 +169,81 @@ def test_start_queues_a_validated_run(station) -> None:
     # The queued request is what serve() will pick up first.
     request = station._next_request()
     assert request is not None
-    config, source = request
+    config, source, sources, files = request
     assert (config.blocks, config.targets, source) == (2, 5, "web")
+    assert sources["blocks"] == "webui"
+    assert sources["dashboard_host"] == "default"
+    assert files == {}
+
+
+def test_webui_source_marks_only_changed_fields() -> None:
+    board = make_station(
+        base_config=ExperimentConfig(rows=8),
+        base_sources={"rows": "cli"},
+        open_browser=False,
+    )
+    try:
+        status, _ = _post(board, "/api/start", {"rows": 8, "cols": 9})
+        assert status == 200
+        request = board._next_request()
+        assert request is not None
+        _, _, sources, _ = request
+        assert sources["rows"] == "cli"
+        assert sources["cols"] == "webui"
+    finally:
+        board.close()
+
+
+def test_webui_device_edit_drops_file_provenance() -> None:
+    board = make_station(
+        base_config=ExperimentConfig(joystick_port="COM4"),
+        base_sources={"joystick_port": "device"},
+        base_config_files={"joystick_port": "configs/velocity_input.toml"},
+        open_browser=False,
+    )
+    try:
+        status, _ = _post(board, "/api/start", {"joystick_port": "COM9"})
+        assert status == 200
+        request = board._next_request()
+        assert request is not None
+        _, _, sources, files = request
+        assert sources["joystick_port"] == "webui"
+        assert "joystick_port" not in files
+    finally:
+        board.close()
+
+
+def test_webui_unchanged_device_field_keeps_file_provenance() -> None:
+    board = make_station(
+        base_config=ExperimentConfig(joystick_port="COM4"),
+        base_sources={"joystick_port": "device"},
+        base_config_files={"joystick_port": "configs/velocity_input.toml"},
+        open_browser=False,
+    )
+    try:
+        status, _ = _post(board, "/api/start", {"joystick_port": "COM4"})
+        assert status == 200
+        request = board._next_request()
+        assert request is not None
+        _, _, sources, files = request
+        assert sources["joystick_port"] == "device"
+        assert files == {"joystick_port": "configs/velocity_input.toml"}
+    finally:
+        board.close()
+
+
+def test_session_view_exposes_config_files(station) -> None:
+    station._begin_run(
+        ExperimentConfig(blocks=1, targets=1),
+        "test",
+        config_files={"joystick_port": "configs/velocity_input.toml"},
+    )
+    run_id = station._current["id"]
+    view = SessionView(station, run_id)
+    assert view.config_files == {
+        "joystick_port": "configs/velocity_input.toml"
+    }
+    station._end_run(run_id, "finished")
 
 
 def test_stop_before_start_does_nothing(station) -> None:

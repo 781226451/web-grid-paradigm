@@ -7,6 +7,16 @@ from pathlib import Path
 import pytest
 
 from web_grid_paradigm.core.config import ExperimentConfig
+from web_grid_paradigm.core.settings import (
+    BOOTSTRAP_FIELDS,
+    CONFIG_FILE_FIELDS,
+    DEVICE_FIELDS,
+    EXPERIMENT_FIELDS,
+    FIELD_SCOPES,
+    SCOPE_BOOTSTRAP,
+    SCOPE_DEVICE,
+    SCOPE_EXPERIMENT,
+)
 
 
 def test_defaults_are_valid() -> None:
@@ -18,39 +28,62 @@ def test_defaults_are_valid() -> None:
     assert config.data_dir.name.startswith("ses-")
 
 
-def test_default_toml_matches_config_fields_and_defaults() -> None:
+def test_every_config_field_has_exactly_one_scope() -> None:
+    fields = {field.name for field in dataclasses.fields(ExperimentConfig)}
+    assert set(FIELD_SCOPES) == fields
+    assert not (BOOTSTRAP_FIELDS & EXPERIMENT_FIELDS)
+    assert not (BOOTSTRAP_FIELDS & DEVICE_FIELDS)
+    assert not (EXPERIMENT_FIELDS & DEVICE_FIELDS)
+    assert FIELD_SCOPES["dashboard_host"] == SCOPE_BOOTSTRAP
+    assert FIELD_SCOPES["rows"] == SCOPE_EXPERIMENT
+    assert FIELD_SCOPES["joystick_port"] == SCOPE_DEVICE
+
+
+def test_default_toml_covers_experiment_and_startup() -> None:
     project_root = Path(__file__).resolve().parents[1]
     data = tomllib.loads(
         (project_root / "configs" / "default.toml").read_text(encoding="utf-8")
     )
-    fields = {field.name for field in dataclasses.fields(ExperimentConfig)}
-    assert set(data) == fields
+    assert set(data) == set(CONFIG_FILE_FIELDS)
 
     defaults = ExperimentConfig()
-    for name in fields:
+    for name in CONFIG_FILE_FIELDS:
         expected = getattr(defaults, name)
         if name == "output_dir":
             expected = str(expected)
         assert data[name] == expected, name
 
 
-def test_reward_example_matches_supported_keys() -> None:
-    from web_grid_paradigm.app.cli_args import REWARD_KEYS
-
-    project_root = Path(__file__).resolve().parents[1]
-    data = tomllib.loads(
-        (project_root / "configs" / "reward.example.toml").read_text(
-            encoding="utf-8"
-        )
+def test_device_example_modules_partition_device_fields() -> None:
+    configs = Path(__file__).resolve().parents[1] / "configs"
+    modules = (
+        "velocity_input.example.toml",
+        "reward.example.toml",
+        "lsl_outputs.example.toml",
     )
-    assert set(data) == set(REWARD_KEYS)
+    seen: set[str] = set()
+    for name in modules:
+        data = tomllib.loads((configs / name).read_text(encoding="utf-8"))
+        assert not (set(data) & seen), f"{name} overlaps another module"
+        seen |= set(data)
+    assert seen == set(DEVICE_FIELDS)
+
+
+def test_to_toml_all_writes_every_field() -> None:
+    data = tomllib.loads(ExperimentConfig().to_toml(role="all"))
+    fields = {field.name for field in dataclasses.fields(ExperimentConfig)}
+    assert set(data) == fields
+
+
+def test_to_toml_rejects_unknown_role() -> None:
+    with pytest.raises(ValueError, match="unknown TOML role"):
+        ExperimentConfig().to_toml(role="everything")
 
 
 def test_toml_round_trip(tmp_path: Path) -> None:
     path = tmp_path / "config.toml"
     path.write_text(
         """
-        [webgrid]
         subject = "sub-07"
         rows = 12
         cols = 12
@@ -84,6 +117,21 @@ def test_unknown_toml_key_rejected(tmp_path: Path) -> None:
     path = tmp_path / "config.toml"
     path.write_text("subject = 'x'\nrow = 4\n", encoding="utf-8")
     with pytest.raises(ValueError, match="unknown configuration key"):
+        ExperimentConfig.from_toml(path)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "[webgrid]\nrows = 8\n",
+        "[reward]\nreward_port = 'COM3'\n",
+        "[device]\njoystick_port = 'COM4'\n",
+    ],
+)
+def test_toml_sections_are_rejected(tmp_path: Path, body: str) -> None:
+    path = tmp_path / "config.toml"
+    path.write_text(body, encoding="utf-8")
+    with pytest.raises(ValueError, match="tables are not supported"):
         ExperimentConfig.from_toml(path)
 
 
