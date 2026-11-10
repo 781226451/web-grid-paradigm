@@ -8,14 +8,21 @@ is ever constructed inside the render loop.
 from __future__ import annotations
 
 from psychopy import visual
+from psychopy.colors import Color
 
 from ..core.config import ExperimentConfig
 from ..core.geometry import Layout
 from ..core.i18n import Strings
 from .palette import (
     ACCENT,
+    BG,
     CURSOR,
-    CURSOR_EDGE,
+    CURSOR_GLOW,
+    CURSOR_GLOW_OPACITY,
+    CURSOR_GLOW_RADIUS_FACTOR,
+    CURSOR_RING_OPACITY,
+    CURSOR_RING_RADIUS_FACTOR,
+    CURSOR_RING_WIDTH_PX,
     ERROR,
     GRID,
     HOVER,
@@ -23,8 +30,20 @@ from .palette import (
     PANEL,
     PANEL_EDGE,
     TARGET_COLORS,
+    TARGET_GLOW_OPACITY,
+    TARGET_GLOW_RADIUS_FACTOR,
+    TARGET_RING,
+    TARGET_RING_OPACITY,
+    TARGET_RING_RADIUS_FACTOR,
+    TARGET_RING_WIDTH_PX,
     TEXT,
+    TRAIL_SEGMENTS,
 )
+
+
+def _rgb(color: str) -> list[float]:
+    """Convert a hex colour to PsychoPy's -1..1 RGB space."""
+    return list(Color(color, space="rgb").rgb)
 
 
 class Stimuli:
@@ -57,7 +76,7 @@ class Stimuli:
             width=layout.board_w,
             height=layout.board_h,
             pos=layout.board_centre,
-            fillColor="#ffffff",
+            fillColor=BG,
             lineColor=None,
             units="pix",
         )
@@ -100,7 +119,35 @@ class Stimuli:
             width=layout.cell,
             height=layout.cell,
             fillColor=HOVER,
-            lineColor=None,
+            lineColor=ACCENT,
+            lineWidth=3,
+            opacity=1.0,
+            units="pix",
+        )
+        self.target_glow = visual.GratingStim(
+            self.win,
+            tex=None,
+            mask="gauss",
+            size=(
+                layout.cell * TARGET_GLOW_RADIUS_FACTOR,
+                layout.cell * TARGET_GLOW_RADIUS_FACTOR,
+            ),
+            color=_rgb(TARGET_COLORS[1]),
+            colorSpace="rgb",
+            opacity=TARGET_GLOW_OPACITY,
+            units="pix",
+            texRes=64,
+            interpolate=True,
+            autoLog=False,
+        )
+        self.target_ring = visual.Rect(
+            self.win,
+            width=layout.cell * TARGET_RING_RADIUS_FACTOR,
+            height=layout.cell * TARGET_RING_RADIUS_FACTOR,
+            fillColor=None,
+            lineColor=TARGET_RING,
+            lineWidth=TARGET_RING_WIDTH_PX,
+            opacity=TARGET_RING_OPACITY,
             units="pix",
         )
         self.target_stim = visual.Rect(
@@ -108,16 +155,8 @@ class Stimuli:
             width=layout.cell,
             height=layout.cell,
             fillColor=TARGET_COLORS[1],
-            lineColor=None,
-            units="pix",
-        )
-        self.target_hover = visual.Rect(
-            self.win,
-            width=layout.cell,
-            height=layout.cell,
-            fillColor="#000000",
-            opacity=0.18,
-            lineColor=None,
+            lineColor=TARGET_COLORS[1],
+            lineWidth=2,
             units="pix",
         )
         self.miss_stim = visual.Rect(
@@ -126,22 +165,74 @@ class Stimuli:
             height=layout.cell,
             fillColor=ERROR,
             lineColor=None,
+            opacity=0.85,
+            units="pix",
+        )
+        radius = max(6.0, min(18.0, min(layout.window_w, layout.window_h) * 0.015))
+        self.cursor_glow = visual.GratingStim(
+            self.win,
+            tex=None,
+            mask="gauss",
+            size=(
+                radius * 2 * CURSOR_GLOW_RADIUS_FACTOR,
+                radius * 2 * CURSOR_GLOW_RADIUS_FACTOR,
+            ),
+            color=_rgb(CURSOR_GLOW),
+            colorSpace="rgb",
+            opacity=CURSOR_GLOW_OPACITY,
+            units="pix",
+            texRes=64,
+            interpolate=True,
+            autoLog=False,
+        )
+        self.cursor_ring = visual.Circle(
+            self.win,
+            radius=radius * CURSOR_RING_RADIUS_FACTOR,
+            fillColor=None,
+            lineColor=CURSOR_GLOW,
+            lineWidth=CURSOR_RING_WIDTH_PX,
+            opacity=CURSOR_RING_OPACITY,
             units="pix",
         )
         self.cursor_stim = visual.Circle(
             self.win,
-            radius=max(5.0, min(12.0, layout.cell * 0.16)),
+            radius=radius,
             fillColor=CURSOR,
-            lineColor=CURSOR_EDGE,
-            lineWidth=2,
+            lineColor=None,
             units="pix",
         )
+        self.trail_lines = [
+            visual.Line(
+                self.win,
+                start=(0, 0),
+                end=(0, 0),
+                lineColor=CURSOR,
+                lineWidth=2,
+                opacity=0,
+                units="pix",
+                autoLog=False,
+            )
+            for _ in range(TRAIL_SEGMENTS)
+        ]
+        self.trail_glow_lines = [
+            visual.Line(
+                self.win,
+                start=(0, 0),
+                end=(0, 0),
+                lineColor=CURSOR,
+                lineWidth=2,
+                opacity=0,
+                units="pix",
+                autoLog=False,
+            )
+            for _ in range(TRAIL_SEGMENTS)
+        ]
         self.dwell_bar = visual.Rect(
             self.win,
             width=2,
             height=max(3.0, layout.cell * 0.05),
-            fillColor="#ffffff",
-            lineColor=GRID,
+            fillColor=ACCENT,
+            lineColor=BG,
             lineWidth=1,
             units="pix",
         )
@@ -153,8 +244,9 @@ class Stimuli:
         self.fixation_bg = visual.Circle(
             self.win,
             radius=26 * self.ui,
-            fillColor="#ffffff",
-            lineColor=None,
+            fillColor=PANEL,
+            lineColor=PANEL_EDGE,
+            lineWidth=1,
             units="pix",
         )
         self.fixation_h = visual.Line(

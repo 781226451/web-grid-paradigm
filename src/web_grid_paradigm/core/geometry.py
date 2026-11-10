@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 # Layout constants for a centred, Neuralink-like line grid.
 _MIN_CELL = 8
-_MARGIN_FRACTION = 0.03
+_MARGIN_FRACTION = 0.05
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,7 +29,7 @@ class Layout:
     """Pixel geometry of a square, line-drawn grid inside a window.
 
     PsychoPy pixel coordinates have their origin at the window centre, ``+x``
-    to the right and ``+y`` upwards.  The board is a white square with black
+    to the right and ``+y`` upwards.  The board is a dark square with light
     grid lines, centred in the window.
     """
 
