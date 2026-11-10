@@ -103,22 +103,30 @@ class Renderer:
         if len(points) < 2:
             return
         segments = len(points) - 1
+        theme = self.theme
         for i in range(segments):
             fraction = (i + 1) / segments
             age = max(0.0, now - points[i + 1][2])
             freshness = max(0.0, 1.0 - age / duration)
-            width = 2.0 + 7.0 * fraction
+            width = theme.trail_min_width + (
+                theme.trail_max_width - theme.trail_min_width
+            ) * fraction
+            core_opacity = (
+                theme.trail_opacity_min
+                + (theme.trail_opacity_max - theme.trail_opacity_min) * fraction
+            ) * freshness
+            glow_opacity = (
+                theme.trail_glow_opacity_min
+                + (theme.trail_glow_opacity_max - theme.trail_glow_opacity_min)
+                * fraction
+            ) * freshness
             for lines, line_width, opacity in (
                 (
                     self.stim.trail_glow_lines,
-                    width * 2.8,
-                    (0.03 + 0.10 * fraction) * freshness,
+                    width * theme.trail_glow_width_factor,
+                    glow_opacity,
                 ),
-                (
-                    self.stim.trail_lines,
-                    width,
-                    (0.10 + 0.42 * fraction) * freshness,
-                ),
+                (self.stim.trail_lines, width, core_opacity),
             ):
                 line = lines[i]
                 line.start = points[i][:2]

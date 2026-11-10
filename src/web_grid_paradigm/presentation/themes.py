@@ -4,11 +4,14 @@ Themes only carry presentation values; the experimental logic stays in
 ``core/``.  Adding a theme means adding one :class:`Theme` instance and its
 name to ``core.settings.THEMES``; the CLI, TOML and WebUI expose the names
 automatically.
+
+Every visual field is required.  A new theme therefore fails loudly at
+construction time instead of silently inheriting a value from another theme.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from ..core.settings import THEMES
 
@@ -33,6 +36,7 @@ class Theme:
     cursor: str
     cursor_edge: str | None
     cursor_flash: str
+    cursor_line_width: float
     cursor_glow: bool
     cursor_glow_color: str
     cursor_glow_radius_factor: float
@@ -43,28 +47,93 @@ class Theme:
     cursor_radius_max: float
 
     # Targets.
-    target_colors: dict[int, str] = field(default_factory=dict)
-    target_outline: bool = False
-    target_glow: bool = False
-    target_glow_radius_factor: float = 2.8
-    target_glow_opacity: float = 0.18
-    target_pulse: bool = False
-    target_pulse_scale: float = 1.15
-    target_overlay: bool = False
+    target_colors: dict[int, str]
+    target_outline: bool
+    target_line_width: float
+    target_glow: bool
+    target_glow_radius_factor: float
+    target_glow_opacity: float
+    target_pulse: bool
+    target_pulse_scale: float
+    target_overlay: bool
+    target_overlay_color: str
+    target_overlay_opacity: float
 
     # Grid-cell hover.
-    hover_outline: bool = False
-    hover_outline_width: float = 0.0
+    hover_outline: bool
+    hover_outline_width: float
+    hover_opacity: float
 
     # Cursor trail.
-    trail: bool = False
-    trail_segments: int = 0
-    trail_duration_s: float = 0.9
+    trail: bool
+    trail_segments: int
+    trail_duration_s: float
+    trail_min_width: float
+    trail_max_width: float
+    trail_opacity_min: float
+    trail_opacity_max: float
+    trail_glow_width_factor: float
+    trail_glow_opacity_min: float
+    trail_glow_opacity_max: float
 
     # Dwell bar and layout.
-    dwell_fill: str = "#ffffff"
-    dwell_line: str = "#111111"
-    grid_margin: float = 0.05
+    dwell_fill: str
+    dwell_line: str
+    grid_margin: float
+
+    def __post_init__(self) -> None:
+        for name in ("name", "label", "background", "grid", "cursor", "accent"):
+            if not getattr(self, name):
+                raise ValueError(f"theme field {name!r} must not be empty")
+        if set(self.target_colors) != {1, 2, 3}:
+            raise ValueError("target_colors must define buttons 1, 2 and 3")
+        if self.cursor_radius_basis not in {"window", "cell"}:
+            raise ValueError("cursor_radius_basis must be 'window' or 'cell'")
+        if not 0.0 < self.grid_margin < 0.5:
+            raise ValueError("grid_margin must be between 0 and 0.5")
+        if self.cursor_radius_min <= 0 or self.cursor_radius_max < self.cursor_radius_min:
+            raise ValueError("cursor radius bounds are invalid")
+        if self.cursor_radius_factor <= 0:
+            raise ValueError("cursor_radius_factor must be positive")
+        if self.cursor_line_width < 1:
+            raise ValueError("cursor_line_width must be at least 1")
+        if self.cursor_glow_radius_factor < 1:
+            raise ValueError("cursor_glow_radius_factor must be at least 1")
+        if self.target_glow_radius_factor < 1:
+            raise ValueError("target_glow_radius_factor must be at least 1")
+        if self.target_line_width < 0 or self.hover_outline_width < 0:
+            raise ValueError("line widths must not be negative")
+        if self.target_pulse_scale < 1:
+            raise ValueError("target_pulse_scale must be at least 1")
+        if not 0.0 <= self.hover_opacity <= 1.0:
+            raise ValueError("hover_opacity must be in [0, 1]")
+        for name in (
+            "cursor_glow_opacity",
+            "target_glow_opacity",
+            "target_overlay_opacity",
+            "trail_opacity_min",
+            "trail_opacity_max",
+            "trail_glow_opacity_min",
+            "trail_glow_opacity_max",
+        ):
+            value = getattr(self, name)
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(f"{name} must be in [0, 1]")
+        if self.trail:
+            if self.trail_segments < 2:
+                raise ValueError("trail_segments must be at least 2 when trail is on")
+            if self.trail_duration_s <= 0:
+                raise ValueError("trail_duration_s must be positive")
+            if self.trail_max_width < self.trail_min_width:
+                raise ValueError("trail_max_width must be >= trail_min_width")
+            if self.trail_glow_width_factor < 1:
+                raise ValueError("trail_glow_width_factor must be at least 1")
+            if self.trail_opacity_max < self.trail_opacity_min:
+                raise ValueError("trail_opacity_max must be >= trail_opacity_min")
+            if self.trail_glow_opacity_max < self.trail_glow_opacity_min:
+                raise ValueError(
+                    "trail_glow_opacity_max must be >= trail_glow_opacity_min"
+                )
 
 
 DARK = Theme(
@@ -82,6 +151,7 @@ DARK = Theme(
     cursor="#F4474D",
     cursor_edge=None,
     cursor_flash="#FFFFFF",
+    cursor_line_width=1.0,
     cursor_glow=True,
     cursor_glow_color="#F4474D",
     cursor_glow_radius_factor=3.2,
@@ -92,17 +162,28 @@ DARK = Theme(
     cursor_radius_max=18.0,
     target_colors={1: "#469EFF", 2: "#FFB340", 3: "#C77DFF"},
     target_outline=True,
+    target_line_width=2.0,
     target_glow=True,
     target_glow_radius_factor=2.8,
     target_glow_opacity=0.18,
     target_pulse=True,
     target_pulse_scale=1.15,
     target_overlay=False,
+    target_overlay_color="#000000",
+    target_overlay_opacity=0.18,
     hover_outline=True,
     hover_outline_width=3.0,
+    hover_opacity=1.0,
     trail=True,
     trail_segments=24,
     trail_duration_s=0.9,
+    trail_min_width=2.0,
+    trail_max_width=9.0,
+    trail_opacity_min=0.10,
+    trail_opacity_max=0.42,
+    trail_glow_width_factor=2.8,
+    trail_glow_opacity_min=0.03,
+    trail_glow_opacity_max=0.10,
     dwell_fill="#469EFF",
     dwell_line="#050D19",
     grid_margin=0.05,
@@ -123,6 +204,7 @@ CLASSIC = Theme(
     cursor="#111111",
     cursor_edge="#FFFFFF",
     cursor_flash="#FF3B30",
+    cursor_line_width=2.0,
     cursor_glow=False,
     cursor_glow_color="#111111",
     cursor_glow_radius_factor=1.0,
@@ -133,17 +215,28 @@ CLASSIC = Theme(
     cursor_radius_max=12.0,
     target_colors={1: "#0A84FF", 2: "#FF9500", 3: "#AF52DE"},
     target_outline=False,
+    target_line_width=2.0,
     target_glow=False,
     target_glow_radius_factor=1.0,
     target_glow_opacity=0.0,
     target_pulse=False,
     target_pulse_scale=1.0,
     target_overlay=True,
+    target_overlay_color="#000000",
+    target_overlay_opacity=0.18,
     hover_outline=False,
     hover_outline_width=0.0,
+    hover_opacity=1.0,
     trail=False,
     trail_segments=0,
     trail_duration_s=0.9,
+    trail_min_width=0.0,
+    trail_max_width=0.0,
+    trail_opacity_min=0.0,
+    trail_opacity_max=0.0,
+    trail_glow_width_factor=1.0,
+    trail_glow_opacity_min=0.0,
+    trail_glow_opacity_max=0.0,
     dwell_fill="#FFFFFF",
     dwell_line="#111111",
     grid_margin=0.03,

@@ -99,7 +99,7 @@ class Stimuli:
             fillColor=theme.hover,
             lineColor=theme.accent if theme.hover_outline else None,
             lineWidth=theme.hover_outline_width,
-            opacity=1.0,
+            opacity=theme.hover_opacity,
             units="pix",
         )
         self.target_glow = None
@@ -126,7 +126,7 @@ class Stimuli:
             height=layout.cell,
             fillColor=theme.target_colors[1],
             lineColor=theme.target_colors[1] if theme.target_outline else None,
-            lineWidth=2 if theme.target_outline else 0,
+            lineWidth=theme.target_line_width if theme.target_outline else 0,
             units="pix",
         )
         self.target_hover = None
@@ -135,8 +135,8 @@ class Stimuli:
                 self.win,
                 width=layout.cell,
                 height=layout.cell,
-                fillColor="#000000",
-                opacity=0.18,
+                fillColor=theme.target_overlay_color,
+                opacity=theme.target_overlay_opacity,
                 lineColor=None,
                 units="pix",
             )
@@ -180,7 +180,7 @@ class Stimuli:
             radius=radius,
             fillColor=theme.cursor,
             lineColor=theme.cursor_edge,
-            lineWidth=2 if theme.cursor_edge else 1,
+            lineWidth=theme.cursor_line_width,
             units="pix",
         )
         trail_segments = theme.trail_segments if theme.trail else 0
