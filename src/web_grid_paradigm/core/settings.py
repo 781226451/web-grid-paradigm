@@ -18,6 +18,9 @@ SCOPE_BOOTSTRAP = "bootstrap"
 SCOPE_EXPERIMENT = "experiment"
 SCOPE_DEVICE = "device"
 
+# Visual themes implemented by the presentation layer.
+THEMES = ("dark", "classic")
+
 # Process/network settings: changing these requires restarting the panel.
 BOOTSTRAP_FIELDS = frozenset(
     {
@@ -36,6 +39,7 @@ EXPERIMENT_FIELDS = frozenset(
         "output_dir",
         "language",
         "font",
+        "theme",
         "rows",
         "cols",
         "blocks",

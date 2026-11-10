@@ -23,6 +23,7 @@ from ..core.settings import (
     SOURCE_CLI,
     SOURCE_CONFIG,
     SOURCE_DEVICE,
+    THEMES,
 )
 
 DESCRIPTION = """\
@@ -92,6 +93,11 @@ def build_parser() -> argparse.ArgumentParser:
     session.add_argument("--session", help="session label (default: local timestamp)")
     session.add_argument("--language", choices=("zh", "en"), help="UI language")
     session.add_argument("--font", help="font family for all text")
+    session.add_argument(
+        "--theme",
+        choices=THEMES,
+        help="visual theme (dark = glowing dark canvas, classic = white canvas)",
+    )
     session.add_argument(
         "--output-dir", type=Path, metavar="DIR", help="data root (default: data)"
     )
@@ -512,6 +518,7 @@ def load_config_resolved(args: argparse.Namespace) -> ResolvedConfig:
         "session": "session",
         "language": "language",
         "font": "font",
+        "theme": "theme",
         "output_dir": "output_dir",
         "seed": "seed",
         "rows": "rows",

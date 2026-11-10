@@ -152,6 +152,20 @@ def test_saved_config_file_is_accepted_by_cli(tmp_path: Path) -> None:
     assert resolved.sources["rows"] == "config"
 
 
+def test_theme_can_be_selected_from_cli_and_config(tmp_path: Path) -> None:
+    parser = build_parser()
+
+    resolved = load_config_resolved(parser.parse_args(["--theme", "classic"]))
+    assert resolved.config.theme == "classic"
+    assert resolved.sources["theme"] == "cli"
+
+    path = tmp_path / "theme.toml"
+    path.write_text('theme = "classic"\n', encoding="utf-8")
+    resolved = load_config_resolved(parser.parse_args(["--config", str(path)]))
+    assert resolved.config.theme == "classic"
+    assert resolved.sources["theme"] == "config"
+
+
 def test_saved_device_file_is_accepted_by_cli(tmp_path: Path) -> None:
     config = ExperimentConfig(joystick_port="COM4", reward_port="COM9", rows=8)
     path = config.save_toml(tmp_path / "device.toml", role="device")

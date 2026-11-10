@@ -13,6 +13,7 @@ session = ""                 # empty -> local timestamp (YYYYMMDD-HHMMSS)
 output_dir = "data"
 language = "zh"              # zh | en
 font = "Microsoft YaHei"
+theme = "dark"               # dark = 暗色发光 | classic = 经典白底
 
 # --- grid and task ----------------------------------------------------
 rows = 12

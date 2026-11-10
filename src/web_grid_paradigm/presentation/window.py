@@ -11,7 +11,7 @@ from psychopy import logging as plog
 from psychopy import visual
 
 from ..core.config import ExperimentConfig
-from .palette import BG
+from .themes import get_theme
 
 
 def create_window(config: ExperimentConfig) -> visual.Window:
@@ -32,7 +32,7 @@ def create_window(config: ExperimentConfig) -> visual.Window:
         fullscr=config.fullscreen,
         screen=config.screen,
         units="pix",
-        color=BG,
+        color=get_theme(config.theme).background,
         allowGUI=False,
         winType="pyglet",
         checkTiming=False,

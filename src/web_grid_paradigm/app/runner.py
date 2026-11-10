@@ -27,6 +27,7 @@ from ..core.scoring import SessionStats, merge_stats
 from ..core.session import FrameOutcome, Phase, SessionEngine, Target
 from ..presentation.renderer import Renderer
 from ..presentation.stimuli import Stimuli
+from ..presentation.themes import get_theme
 from ..presentation.window import create_window
 from ..recording.markers import MarkerSink, build_marker_sink
 from ..recording.reporter import Reporter
@@ -54,11 +55,18 @@ class WebGridApp:
         self.rec = recorder
         self.monitor = monitor or NullMonitor()
         self.strings = Strings(config.language)
+        self.theme = get_theme(config.theme)
 
         self.win = create_window(config)
         width, height = (int(v) for v in self.win.size)
         try:
-            self.layout = Layout.create(width, height, config.rows, config.cols)
+            self.layout = Layout.create(
+                width,
+                height,
+                config.rows,
+                config.cols,
+                margin_fraction=self.theme.grid_margin,
+            )
         except BaseException:
             self.win.close()
             raise
@@ -71,10 +79,10 @@ class WebGridApp:
         )
 
         self.stimuli = Stimuli(
-            self.win, self.layout, self.ui, config.font, self.strings
+            self.win, self.layout, self.ui, config.font, self.strings, self.theme
         )
         self.stimuli.configure_intro_texts(config)
-        self.renderer = Renderer(self.win, self.layout, self.stimuli)
+        self.renderer = Renderer(self.win, self.layout, self.stimuli, self.theme)
         try:
             self.input = InputReader(self.win, self.layout, config)
         except BaseException:

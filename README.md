@@ -71,7 +71,11 @@ uv run webgrid --input lsl --lsl-velocity-stream WebGridVelocity
 - 光标为红色发光圆点（带光晕和渐隐拖尾）；悬停单元格显示目标色描边，误点单元格短暂闪红；
 - 倒计时只显示中央注视点 `+`；结束后为空白屏，保存路径只打印在实验者控制台。
 
-![12×12 单键界面](docs/preview.png)
+主题默认 `dark`（暗色发光）；启动时加 `--theme classic`，或在 WebUI 的“显示”组选择 `classic`，即可切回经典白底黑线、无光晕/拖尾的样式。`theme` 也可以写在 `--config` TOML 里。
+
+![暗色发光主题](docs/preview.png)
+
+![经典白底主题](docs/preview_classic.png)
 
 ![三键模式（无文字图例）](docs/preview_multi.png)
 
@@ -521,6 +525,7 @@ data/
 | `--show-cursor` / `--hide-cursor` | 关 / 开 | 显示或隐藏操作系统光标 |
 | `--language` | `zh` | `zh` / `en` |
 | `--font` | `Microsoft YaHei` | 文字字体 |
+| `--theme` | `dark` | 视觉主题：`dark` / `classic` |
 | `--lsl` / `--no-lsl` | 关 | 发布/不发布 LSL 事件标记流 |
 | `--lsl-stream` | `WebGridMarkers` | 事件标记流名称 |
 | `--lsl-state` / `--no-lsl-state` | 关 | 控制台启动时是否自动推送 LSL 状态流 |

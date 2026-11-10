@@ -3,6 +3,7 @@
 The renderer turns engine state into pixels.  It owns the short-lived visual
 feedback (miss flash, cursor flash, motion trail) so that the session logic in
 :mod:`web_grid_paradigm.app.runner` never has to think about drawing state.
+All theme-dependent choices come from :class:`~.themes.Theme`.
 """
 
 from __future__ import annotations
@@ -14,37 +15,36 @@ from psychopy.colors import Color
 
 from ..core.geometry import Cell, Layout
 from ..core.session import Phase, SessionEngine
-from .palette import (
-    ACCENT,
-    CURSOR,
-    CURSOR_FLASH,
-    HOVER,
-    TARGET_COLORS,
-    TARGET_GLOW_RADIUS_FACTOR,
-    TARGET_PULSATE_SCALE,
-    TRAIL_DURATION_S,
-    TRAIL_SEGMENTS,
-)
 from .stimuli import Stimuli
+from .themes import Theme
 
 MISS_FLASH_S = 0.2
 CURSOR_FLASH_S = 0.25
 
-_TARGET_RGB = {
-    button: list(Color(color, space="rgb").rgb)
-    for button, color in TARGET_COLORS.items()
-}
-_CURSOR_RGB = list(Color(CURSOR, space="rgb").rgb)
-_CURSOR_FLASH_RGB = list(Color(CURSOR_FLASH, space="rgb").rgb)
+
+def _rgb(color: str) -> list[float]:
+    return list(Color(color, space="rgb").rgb)
 
 
 class Renderer:
     """Draws one frame for the current phase."""
 
-    def __init__(self, win: visual.Window, layout: Layout, stimuli: Stimuli) -> None:
+    def __init__(
+        self,
+        win: visual.Window,
+        layout: Layout,
+        stimuli: Stimuli,
+        theme: Theme,
+    ) -> None:
         self.win = win
         self.layout = layout
         self.stim = stimuli
+        self.theme = theme
+        self._target_rgb = {
+            button: _rgb(color) for button, color in theme.target_colors.items()
+        }
+        self._cursor_rgb = _rgb(theme.cursor)
+        self._cursor_flash_rgb = _rgb(theme.cursor_flash)
         self._miss_cell: Cell | None = None
         self._miss_until = 0.0
         self._cursor_flash_until = 0.0
@@ -54,7 +54,7 @@ class Renderer:
     # feedback state (owned here, triggered by the runner)
     # ------------------------------------------------------------------
     def flash_miss(self, cell: Cell | None, now: float) -> None:
-        """Short red flash on a wrong click and on the cursor."""
+        """Short error-colour flash on a wrong click and on the cursor."""
         self._cursor_flash_until = now + CURSOR_FLASH_S
         self._trail.clear()
         if cell is not None:
@@ -75,26 +75,29 @@ class Renderer:
     # trail
     # ------------------------------------------------------------------
     def _append_trail(self, position: tuple[float, float], now: float) -> None:
-        while self._trail and now - self._trail[0][2] > TRAIL_DURATION_S:
+        duration = self.theme.trail_duration_s
+        while self._trail and now - self._trail[0][2] > duration:
             self._trail.pop(0)
         if not self._trail:
             self._trail.append((*position, now))
             return
         last_x, last_y, _ = self._trail[-1]
         distance = math.hypot(position[0] - last_x, position[1] - last_y)
-        break_distance = self.layout.cell * 2.5
-        if distance > break_distance:
+        if distance > self.layout.cell * 2.5:
             self._trail.clear()
             self._trail.append((*position, now))
             return
         if distance < 1.0:
             return
         self._trail.append((*position, now))
-        if len(self._trail) > TRAIL_SEGMENTS + 1:
+        if len(self._trail) > self.theme.trail_segments + 1:
             self._trail.pop(0)
 
     def _draw_trail(self, color: str, now: float) -> None:
-        while self._trail and now - self._trail[0][2] > TRAIL_DURATION_S:
+        if not self.theme.trail:
+            return
+        duration = self.theme.trail_duration_s
+        while self._trail and now - self._trail[0][2] > duration:
             self._trail.pop(0)
         points = self._trail
         if len(points) < 2:
@@ -103,7 +106,7 @@ class Renderer:
         for i in range(segments):
             fraction = (i + 1) / segments
             age = max(0.0, now - points[i + 1][2])
-            freshness = max(0.0, 1.0 - age / TRAIL_DURATION_S)
+            freshness = max(0.0, 1.0 - age / duration)
             width = 2.0 + 7.0 * fraction
             for lines, line_width, opacity in (
                 (
@@ -152,41 +155,57 @@ class Renderer:
     ) -> None:
         stim = self.stim
         layout = self.layout
+        theme = self.theme
         stim.grid_bg.draw()
 
         # During the inter-trial interval only the empty grid and cursor show.
         target = engine.target if engine.phase is not Phase.ITI else None
         cursor_cell = layout.cell_at_px(*cursor_px)
-        target_color = ACCENT
-        pulse = 1.0
 
         if target is not None:
             target_x, target_y = target.centre_px
-            target_color = TARGET_COLORS.get(target.required_button, ACCENT)
-            if cursor_cell == target.cell and engine.phase is Phase.RUNNING:
-                pulse = TARGET_PULSATE_SCALE
+            target_color = theme.target_colors.get(target.required_button, theme.accent)
+            pulse = 1.0
+            if (
+                theme.target_pulse
+                and cursor_cell == target.cell
+                and engine.phase is Phase.RUNNING
+            ):
+                pulse = theme.target_pulse_scale
             size = layout.cell * pulse
 
             if cursor_cell is not None and cursor_cell != target.cell:
                 stim.hover_stim.pos = layout.centre_px(cursor_cell)
                 stim.hover_stim.size = (layout.cell, layout.cell)
-                stim.hover_stim.fillColor = HOVER
-                stim.hover_stim.lineColor = target_color
+                stim.hover_stim.fillColor = theme.hover
+                stim.hover_stim.lineColor = (
+                    target_color if theme.hover_outline else None
+                )
                 stim.hover_stim.draw()
 
-            stim.target_glow.pos = (target_x, target_y)
-            stim.target_glow.size = (
-                size * TARGET_GLOW_RADIUS_FACTOR,
-                size * TARGET_GLOW_RADIUS_FACTOR,
-            )
-            stim.target_glow.color = _TARGET_RGB[target.required_button]
-            stim.target_glow.draw()
+            if stim.target_glow is not None:
+                stim.target_glow.pos = (target_x, target_y)
+                stim.target_glow.size = (
+                    size * theme.target_glow_radius_factor,
+                    size * theme.target_glow_radius_factor,
+                )
+                stim.target_glow.color = self._target_rgb[target.required_button]
+                stim.target_glow.draw()
 
             stim.target_stim.pos = (target_x, target_y)
             stim.target_stim.size = (size, size)
             stim.target_stim.fillColor = target_color
-            stim.target_stim.lineColor = target_color
+            stim.target_stim.lineColor = target_color if theme.target_outline else None
             stim.target_stim.draw()
+
+            if (
+                stim.target_hover is not None
+                and cursor_cell == target.cell
+                and engine.phase is Phase.RUNNING
+            ):
+                stim.target_hover.pos = (target_x, target_y)
+                stim.target_hover.size = (size, size)
+                stim.target_hover.draw()
 
             if self._miss_cell is not None and now < self._miss_until:
                 stim.miss_stim.pos = layout.centre_px(self._miss_cell)
@@ -194,18 +213,23 @@ class Renderer:
 
             progress = engine.dwell_progress
             if progress > 0.01:
-                stim.dwell_bar.fillColor = target_color
+                stim.dwell_bar.fillColor = theme.dwell_fill
                 self._draw_dwell_bar(target_x, target_y, progress)
 
-        self._append_trail(cursor_px, now)
+        if theme.trail:
+            self._append_trail(cursor_px, now)
+
         flashing = now < self._cursor_flash_until
-        cursor_color = CURSOR_FLASH if flashing else CURSOR
-        cursor_rgb = _CURSOR_FLASH_RGB if flashing else _CURSOR_RGB
+        cursor_color = theme.cursor_flash if flashing else theme.cursor
+        cursor_rgb = (
+            self._cursor_flash_rgb if flashing else self._cursor_rgb
+        )
         self._draw_trail(cursor_color, now)
 
-        stim.cursor_glow.pos = cursor_px
-        stim.cursor_glow.color = cursor_rgb
-        stim.cursor_glow.draw()
+        if stim.cursor_glow is not None:
+            stim.cursor_glow.pos = cursor_px
+            stim.cursor_glow.color = cursor_rgb
+            stim.cursor_glow.draw()
         stim.cursor_stim.pos = cursor_px
         stim.cursor_stim.fillColor = cursor_color
         stim.cursor_stim.draw()

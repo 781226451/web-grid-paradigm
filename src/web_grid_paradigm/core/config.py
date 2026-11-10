@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .settings import CONFIG_FILE_FIELDS, DEVICE_FIELDS
+from .settings import CONFIG_FILE_FIELDS, DEVICE_FIELDS, THEMES
 
 _SAFE_LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _INPUT_MODES = ("mouse", "demo", "joystick", "lsl")
@@ -45,6 +45,7 @@ class ExperimentConfig:
     output_dir: Path = field(default_factory=lambda: Path("data"))
     language: str = "zh"
     font: str = "Microsoft YaHei"
+    theme: str = "dark"  # dark | classic
 
     # --- grid / task ------------------------------------------------------
     rows: int = 12
@@ -153,6 +154,8 @@ class ExperimentConfig:
             raise ValueError(f"language must be one of {_LANGUAGES}")
         if not self.font.strip():
             raise ValueError("font must not be empty")
+        if self.theme not in THEMES:
+            raise ValueError(f"theme must be one of {THEMES}")
         if not 2 <= self.rows <= 40:
             raise ValueError("rows must be between 2 and 40")
         if not 2 <= self.cols <= 40:

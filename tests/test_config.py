@@ -39,6 +39,13 @@ def test_every_config_field_has_exactly_one_scope() -> None:
     assert FIELD_SCOPES["joystick_port"] == SCOPE_DEVICE
 
 
+def test_theme_defaults_and_validation() -> None:
+    assert ExperimentConfig().theme == "dark"
+    ExperimentConfig(theme="classic").validate()
+    with pytest.raises(ValueError, match="theme"):
+        ExperimentConfig(theme="neon").validate()
+
+
 def test_default_toml_covers_experiment_and_startup() -> None:
     project_root = Path(__file__).resolve().parents[1]
     data = tomllib.loads(

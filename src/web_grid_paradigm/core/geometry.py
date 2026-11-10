@@ -48,12 +48,22 @@ class Layout:
 
     # ------------------------------------------------------------------
     @classmethod
-    def create(cls, window_w: int, window_h: int, rows: int, cols: int) -> Layout:
+    def create(
+        cls,
+        window_w: int,
+        window_h: int,
+        rows: int,
+        cols: int,
+        *,
+        margin_fraction: float = _MARGIN_FRACTION,
+    ) -> Layout:
         if window_w <= 0 or window_h <= 0:
             raise ValueError("window size must be positive")
         if rows < 1 or cols < 1:
             raise ValueError("rows and cols must be >= 1")
-        margin = max(16.0, min(window_w, window_h) * _MARGIN_FRACTION)
+        if not 0.0 < margin_fraction < 0.5:
+            raise ValueError("margin_fraction must be between 0 and 0.5")
+        margin = max(16.0, min(window_w, window_h) * margin_fraction)
         avail_w = window_w - 2 * margin
         avail_h = window_h - 2 * margin
         line = max(1, round(min(window_w, window_h) * 0.0015))

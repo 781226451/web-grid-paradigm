@@ -10,8 +10,8 @@ test.describe("control panel shell", () => {
     await expect(page.getByRole("heading", { name: "BCI Web-Grid 控制台" })).toBeVisible();
     await expect(page.locator(".bar .n-tag", { hasText: "已连接" })).toBeVisible();
 
-    // 30 inline fields; device-specific fields live in the "输入设备" dialog.
-    await expect(page.locator("form [data-field]")).toHaveCount(30);
+    // 31 inline fields; device-specific fields live in the "输入设备" dialog.
+    await expect(page.locator("form [data-field]")).toHaveCount(31);
     for (const group of ["会话", "实验设计", "任务", "奖励设备", "奖励策略", "输入", "显示", "标记"]) {
       await expect(page.locator(".group-title", { hasText: group })).toBeVisible();
     }

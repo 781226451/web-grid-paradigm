@@ -13,25 +13,7 @@ from psychopy.colors import Color
 from ..core.config import ExperimentConfig
 from ..core.geometry import Layout
 from ..core.i18n import Strings
-from .palette import (
-    ACCENT,
-    BG,
-    CURSOR,
-    CURSOR_GLOW,
-    CURSOR_GLOW_OPACITY,
-    CURSOR_GLOW_RADIUS_FACTOR,
-    ERROR,
-    GRID,
-    HOVER,
-    MUTED,
-    PANEL,
-    PANEL_EDGE,
-    TARGET_COLORS,
-    TARGET_GLOW_OPACITY,
-    TARGET_GLOW_RADIUS_FACTOR,
-    TEXT,
-    TRAIL_SEGMENTS,
-)
+from .themes import Theme
 
 
 def _rgb(color: str) -> list[float]:
@@ -49,12 +31,14 @@ class Stimuli:
         ui: float,
         font: str,
         strings: Strings,
+        theme: Theme,
     ) -> None:
         self.win = win
         self.layout = layout
         self.ui = ui
         self.font = font
         self.strings = strings
+        self.theme = theme
 
         self._build_board()
         self._build_task_stimuli()
@@ -64,12 +48,13 @@ class Stimuli:
     # ------------------------------------------------------------------
     def _build_board(self) -> None:
         layout = self.layout
+        theme = self.theme
         board = visual.Rect(
             self.win,
             width=layout.board_w,
             height=layout.board_h,
             pos=layout.board_centre,
-            fillColor=BG,
+            fillColor=theme.background,
             lineColor=None,
             units="pix",
         )
@@ -83,7 +68,7 @@ class Stimuli:
                     width=layout.line,
                     height=layout.board_h,
                     pos=(x, board_cy),
-                    fillColor=GRID,
+                    fillColor=theme.grid,
                     lineColor=None,
                     units="pix",
                 )
@@ -96,7 +81,7 @@ class Stimuli:
                     width=layout.board_w,
                     height=layout.line,
                     pos=(board_cx, y),
-                    fillColor=GRID,
+                    fillColor=theme.grid,
                     lineColor=None,
                     units="pix",
                 )
@@ -107,106 +92,131 @@ class Stimuli:
 
     def _build_task_stimuli(self) -> None:
         layout = self.layout
+        theme = self.theme
         self.hover_stim = visual.Rect(
             self.win,
             width=layout.cell,
             height=layout.cell,
-            fillColor=HOVER,
-            lineColor=ACCENT,
-            lineWidth=3,
+            fillColor=theme.hover,
+            lineColor=theme.accent if theme.hover_outline else None,
+            lineWidth=theme.hover_outline_width,
             opacity=1.0,
             units="pix",
         )
-        self.target_glow = visual.GratingStim(
-            self.win,
-            tex=None,
-            mask="gauss",
-            size=(
-                layout.cell * TARGET_GLOW_RADIUS_FACTOR,
-                layout.cell * TARGET_GLOW_RADIUS_FACTOR,
-            ),
-            color=_rgb(TARGET_COLORS[1]),
-            colorSpace="rgb",
-            opacity=TARGET_GLOW_OPACITY,
-            units="pix",
-            texRes=64,
-            interpolate=True,
-            autoLog=False,
-        )
+        self.target_glow = None
+        if theme.target_glow:
+            self.target_glow = visual.GratingStim(
+                self.win,
+                tex=None,
+                mask="gauss",
+                size=(
+                    layout.cell * theme.target_glow_radius_factor,
+                    layout.cell * theme.target_glow_radius_factor,
+                ),
+                color=_rgb(theme.target_colors[1]),
+                colorSpace="rgb",
+                opacity=theme.target_glow_opacity,
+                units="pix",
+                texRes=64,
+                interpolate=True,
+                autoLog=False,
+            )
         self.target_stim = visual.Rect(
             self.win,
             width=layout.cell,
             height=layout.cell,
-            fillColor=TARGET_COLORS[1],
-            lineColor=TARGET_COLORS[1],
-            lineWidth=2,
+            fillColor=theme.target_colors[1],
+            lineColor=theme.target_colors[1] if theme.target_outline else None,
+            lineWidth=2 if theme.target_outline else 0,
             units="pix",
         )
+        self.target_hover = None
+        if theme.target_overlay:
+            self.target_hover = visual.Rect(
+                self.win,
+                width=layout.cell,
+                height=layout.cell,
+                fillColor="#000000",
+                opacity=0.18,
+                lineColor=None,
+                units="pix",
+            )
         self.miss_stim = visual.Rect(
             self.win,
             width=layout.cell,
             height=layout.cell,
-            fillColor=ERROR,
+            fillColor=theme.error,
             lineColor=None,
             opacity=0.85,
             units="pix",
         )
-        radius = max(6.0, min(18.0, min(layout.window_w, layout.window_h) * 0.015))
-        self.cursor_glow = visual.GratingStim(
-            self.win,
-            tex=None,
-            mask="gauss",
-            size=(
-                radius * 2 * CURSOR_GLOW_RADIUS_FACTOR,
-                radius * 2 * CURSOR_GLOW_RADIUS_FACTOR,
-            ),
-            color=_rgb(CURSOR_GLOW),
-            colorSpace="rgb",
-            opacity=CURSOR_GLOW_OPACITY,
-            units="pix",
-            texRes=64,
-            interpolate=True,
-            autoLog=False,
+        if theme.cursor_radius_basis == "cell":
+            raw_radius = layout.cell * theme.cursor_radius_factor
+        else:
+            raw_radius = min(layout.window_w, layout.window_h) * theme.cursor_radius_factor
+        radius = max(
+            theme.cursor_radius_min,
+            min(theme.cursor_radius_max, raw_radius),
         )
+        self.cursor_glow = None
+        if theme.cursor_glow:
+            self.cursor_glow = visual.GratingStim(
+                self.win,
+                tex=None,
+                mask="gauss",
+                size=(
+                    radius * 2 * theme.cursor_glow_radius_factor,
+                    radius * 2 * theme.cursor_glow_radius_factor,
+                ),
+                color=_rgb(theme.cursor_glow_color),
+                colorSpace="rgb",
+                opacity=theme.cursor_glow_opacity,
+                units="pix",
+                texRes=64,
+                interpolate=True,
+                autoLog=False,
+            )
         self.cursor_stim = visual.Circle(
             self.win,
             radius=radius,
-            fillColor=CURSOR,
-            lineColor=None,
+            fillColor=theme.cursor,
+            lineColor=theme.cursor_edge,
+            lineWidth=2 if theme.cursor_edge else 1,
             units="pix",
         )
+        trail_segments = theme.trail_segments if theme.trail else 0
         self.trail_lines = [
             visual.Line(
                 self.win,
                 start=(0, 0),
                 end=(0, 0),
-                lineColor=CURSOR,
+                lineColor=theme.cursor,
                 lineWidth=2,
                 opacity=0,
                 units="pix",
                 autoLog=False,
             )
-            for _ in range(TRAIL_SEGMENTS)
+            for _ in range(trail_segments)
         ]
         self.trail_glow_lines = [
             visual.Line(
                 self.win,
                 start=(0, 0),
                 end=(0, 0),
-                lineColor=CURSOR,
+                lineColor=theme.cursor,
                 lineWidth=2,
                 opacity=0,
                 units="pix",
                 autoLog=False,
             )
-            for _ in range(TRAIL_SEGMENTS)
+            for _ in range(trail_segments)
         ]
         self.dwell_bar = visual.Rect(
             self.win,
             width=2,
             height=max(3.0, layout.cell * 0.05),
-            fillColor=ACCENT,
-            lineColor=BG,
+            fillColor=theme.dwell_fill,
+            lineColor=theme.dwell_line,
             lineWidth=1,
             units="pix",
         )
@@ -214,12 +224,13 @@ class Stimuli:
     def _build_fixation(self) -> None:
         # The animal-facing screen has no text: the only chrome is the
         # fixation cross shown before each block.
+        theme = self.theme
         fix = 18 * self.ui
         self.fixation_bg = visual.Circle(
             self.win,
             radius=26 * self.ui,
-            fillColor=PANEL,
-            lineColor=PANEL_EDGE,
+            fillColor=theme.panel,
+            lineColor=theme.panel_edge,
             lineWidth=1,
             units="pix",
         )
@@ -227,7 +238,7 @@ class Stimuli:
             self.win,
             start=(-fix, 0),
             end=(fix, 0),
-            lineColor=TEXT,
+            lineColor=theme.text,
             lineWidth=2,
             units="pix",
         )
@@ -235,7 +246,7 @@ class Stimuli:
             self.win,
             start=(0, -fix),
             end=(0, fix),
-            lineColor=TEXT,
+            lineColor=theme.text,
             lineWidth=2,
             units="pix",
         )
@@ -243,6 +254,7 @@ class Stimuli:
     def _build_intro(self) -> None:
         # Optional human instruction screen; skipped by default.
         layout = self.layout
+        theme = self.theme
         w, h, ui = layout.window_w, layout.window_h, self.ui
         panel_w = min(w * 0.72, 900 * ui)
         self.panel = visual.Rect(
@@ -250,23 +262,23 @@ class Stimuli:
             width=panel_w,
             height=h * 0.56,
             pos=(0, 0),
-            fillColor=PANEL,
-            lineColor=PANEL_EDGE,
+            fillColor=theme.panel,
+            lineColor=theme.panel_edge,
             lineWidth=2,
             units="pix",
         )
         self.intro_title = self.text(
-            self.strings["title"], 46 * ui, TEXT, (0, h * 0.20), bold=True
+            self.strings["title"], 46 * ui, self.theme.text, (0, h * 0.20), bold=True
         )
         self.intro_subtitle = self.text(
-            self.strings["subtitle"], 20 * ui, MUTED, (0, h * 0.145)
+            self.strings["subtitle"], 20 * ui, self.theme.muted, (0, h * 0.145)
         )
         self.intro_body = self.text(
-            "", 21 * ui, TEXT, (0, h * 0.02), wrap=panel_w * 0.84
+            "", 21 * ui, self.theme.text, (0, h * 0.02), wrap=panel_w * 0.84
         )
-        self.intro_mode = self.text("", 17 * ui, ACCENT, (0, -h * 0.08))
+        self.intro_mode = self.text("", 17 * ui, self.theme.accent, (0, -h * 0.08))
         self.intro_start = self.text(
-            self.strings["start_hint"], 19 * ui, TEXT, (0, -h * 0.17)
+            self.strings["start_hint"], 19 * ui, self.theme.text, (0, -h * 0.17)
         )
 
     # ------------------------------------------------------------------
@@ -274,7 +286,7 @@ class Stimuli:
         self,
         text: str,
         height: float,
-        color: str = TEXT,
+        color: str | None = None,
         pos: tuple[float, float] = (0, 0),
         anchor: str = "center",
         wrap: float | None = None,
@@ -286,7 +298,7 @@ class Stimuli:
             text=text,
             font=self.font,
             height=height,
-            color=color,
+            color=color or self.theme.text,
             pos=pos,
             units="pix",
             anchorHoriz=anchor,
@@ -310,7 +322,7 @@ class Stimuli:
             "mouse": strings["mode_mouse"],
             "demo": strings["mode_demo"],
             "joystick": strings.format(
-                "mode_joystick", port=config.joystick_port or "—"
+                "mode_joystick", port=config.joystick_port or "-"
             ),
             "lsl": strings.format(
                 "mode_lsl",
