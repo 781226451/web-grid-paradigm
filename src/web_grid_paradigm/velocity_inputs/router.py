@@ -108,6 +108,9 @@ class InputReader:
         """
         self.integrator.set_position_norm(0.0, 0.0)
         self._initial_synced = True
+        center_pointer = getattr(self.source, "center_pointer", None)
+        if callable(center_pointer):
+            center_pointer()
 
     def read(
         self,

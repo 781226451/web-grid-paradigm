@@ -105,6 +105,24 @@ class MouseVelocitySource(InitialPositionProvider):
         self._last_t = None
         self.reset_buttons()
 
+    def center_pointer(self) -> None:
+        """Warp the OS pointer to the window centre and restart the baseline.
+
+        The cursor itself starts at the centre too; without warping, a pointer
+        already resting at a screen edge would leave almost no room to move in
+        that direction (the cursor appears to hit a wall).
+        """
+        if self._device is not None:
+            setter = getattr(self._device, "setPos", None)
+            if callable(setter):
+                try:
+                    setter((0, 0))
+                except Exception as exc:  # noqa: BLE001 - backend edge case
+                    self._invalid += 1
+                    self._error = f"{type(exc).__name__}: {exc}"
+        self._last_norm = None
+        self._last_t = None
+
     def reset_buttons(self) -> None:
         """Forget button edges only (block start); keep tracking the pointer."""
         self._prev_pressed = [False, False, False]

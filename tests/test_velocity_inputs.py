@@ -33,6 +33,9 @@ class FakeMouse:
     def getPos(self) -> tuple[float, float]:
         return self.pos
 
+    def setPos(self, pos: tuple[float, float]) -> None:
+        self.pos = pos
+
     def getPressed(self) -> list[bool]:
         return list(self.buttons)
 
@@ -141,6 +144,17 @@ def test_mouse_reset_clears_the_position_baseline() -> None:
 
     mouse.reset()
     assert mouse.read(now=1.2).samples == ()  # baseline re-established
+
+
+def test_mouse_center_pointer_warps_and_restarts_baseline() -> None:
+    device = FakeMouse(pos=(200.0, -150.0))
+    mouse = MouseVelocitySource(context=make_context(), device=device)
+    mouse.open()
+    mouse.read(now=1.0)
+
+    mouse.center_pointer()
+    assert device.pos == (0.0, 0.0)
+    assert mouse.read(now=1.1).samples == ()
 
 
 def test_mouse_initial_position_capability() -> None:
