@@ -10,6 +10,7 @@ from dataclasses import dataclass
 # Layout constants for a centred, Neuralink-like line grid.
 _MIN_CELL = 8
 _MARGIN_FRACTION = 0.05
+_LINE_WIDTH_FACTOR = 0.0015
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +57,7 @@ class Layout:
         cols: int,
         *,
         margin_fraction: float = _MARGIN_FRACTION,
+        line_width_factor: float = _LINE_WIDTH_FACTOR,
     ) -> Layout:
         if window_w <= 0 or window_h <= 0:
             raise ValueError("window size must be positive")
@@ -63,10 +65,12 @@ class Layout:
             raise ValueError("rows and cols must be >= 1")
         if not 0.0 < margin_fraction < 0.5:
             raise ValueError("margin_fraction must be between 0 and 0.5")
+        if not 0.0 < line_width_factor < 0.05:
+            raise ValueError("line_width_factor must be between 0 and 0.05")
         margin = max(16.0, min(window_w, window_h) * margin_fraction)
         avail_w = window_w - 2 * margin
         avail_h = window_h - 2 * margin
-        line = max(1, round(min(window_w, window_h) * 0.0015))
+        line = max(1, round(min(window_w, window_h) * line_width_factor))
         pitch = int((min(avail_w, avail_h) - line) // max(rows, cols))
         if pitch - line < _MIN_CELL:
             raise ValueError(

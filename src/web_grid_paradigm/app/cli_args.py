@@ -92,7 +92,7 @@ def build_parser() -> argparse.ArgumentParser:
     session.add_argument("--subject", help="subject label (default: sub-01)")
     session.add_argument("--session", help="session label (default: local timestamp)")
     session.add_argument("--language", choices=("zh", "en"), help="UI language")
-    session.add_argument("--font", help="font family for all text")
+    session.add_argument("--font", help="override the selected theme's font")
     session.add_argument(
         "--theme",
         choices=THEMES,

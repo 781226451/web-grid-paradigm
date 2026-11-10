@@ -11,7 +11,7 @@
 - Python **3.11**（`pyproject.toml` 限定 `>=3.11,<3.12`，`.python-version` 为 `3.11`）
 - [uv](https://docs.astral.sh/uv/)
 - PsychoPy `2026.2.5`（由 `uv.lock` 锁定）
-- Windows 10/11（默认中文字体为 `Microsoft YaHei`）
+- Windows 10/11（暗色主题默认字体为 `Noto Sans SC`，经典主题为 `Microsoft YaHei`）
 
 ```powershell
 uv sync
@@ -524,7 +524,7 @@ data/
 | `--screen` | 0 | 显示器索引 |
 | `--show-cursor` / `--hide-cursor` | 关 / 开 | 显示或隐藏操作系统光标 |
 | `--language` | `zh` | `zh` / `en` |
-| `--font` | `Microsoft YaHei` | 文字字体 |
+| `--font` | 主题字体 | 覆盖当前主题的字体 |
 | `--theme` | `dark` | 视觉主题：`dark` / `classic` |
 | `--lsl` / `--no-lsl` | 关 | 发布/不发布 LSL 事件标记流 |
 | `--lsl-stream` | `WebGridMarkers` | 事件标记流名称 |
@@ -610,7 +610,7 @@ src/web_grid_paradigm/
 ## 注意事项
 
 - **Python 版本**：项目固定为 3.11（`uv.lock` 中的解释器也是 3.11）。如果系统只有 3.12，`uv sync` 会提示安装/选择 3.11；可先 `uv python install 3.11`。
-- **字体**：默认 `Microsoft YaHei`。macOS/Linux 请用 `--font` 指定系统里可显示中文的字体，或 `--language en`。
+- **字体**：默认使用主题字体（`dark` = `Noto Sans SC`，`classic` = `Microsoft YaHei`）；可用 `--font` 覆盖。macOS/Linux 请指定系统里可显示中文的字体，或 `--language en`。
 - **显示器校准提示**：首次启动可能看到 `Monitor specification not found`；这是 PsychoPy 未找到显示器校准文件，本范式使用像素坐标，不依赖该设置，可忽略。
 - **全屏与缩放**：默认全屏；本地调试用 `--windowed`。正式采集建议把 Windows 显示缩放设为 100%，避免像素坐标与刷新率偏差。
 - **时序**：目标出现时间取 `win.flip()` 的返回时间；请确认显示器刷新率和垂直同步。PsychoPy 的浮点渲染精度足够行为实验，但毫秒级 EEG 对齐仍建议硬件/光电校验。

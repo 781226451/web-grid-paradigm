@@ -24,6 +24,7 @@ _HEX_COLOR = re.compile(r"#[0-9A-Fa-f]{6}\Z")
 @dataclass(frozen=True, slots=True)
 class Theme:
     name: str
+    font: str
 
     # Canvas and chrome.
     background: str
@@ -85,9 +86,10 @@ class Theme:
     dwell_fill: str
     dwell_line: str
     grid_margin: float
+    grid_line_width_factor: float
 
     def __post_init__(self) -> None:
-        for name in ("name", "background", "grid", "cursor", "accent"):
+        for name in ("name", "font", "background", "grid", "cursor", "accent"):
             if not getattr(self, name):
                 raise ValueError(f"theme field {name!r} must not be empty")
         if set(self.target_colors) != {1, 2, 3}:
@@ -132,6 +134,8 @@ class Theme:
             raise ValueError("cursor_radius_basis must be 'window' or 'cell'")
         if not 0.0 < self.grid_margin < 0.5:
             raise ValueError("grid_margin must be between 0 and 0.5")
+        if not 0.0 < self.grid_line_width_factor < 0.05:
+            raise ValueError("grid_line_width_factor must be between 0 and 0.05")
         if self.cursor_radius_min <= 0 or self.cursor_radius_max < self.cursor_radius_min:
             raise ValueError("cursor radius bounds are invalid")
         if self.cursor_radius_factor <= 0:
@@ -188,6 +192,7 @@ class Theme:
 
 DARK = Theme(
     name="dark",
+    font="Noto Sans SC",
     background="#050D19",
     panel="#0A1422",
     panel_edge="#1E3A5F",
@@ -237,10 +242,12 @@ DARK = Theme(
     dwell_fill="#469EFF",
     dwell_line="#050D19",
     grid_margin=0.05,
+    grid_line_width_factor=0.0015,
 )
 
 CLASSIC = Theme(
     name="classic",
+    font="Microsoft YaHei",
     background="#FFFFFF",
     panel="#F5F5F7",
     panel_edge="#D2D2D7",
@@ -290,6 +297,7 @@ CLASSIC = Theme(
     dwell_fill="#FFFFFF",
     dwell_line="#111111",
     grid_margin=0.03,
+    grid_line_width_factor=0.0015,
 )
 
 _THEMES = {"dark": DARK, "classic": CLASSIC}

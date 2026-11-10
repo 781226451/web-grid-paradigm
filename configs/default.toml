@@ -12,7 +12,7 @@ subject = "sub-01"
 session = ""                 # empty -> local timestamp (YYYYMMDD-HHMMSS)
 output_dir = "data"
 language = "zh"              # zh | en
-font = "Microsoft YaHei"
+font = ""                    # empty -> theme font; override with --font
 theme = "dark"               # dark = 暗色发光 | classic = 经典白底
 
 # --- grid and task ----------------------------------------------------

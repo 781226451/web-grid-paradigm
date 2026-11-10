@@ -41,6 +41,7 @@ def test_every_config_field_has_exactly_one_scope() -> None:
 
 def test_theme_defaults_and_validation() -> None:
     assert ExperimentConfig().theme == "dark"
+    assert ExperimentConfig().font == ""
     ExperimentConfig(theme="classic").validate()
     with pytest.raises(ValueError, match="theme"):
         ExperimentConfig(theme="neon").validate()

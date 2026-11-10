@@ -44,7 +44,7 @@ class ExperimentConfig:
     session: str = ""  # empty -> local timestamp
     output_dir: Path = field(default_factory=lambda: Path("data"))
     language: str = "zh"
-    font: str = "Microsoft YaHei"
+    font: str = ""  # empty -> use the selected theme's font
     theme: str = "dark"  # dark | classic
 
     # --- grid / task ------------------------------------------------------
@@ -152,8 +152,8 @@ class ExperimentConfig:
             raise ValueError("session must match [A-Za-z0-9][A-Za-z0-9._-]*")
         if self.language not in _LANGUAGES:
             raise ValueError(f"language must be one of {_LANGUAGES}")
-        if not self.font.strip():
-            raise ValueError("font must not be empty")
+        if self.font and not self.font.strip():
+            raise ValueError("font must not be whitespace")
         if self.theme not in THEMES:
             raise ValueError(f"theme must be one of {THEMES}")
         if not 2 <= self.rows <= 40:

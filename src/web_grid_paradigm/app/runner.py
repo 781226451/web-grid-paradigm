@@ -66,6 +66,7 @@ class WebGridApp:
                 config.rows,
                 config.cols,
                 margin_fraction=self.theme.grid_margin,
+                line_width_factor=self.theme.grid_line_width_factor,
             )
         except BaseException:
             self.win.close()
@@ -79,7 +80,12 @@ class WebGridApp:
         )
 
         self.stimuli = Stimuli(
-            self.win, self.layout, self.ui, config.font, self.strings, self.theme
+            self.win,
+            self.layout,
+            self.ui,
+            config.font or self.theme.font,
+            self.strings,
+            self.theme,
         )
         self.stimuli.configure_intro_texts(config)
         self.renderer = Renderer(self.win, self.layout, self.stimuli, self.theme)

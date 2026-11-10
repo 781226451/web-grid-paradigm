@@ -40,3 +40,7 @@ def test_theme_validation_rejects_incomplete_or_invalid_values() -> None:
         replace(DARK, target_outline=True, target_line_width=0)
     with pytest.raises(ValueError, match="miss_opacity"):
         replace(DARK, miss_opacity=2.0)
+    with pytest.raises(ValueError, match="font"):
+        replace(DARK, font="")
+    with pytest.raises(ValueError, match="grid_line_width_factor"):
+        replace(DARK, grid_line_width_factor=0.0)

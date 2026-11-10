@@ -47,6 +47,13 @@ def test_normalised_coordinates_round_trip() -> None:
     assert layout.clamp_norm(-2.0, 3.0) == (-1.0, 1.0)
 
 
+def test_layout_line_width_factor() -> None:
+    layout = Layout.create(1000, 700, 4, 4, line_width_factor=0.01)
+    assert layout.line == 7
+    with pytest.raises(ValueError):
+        Layout.create(1000, 700, 4, 4, line_width_factor=0)
+
+
 def test_dense_grid_rejected_for_small_window() -> None:
     with pytest.raises(ValueError):
         Layout.create(640, 480, 60, 60)
