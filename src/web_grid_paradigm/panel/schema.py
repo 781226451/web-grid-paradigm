@@ -90,7 +90,7 @@ _FORM: list[dict[str, Any]] = [
     {"name": "lsl_velocity_stale_after", "label": "无样本超时 (s)", "type": "float",
      "min": 0.1, "max": 60, "step": 0.1, "group": "输入", "dialog": "lsl"},
     # display
-    {"name": "theme", "label": "视觉主题", "type": "choice",
+    {"name": "theme", "label": "", "type": "choice",
      "options": list(THEMES), "group": "显示"},
     {"name": "fullscreen", "label": "全屏运行", "type": "bool", "group": "显示"},
     {"name": "window_width", "label": "窗口宽", "type": "int", "min": 640,
@@ -151,7 +151,8 @@ def coerce_params(payload: dict[str, Any], base: ExperimentConfig) -> Experiment
             elif kind == "choice":
                 text = str(raw)
                 if text not in field["options"]:
-                    raise ValueError(f"{field['label']} 必须是 {field['options']}")
+                    label = field.get("label") or name
+                    raise ValueError(f"{label} 必须是 {field['options']}")
                 values[name] = text
             else:
                 values[name] = str(raw).strip()
