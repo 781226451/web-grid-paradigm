@@ -80,6 +80,45 @@ def test_facade_integrates_samples_and_returns_clicks() -> None:
     assert source.closed is True
 
 
+def test_facade_applies_an_absolute_position_frame() -> None:
+    source = FakeSource([VelocityFrame(position=(0.5, 0.5))])
+    reader = make_reader(source)
+    x, y, clicks = reader.read(1.0, None)
+    assert (x, y) == pytest.approx((200.0, 150.0))
+    assert clicks == []
+
+
+def test_facade_clamps_an_absolute_position_frame() -> None:
+    source = FakeSource([VelocityFrame(position=(2.0, -2.0))])
+    reader = make_reader(source)
+    x, y, _ = reader.read(1.0, None)
+    assert (x, y) == pytest.approx((400.0, -300.0))
+
+
+def test_facade_poll_cursor_applies_an_absolute_position_frame() -> None:
+    source = FakeSource([VelocityFrame(position=(-0.5, 0.25))])
+    reader = make_reader(source)
+    assert reader.poll_cursor(1.0) == pytest.approx((-200.0, 75.0))
+
+
+def test_facade_keeps_clicks_from_an_absolute_position_frame() -> None:
+    source = FakeSource([VelocityFrame(position=(0.0, 0.0), clicks=(2,))])
+    reader = make_reader(source)
+    assert reader.read(1.0, None) == (0.0, 0.0, [2])
+
+
+def test_facade_reverses_immediately_after_clamping_an_absolute_frame() -> None:
+    source = FakeSource(
+        [
+            VelocityFrame(position=(1.5, 0.0)),
+            VelocityFrame(position=(0.75, 0.0)),
+        ]
+    )
+    reader = make_reader(source)
+    assert reader.read(1.0, None)[0] == pytest.approx(400.0)
+    assert reader.read(1.1, None)[0] == pytest.approx(300.0)
+
+
 def test_facade_syncs_the_initial_absolute_position() -> None:
     source = FakeSource()
     source.initial = (0.5, 0.5)

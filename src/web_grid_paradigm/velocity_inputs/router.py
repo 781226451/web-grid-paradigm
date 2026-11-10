@@ -1,10 +1,10 @@
-"""Input facade: one strategy plus the velocity integrator.
+"""Input facade: one strategy plus the cursor integrator.
 
 The runner asks for ``(x, y, clicks)`` once per frame, exactly as before.  This
 module owns the selected :class:`~web_grid_paradigm.velocity_inputs.base.VelocitySource`,
-sets the demo target, integrates the returned velocity samples and exposes the
-cursor position.  The render loop therefore never talks to a device or to a
-concrete strategy.
+sets the demo target, applies either the returned velocity samples or an
+absolute cursor position and exposes the cursor position.  The render loop
+therefore never talks to a device or to a concrete strategy.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from loguru import logger
 from ..core.config import ExperimentConfig
 from ..core.geometry import Layout
 from ..core.session import Target
-from .base import DeviceContext, VelocitySource
+from .base import DeviceContext, VelocityFrame, VelocitySource
 from .demo import DemoVelocityOptions
 from .integrator import VelocityIntegrator
 from .joystick import SerialJoystickVelocityOptions
@@ -121,7 +121,7 @@ class InputReader:
         self._set_target(target)
         frame = self.source.read(now)
         self._sync_initial()
-        self.integrator.update(frame, now)
+        self._apply_frame(frame, now)
         x, y = self.cursor_px
         return x, y, [int(button) for button in frame.clicks]
 
@@ -130,7 +130,7 @@ class InputReader:
         self._set_target(None)
         frame = self.source.read(now)
         self._sync_initial()
-        self.integrator.update(frame, now)
+        self._apply_frame(frame, now)
         return self.cursor_px
 
     def start_requested(self, now: float, keys: list[str]) -> bool:
@@ -140,7 +140,7 @@ class InputReader:
         self._set_target(None)
         frame = self.source.read(now)
         self._sync_initial()
-        self.integrator.update(frame, now)
+        self._apply_frame(frame, now)
         if frame.clicks:
             return True
         pressed = getattr(self.source, "button_pressed", None)
@@ -183,6 +183,13 @@ class InputReader:
     # ------------------------------------------------------------------
     # helpers
     # ------------------------------------------------------------------
+    def _apply_frame(self, frame: VelocityFrame, now: float) -> None:
+        """Apply one source frame: absolute position or integrated velocity."""
+        if frame.position is not None:
+            self.integrator.set_position_norm(*frame.position)
+        else:
+            self.integrator.update(frame, now)
+
     def _set_target(self, target: Target | None) -> None:
         setter = getattr(self.source, "set_target_norm", None)
         if not callable(setter):

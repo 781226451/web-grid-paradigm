@@ -5,22 +5,24 @@ selected by configuration and created by :func:`build_velocity_source`.  The
 runner talks only to that interface, so device-specific code never leaks into
 the render loop.
 
-Every source returns :class:`~.base.VelocitySample` objects
-``(timestamp, vx, vy)`` in normalised window units per second; the cursor
-position is derived by :class:`~.integrator.VelocityIntegrator`.  Optional
-button edges are returned in :attr:`~.base.VelocityFrame.clicks`, so the
-paradigm keeps both click and dwell selection.  The strategies differ only
-in how they obtain movement: the mouse differentiates absolute positions, the
-serial joystick maps stick deflection to a velocity command, the demo autopilot
-steers towards the target, and the LSL strategy reads the velocity published
-by an external decoder.
+Every source reports movement through :class:`~.base.VelocityFrame`: velocity
+sources fill ``samples`` with ``(timestamp, vx, vy)`` in normalised window
+units per second and the cursor is derived by
+:class:`~.integrator.VelocityIntegrator`; an absolute device (the mouse) fills
+``position`` in the same normalised units and the facade applies it directly.
+Optional button edges are returned in :attr:`~.base.VelocityFrame.clicks`, so
+the paradigm keeps both click and dwell selection.  The strategies differ only
+in how they obtain movement: the mouse reports the OS pointer position
+directly, the serial joystick maps stick deflection to a velocity command, the
+demo autopilot steers towards the target, and the LSL strategy reads the
+velocity published by an external decoder.
 
 Layout
 ------
 ``base``           interface, samples/frames, capabilities, optional protocols
 ``registry``       self-registration decorator + name -> strategy factory
 ``integrator``     velocity samples -> normalised cursor/pixel position
-``mouse``          absolute OS pointer, differentiated to velocity + buttons
+``mouse``          absolute OS pointer position + buttons
 ``demo``           deterministic autopilot for examples and smoke tests
 ``joystick``       serial hall-effect joystick (RS232/RS422/RS485)
 ``hall_protocol``  9/10-byte frame parser/checksum/axis normalisation

@@ -1,11 +1,17 @@
-"""Mouse strategy: the absolute OS pointer converted to velocity samples.
+"""Mouse strategy: the absolute OS pointer mapped to the cursor.
 
-The mouse is an absolute device, so the interface still exposes velocity: the
-source differentiates consecutive positions on the runner clock.  Because the
-integrator integrates with the same sample timestamps, the round trip is
-lossless (``pos + v * dt == pos``), which keeps mouse behaviour equivalent to
-an absolute implementation.  Button edges are reported as clicks so the
-paradigm can still offer click selection.
+The mouse is an absolute device, so every frame reports where the OS pointer
+is, in normalised window units, through :attr:`VelocityFrame.position`.  The
+facade applies that position directly, so the cursor and the pointer stay in
+the same coordinate frame: no differentiation, no accumulated drift and no
+periodic re-centring.  Button edges are reported as clicks so the paradigm
+can still offer click selection.
+
+The OS pointer itself is moved only once, when a session starts
+(:meth:`MouseVelocitySource.center_pointer`), so the cursor begins at the
+window centre.  During the session the pointer is never warped: when it
+reaches the window edge the cursor simply stops there, and moving back moves
+the cursor back immediately.
 
 The device is injectable (``device=...``) so the strategy can be tested
 without PsychoPy or a real window.
@@ -22,7 +28,6 @@ from .base import (
     InitialPositionProvider,
     VelocityCapabilities,
     VelocityFrame,
-    VelocitySample,
     VelocitySourceError,
     VelocitySourceStatus,
 )
@@ -31,11 +36,6 @@ from .registry import register_velocity_source
 # PsychoPy reports buttons as left, middle, right; the paradigm uses
 # left=1, right=2, middle=3.
 _MOUSE_BUTTONS = ((0, 1), (2, 2), (1, 3))
-
-# Recenter the pointer before it reaches the physical window edge.  A pointer
-# pinned at an edge produces no further position delta, which makes the cursor
-# look stuck even though the user keeps moving the mouse.
-_EDGE_MARGIN_FRACTION = 0.08
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,7 +47,7 @@ class MouseVelocityOptions:
 
 @register_velocity_source("mouse")
 class MouseVelocitySource(InitialPositionProvider):
-    """Velocity samples and button edges derived from ``psychopy.event.Mouse``."""
+    """Absolute pointer position and button edges from ``psychopy.event.Mouse``."""
 
     name = "mouse"
     capabilities = VelocityCapabilities(
@@ -65,8 +65,7 @@ class MouseVelocitySource(InitialPositionProvider):
         self.context = context
         self._device = device
         self._opened = False
-        self._last_norm: tuple[float, float] | None = None
-        self._last_t: float | None = None
+        self._last_read: float | None = None
         self._prev_pressed: list[bool] = [False, False, False]
         self._frames = 0
         self._invalid = 0
@@ -105,18 +104,15 @@ class MouseVelocitySource(InitialPositionProvider):
         self._opened = False
 
     def reset(self) -> None:
-        """Forget the position baseline and button edges (port opened)."""
-        self._last_norm = None
-        self._last_t = None
+        """Forget button edges (the cursor position is absolute)."""
         self.reset_buttons()
 
     def center_pointer(self) -> None:
-        """Warp the OS pointer to the window centre and restart the baseline.
+        """Move the OS pointer to the window centre (session start only).
 
-        The cursor itself starts at the centre too; without warping, a pointer
-        already resting at a screen edge would leave almost no room to move in
-        that direction (the cursor appears to hit a wall).  The same warp is
-        used when the pointer approaches an edge during a session.
+        The cursor is absolute, so this is the only time the pointer is
+        warped: it aligns the physical pointer with the centred cursor at the
+        start of a session.  No periodic re-centring happens afterwards.
         """
         if self._device is not None:
             setter = getattr(self._device, "setPos", None)
@@ -126,16 +122,6 @@ class MouseVelocitySource(InitialPositionProvider):
                 except Exception as exc:  # noqa: BLE001 - backend edge case
                     self._invalid += 1
                     self._error = f"{type(exc).__name__}: {exc}"
-        self._last_norm = None
-        self._last_t = None
-
-    def _near_window_edge(self, px: float, py: float) -> bool:
-        margin_x = self.layout.window_w * _EDGE_MARGIN_FRACTION
-        margin_y = self.layout.window_h * _EDGE_MARGIN_FRACTION
-        return (
-            abs(px) >= self.layout.window_w / 2 - margin_x
-            or abs(py) >= self.layout.window_h / 2 - margin_y
-        )
 
     def reset_buttons(self) -> None:
         """Forget button edges only (block start); keep tracking the pointer."""
@@ -143,7 +129,7 @@ class MouseVelocitySource(InitialPositionProvider):
 
     # ------------------------------------------------------------------
     def read(self, now: float) -> VelocityFrame:
-        """Return at most one velocity sample plus any new button edges."""
+        """Return the pointer's absolute position plus any new button edges."""
         if not self._opened or self._device is None:
             return VelocityFrame()
         try:
@@ -155,22 +141,9 @@ class MouseVelocitySource(InitialPositionProvider):
 
         clicks = self._read_clicks()
         self._frames += 1
+        self._last_read = now
         norm = self.layout.px_to_norm(float(px), float(py))
-        samples: tuple[VelocitySample, ...] = ()
-        if self._last_norm is not None and self._last_t is not None:
-            dt = now - self._last_t
-            if dt > 0.0:
-                vx = (norm[0] - self._last_norm[0]) / dt
-                vy = (norm[1] - self._last_norm[1]) / dt
-                samples = (VelocitySample(now, vx, vy),)
-                self._last_norm = norm
-                self._last_t = now
-        else:
-            self._last_norm = norm
-            self._last_t = now
-        if self._near_window_edge(float(px), float(py)):
-            self.center_pointer()
-        return VelocityFrame(samples=samples, clicks=clicks)
+        return VelocityFrame(position=norm, clicks=clicks)
 
     def _read_clicks(self) -> tuple[int, ...]:
         getter = getattr(self._device, "getPressed", None)
@@ -197,7 +170,7 @@ class MouseVelocitySource(InitialPositionProvider):
 
     # ------------------------------------------------------------------
     def initial_position_norm(self) -> tuple[float, float] | None:
-        """Absolute starting position, so the integrator can sync to the mouse."""
+        """Absolute starting position reported to the facade at session start."""
         if self._device is None or self.context is None:
             return None
         try:
@@ -223,7 +196,7 @@ class MouseVelocitySource(InitialPositionProvider):
             category=self.capabilities.category,
             connected=self._opened,
             device={"driver": "psychopy.event.Mouse"},
-            last_rx=self._last_t,
+            last_rx=self._last_read,
             frames=self._frames,
             invalid=self._invalid,
             error=self._error,

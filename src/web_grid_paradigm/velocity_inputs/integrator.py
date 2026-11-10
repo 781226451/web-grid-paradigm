@@ -1,9 +1,12 @@
 """Velocity integrator: turns samples into the cursor position.
 
-Sources never know the window geometry or the cursor; they only emit
+Velocity sources never know the window geometry or the cursor; they only emit
 ``(timestamp, vx, vy)``.  The integrator is the single place that turns those
 samples into a pixel position, clamps it to the window and keeps the clock
 used to integrate the next sample.  It is pure Python and unit-testable.
+
+Absolute sources (the mouse) do not use this class: the facade applies their
+``VelocityFrame.position`` directly.
 """
 
 from __future__ import annotations
