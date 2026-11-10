@@ -226,10 +226,23 @@ class Theme:
     dwell: DwellStyle
 
     def __post_init__(self) -> None:
-        if not self.name:
-            raise ValueError("theme.name must not be empty")
-        if not self.font or not self.font.strip():
-            raise ValueError("theme.font must not be empty")
+        if not isinstance(self.name, str) or not self.name:
+            raise ValueError("theme.name must be a non-empty string")
+        if not isinstance(self.font, str) or not self.font.strip():
+            raise ValueError("theme.font must be a non-empty string")
+        for field_name, expected in (
+            ("palette", Palette),
+            ("cursor", CursorStyle),
+            ("target", TargetStyle),
+            ("hover", HoverStyle),
+            ("trail", TrailStyle),
+            ("layout", LayoutStyle),
+            ("dwell", DwellStyle),
+        ):
+            if not isinstance(getattr(self, field_name), expected):
+                raise TypeError(
+                    f"theme.{field_name} must be a {expected.__name__}"
+                )
 
 
 DARK = Theme(

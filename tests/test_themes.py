@@ -91,6 +91,15 @@ def test_substyle_validation(component: str, kwargs: dict, match: str) -> None:
 
 
 @pytest.mark.parametrize(
+    "component",
+    ("palette", "cursor", "target", "hover", "trail", "layout", "dwell"),
+)
+def test_theme_rejects_wrong_component_types(component: str) -> None:
+    with pytest.raises(TypeError, match=rf"theme\.{component}"):
+        replace(DARK, **{component: object()})
+
+
+@pytest.mark.parametrize(
     ("kwargs", "match"),
     [
         ({"name": ""}, "theme.name"),
