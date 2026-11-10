@@ -162,7 +162,6 @@ class Renderer:
         palette = theme.palette
         target_style = theme.target
         hover = theme.hover
-        cursor_style = theme.cursor
         dwell = theme.dwell
         stim.grid_bg.draw()
 

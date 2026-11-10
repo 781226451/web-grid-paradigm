@@ -37,7 +37,6 @@ class Palette:
     muted: str
     accent: str
     error: str
-    hover: str
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -49,7 +48,6 @@ class Palette:
             ("muted", self.muted),
             ("accent", self.accent),
             ("error", self.error),
-            ("hover", self.hover),
         ):
             _check_color(value, f"palette.{name}")
 
@@ -246,7 +244,6 @@ DARK = Theme(
         muted="#8FA6C4",
         accent="#469EFF",
         error="#FF6B6B",
-        hover="#0F2238",
     ),
     cursor=CursorStyle(
         color="#F4474D",
@@ -310,7 +307,6 @@ CLASSIC = Theme(
         muted="#6E6E73",
         accent="#0A84FF",
         error="#FF3B30",
-        hover="#EDEDED",
     ),
     cursor=CursorStyle(
         color="#111111",

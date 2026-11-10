@@ -18,7 +18,7 @@ dependencies = [
 webgrid = "web_grid_paradigm.app.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "pillow>=10"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
