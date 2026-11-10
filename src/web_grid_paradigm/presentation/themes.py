@@ -24,7 +24,6 @@ _HEX_COLOR = re.compile(r"#[0-9A-Fa-f]{6}\Z")
 @dataclass(frozen=True, slots=True)
 class Theme:
     name: str
-    label: str
 
     # Canvas and chrome.
     background: str
@@ -88,7 +87,7 @@ class Theme:
     grid_margin: float
 
     def __post_init__(self) -> None:
-        for name in ("name", "label", "background", "grid", "cursor", "accent"):
+        for name in ("name", "background", "grid", "cursor", "accent"):
             if not getattr(self, name):
                 raise ValueError(f"theme field {name!r} must not be empty")
         if set(self.target_colors) != {1, 2, 3}:
@@ -189,7 +188,6 @@ class Theme:
 
 DARK = Theme(
     name="dark",
-    label="暗色发光",
     background="#050D19",
     panel="#0A1422",
     panel_edge="#1E3A5F",
@@ -243,7 +241,6 @@ DARK = Theme(
 
 CLASSIC = Theme(
     name="classic",
-    label="经典白底",
     background="#FFFFFF",
     panel="#F5F5F7",
     panel_edge="#D2D2D7",
