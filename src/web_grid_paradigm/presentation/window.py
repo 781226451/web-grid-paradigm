@@ -32,7 +32,7 @@ def create_window(config: ExperimentConfig) -> visual.Window:
         fullscr=config.fullscreen,
         screen=config.screen,
         units="pix",
-        color=get_theme(config.theme).background,
+        color=get_theme(config.theme).palette.background,
         allowGUI=False,
         winType="pyglet",
         checkTiming=False,

@@ -65,8 +65,8 @@ class WebGridApp:
                 height,
                 config.rows,
                 config.cols,
-                margin_fraction=self.theme.grid_margin,
-                line_width_factor=self.theme.grid_line_width_factor,
+                margin_fraction=self.theme.layout.grid_margin,
+                line_width_factor=self.theme.layout.grid_line_width_factor,
             )
         except BaseException:
             self.win.close()

@@ -41,10 +41,10 @@ class Renderer:
         self.stim = stimuli
         self.theme = theme
         self._target_rgb = {
-            button: _rgb(color) for button, color in theme.target_colors.items()
+            button: _rgb(color) for button, color in theme.target.colors.items()
         }
-        self._cursor_rgb = _rgb(theme.cursor)
-        self._cursor_flash_rgb = _rgb(theme.cursor_flash)
+        self._cursor_rgb = _rgb(theme.cursor.color)
+        self._cursor_flash_rgb = _rgb(theme.cursor.flash)
         self._miss_cell: Cell | None = None
         self._miss_until = 0.0
         self._cursor_flash_until = 0.0
@@ -75,7 +75,8 @@ class Renderer:
     # trail
     # ------------------------------------------------------------------
     def _append_trail(self, position: tuple[float, float], now: float) -> None:
-        duration = self.theme.trail_duration_s
+        trail = self.theme.trail
+        duration = trail.duration_s
         while self._trail and now - self._trail[0][2] > duration:
             self._trail.pop(0)
         if not self._trail:
@@ -90,40 +91,37 @@ class Renderer:
         if distance < 1.0:
             return
         self._trail.append((*position, now))
-        if len(self._trail) > self.theme.trail_segments + 1:
+        if len(self._trail) > trail.segments + 1:
             self._trail.pop(0)
 
     def _draw_trail(self, color: str, now: float) -> None:
-        if not self.theme.trail:
+        trail = self.theme.trail
+        if not trail.enabled:
             return
-        duration = self.theme.trail_duration_s
+        duration = trail.duration_s
         while self._trail and now - self._trail[0][2] > duration:
             self._trail.pop(0)
         points = self._trail
         if len(points) < 2:
             return
         segments = len(points) - 1
-        theme = self.theme
         for i in range(segments):
             fraction = (i + 1) / segments
             age = max(0.0, now - points[i + 1][2])
             freshness = max(0.0, 1.0 - age / duration)
-            width = theme.trail_min_width + (
-                theme.trail_max_width - theme.trail_min_width
-            ) * fraction
+            width = trail.min_width + (trail.max_width - trail.min_width) * fraction
             core_opacity = (
-                theme.trail_opacity_min
-                + (theme.trail_opacity_max - theme.trail_opacity_min) * fraction
+                trail.opacity_min
+                + (trail.opacity_max - trail.opacity_min) * fraction
             ) * freshness
             glow_opacity = (
-                theme.trail_glow_opacity_min
-                + (theme.trail_glow_opacity_max - theme.trail_glow_opacity_min)
-                * fraction
+                trail.glow_opacity_min
+                + (trail.glow_opacity_max - trail.glow_opacity_min) * fraction
             ) * freshness
             for lines, line_width, opacity in (
                 (
                     self.stim.trail_glow_lines,
-                    width * theme.trail_glow_width_factor,
+                    width * trail.glow_width_factor,
                     glow_opacity,
                 ),
                 (self.stim.trail_lines, width, core_opacity),
@@ -161,6 +159,11 @@ class Renderer:
         stim = self.stim
         layout = self.layout
         theme = self.theme
+        palette = theme.palette
+        target_style = theme.target
+        hover = theme.hover
+        cursor_style = theme.cursor
+        dwell = theme.dwell
         stim.grid_bg.draw()
 
         # During the inter-trial interval only the empty grid and cursor show.
@@ -169,30 +172,32 @@ class Renderer:
 
         if target is not None:
             target_x, target_y = target.centre_px
-            target_color = theme.target_colors.get(target.required_button, theme.accent)
+            target_color = target_style.colors.get(
+                target.required_button, palette.accent
+            )
             pulse = 1.0
             if (
-                theme.target_pulse
+                target_style.pulse
                 and cursor_cell == target.cell
                 and engine.phase is Phase.RUNNING
             ):
-                pulse = theme.target_pulse_scale
+                pulse = target_style.pulse_scale
             size = layout.cell * pulse
 
             if cursor_cell is not None and cursor_cell != target.cell:
                 stim.hover_stim.pos = layout.centre_px(cursor_cell)
                 stim.hover_stim.size = (layout.cell, layout.cell)
-                stim.hover_stim.fillColor = theme.hover
+                stim.hover_stim.fillColor = hover.fill
                 stim.hover_stim.lineColor = (
-                    target_color if theme.hover_outline else None
+                    target_color if hover.outline else None
                 )
                 stim.hover_stim.draw()
 
             if stim.target_glow is not None:
                 stim.target_glow.pos = (target_x, target_y)
                 stim.target_glow.size = (
-                    size * theme.target_glow_radius_factor,
-                    size * theme.target_glow_radius_factor,
+                    size * target_style.glow_radius_factor,
+                    size * target_style.glow_radius_factor,
                 )
                 stim.target_glow.color = self._target_rgb[target.required_button]
                 stim.target_glow.draw()
@@ -200,7 +205,9 @@ class Renderer:
             stim.target_stim.pos = (target_x, target_y)
             stim.target_stim.size = (size, size)
             stim.target_stim.fillColor = target_color
-            stim.target_stim.lineColor = target_color if theme.target_outline else None
+            stim.target_stim.lineColor = (
+                target_color if target_style.outline else None
+            )
             stim.target_stim.draw()
 
             if (
@@ -218,7 +225,7 @@ class Renderer:
 
             progress = engine.dwell_progress
             if progress > 0.01:
-                stim.dwell_bar.fillColor = theme.dwell_fill
+                stim.dwell_bar.fillColor = dwell.fill
                 self._draw_dwell_bar(target_x, target_y, progress)
 
         self._draw_cursor(now, cursor_px)
@@ -226,11 +233,12 @@ class Renderer:
     def _draw_cursor(self, now: float, cursor_px: tuple[float, float]) -> None:
         stim = self.stim
         theme = self.theme
-        if theme.trail:
+        cursor_style = theme.cursor
+        if theme.trail.enabled:
             self._append_trail(cursor_px, now)
 
         flashing = now < self._cursor_flash_until
-        cursor_color = theme.cursor_flash if flashing else theme.cursor
+        cursor_color = cursor_style.flash if flashing else cursor_style.color
         cursor_rgb = self._cursor_flash_rgb if flashing else self._cursor_rgb
         self._draw_trail(cursor_color, now)
 

@@ -87,21 +87,21 @@ def test_theme_renders_its_declared_colours(tmp_path, theme_name: str) -> None:
         layout = app.layout
 
         # Window background outside the board.
-        _assert_colour(_pixel(image, layout, 2, 2), theme.background)
+        _assert_colour(_pixel(image, layout, 2, 2), theme.palette.background)
         # The leftmost vertical grid line.
         _assert_colour_near(
-            image, layout, layout.left + layout.line / 2, 0, theme.grid
+            image, layout, layout.left + layout.line / 2, 0, theme.palette.grid
         )
         # A point inside the target, away from the cursor.  Classic draws a
         # translucent overlay over the target while the cursor is inside it.
         target = app.engine.target
         assert target is not None
         target_x, target_y = target.centre_px
-        target_expected: str | tuple[int, int, int] = theme.target_colors[1]
-        if theme.target_overlay:
-            base = ImageColor.getrgb(theme.target_colors[1])
-            overlay = ImageColor.getrgb(theme.target_overlay_color)
-            alpha = theme.target_overlay_opacity
+        target_expected: str | tuple[int, int, int] = theme.target.colors[1]
+        if theme.target.overlay:
+            base = ImageColor.getrgb(theme.target.colors[1])
+            overlay = ImageColor.getrgb(theme.target.overlay_color)
+            alpha = theme.target.overlay_opacity
             target_expected = tuple(
                 round(base[i] * (1 - alpha) + overlay[i] * alpha)
                 for i in range(3)
@@ -114,7 +114,7 @@ def test_theme_renders_its_declared_colours(tmp_path, theme_name: str) -> None:
         cursor_x, cursor_y = app.input.cursor_px
         _assert_colour(
             _pixel(image, layout, cursor_x, cursor_y),
-            theme.cursor,
+            theme.cursor.color,
         )
     finally:
         app.close()

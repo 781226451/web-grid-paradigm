@@ -19,28 +19,34 @@ def test_unknown_theme_is_rejected() -> None:
 
 def test_theme_target_colors_are_read_only() -> None:
     with pytest.raises(TypeError):
-        DARK.target_colors[1] = "#FFFFFF"
+        DARK.target.colors[1] = "#FFFFFF"
 
 
 def test_theme_validation_rejects_incomplete_or_invalid_values() -> None:
-    with pytest.raises(ValueError, match="target_colors"):
-        replace(DARK, target_colors={1: "#469EFF"})
-    with pytest.raises(ValueError, match="target_glow_opacity"):
-        replace(DARK, target_glow_opacity=1.5)
-    with pytest.raises(ValueError, match="background"):
-        replace(DARK, background="white")
-    with pytest.raises(ValueError, match="target_colors"):
+    with pytest.raises(ValueError, match="target.colors"):
+        replace(DARK, target=replace(DARK.target, colors={1: "#469EFF"}))
+    with pytest.raises(ValueError, match="target.glow_opacity"):
+        replace(DARK, target=replace(DARK.target, glow_opacity=1.5))
+    with pytest.raises(ValueError, match="palette.background"):
+        replace(DARK, palette=replace(DARK.palette, background="white"))
+    with pytest.raises(ValueError, match="target.colors"):
         replace(
             DARK,
-            target_colors={1: "blue", 2: "#FFB340", 3: "#C77DFF"},
+            target=replace(
+                DARK.target,
+                colors={1: "blue", 2: "#FFB340", 3: "#C77DFF"},
+            ),
         )
     with pytest.raises(ValueError, match="trail widths"):
-        replace(DARK, trail_min_width=-1, trail_max_width=2)
-    with pytest.raises(ValueError, match="target_line_width"):
-        replace(DARK, target_outline=True, target_line_width=0)
-    with pytest.raises(ValueError, match="miss_opacity"):
-        replace(DARK, miss_opacity=2.0)
+        replace(DARK, trail=replace(DARK.trail, min_width=-1, max_width=2))
+    with pytest.raises(ValueError, match="target.line_width"):
+        replace(DARK, target=replace(DARK.target, outline=True, line_width=0))
+    with pytest.raises(ValueError, match="target.miss_opacity"):
+        replace(DARK, target=replace(DARK.target, miss_opacity=2.0))
     with pytest.raises(ValueError, match="font"):
         replace(DARK, font="")
-    with pytest.raises(ValueError, match="grid_line_width_factor"):
-        replace(DARK, grid_line_width_factor=0.0)
+    with pytest.raises(ValueError, match="layout.grid_line_width_factor"):
+        replace(
+            DARK,
+            layout=replace(DARK.layout, grid_line_width_factor=0.0),
+        )
