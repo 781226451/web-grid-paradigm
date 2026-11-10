@@ -20,9 +20,6 @@ from .palette import (
     CURSOR_GLOW,
     CURSOR_GLOW_OPACITY,
     CURSOR_GLOW_RADIUS_FACTOR,
-    CURSOR_RING_OPACITY,
-    CURSOR_RING_RADIUS_FACTOR,
-    CURSOR_RING_WIDTH_PX,
     ERROR,
     GRID,
     HOVER,
@@ -32,10 +29,6 @@ from .palette import (
     TARGET_COLORS,
     TARGET_GLOW_OPACITY,
     TARGET_GLOW_RADIUS_FACTOR,
-    TARGET_RING,
-    TARGET_RING_OPACITY,
-    TARGET_RING_RADIUS_FACTOR,
-    TARGET_RING_WIDTH_PX,
     TEXT,
     TRAIL_SEGMENTS,
 )
@@ -140,16 +133,6 @@ class Stimuli:
             interpolate=True,
             autoLog=False,
         )
-        self.target_ring = visual.Rect(
-            self.win,
-            width=layout.cell * TARGET_RING_RADIUS_FACTOR,
-            height=layout.cell * TARGET_RING_RADIUS_FACTOR,
-            fillColor=None,
-            lineColor=TARGET_RING,
-            lineWidth=TARGET_RING_WIDTH_PX,
-            opacity=TARGET_RING_OPACITY,
-            units="pix",
-        )
         self.target_stim = visual.Rect(
             self.win,
             width=layout.cell,
@@ -184,15 +167,6 @@ class Stimuli:
             texRes=64,
             interpolate=True,
             autoLog=False,
-        )
-        self.cursor_ring = visual.Circle(
-            self.win,
-            radius=radius * CURSOR_RING_RADIUS_FACTOR,
-            fillColor=None,
-            lineColor=CURSOR_GLOW,
-            lineWidth=CURSOR_RING_WIDTH_PX,
-            opacity=CURSOR_RING_OPACITY,
-            units="pix",
         )
         self.cursor_stim = visual.Circle(
             self.win,

@@ -22,7 +22,6 @@ from .palette import (
     TARGET_COLORS,
     TARGET_GLOW_RADIUS_FACTOR,
     TARGET_PULSATE_SCALE,
-    TARGET_RING_RADIUS_FACTOR,
     TRAIL_DURATION_S,
     TRAIL_SEGMENTS,
 )
@@ -183,13 +182,6 @@ class Renderer:
             stim.target_glow.color = _TARGET_RGB[target.required_button]
             stim.target_glow.draw()
 
-            stim.target_ring.pos = (target_x, target_y)
-            stim.target_ring.size = (
-                size * TARGET_RING_RADIUS_FACTOR,
-                size * TARGET_RING_RADIUS_FACTOR,
-            )
-            stim.target_ring.draw()
-
             stim.target_stim.pos = (target_x, target_y)
             stim.target_stim.size = (size, size)
             stim.target_stim.fillColor = target_color
@@ -214,9 +206,6 @@ class Renderer:
         stim.cursor_glow.pos = cursor_px
         stim.cursor_glow.color = cursor_rgb
         stim.cursor_glow.draw()
-        stim.cursor_ring.pos = cursor_px
-        stim.cursor_ring.lineColor = cursor_color
-        stim.cursor_ring.draw()
         stim.cursor_stim.pos = cursor_px
         stim.cursor_stim.fillColor = cursor_color
         stim.cursor_stim.draw()
