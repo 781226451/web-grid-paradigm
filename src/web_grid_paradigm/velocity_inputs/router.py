@@ -100,6 +100,15 @@ class InputReader:
     def cursor_px(self, value: tuple[float, float]) -> None:
         self.integrator.set_position_px(*value)
 
+    def center_cursor(self) -> None:
+        """Put the cursor at the window centre and disable the initial sync.
+
+        A session starts from the centre even for absolute devices (the mouse);
+        subsequent movement is still relative to that centre.
+        """
+        self.integrator.set_position_norm(0.0, 0.0)
+        self._initial_synced = True
+
     def read(
         self,
         now: float,

@@ -132,6 +132,7 @@ class WebGridApp:
         self._fps = 0.0
         self._next_publish = 0.0
         self.countdown_start = 0.0
+        self._cursor_centered = False
 
         self.reporter.session_open(
             self._last_frame,
@@ -264,6 +265,9 @@ class WebGridApp:
     def _begin_countdown(self, now: float) -> None:
         self.state = "countdown"
         self.countdown_start = now
+        if not self._cursor_centered:
+            self.input.center_cursor()
+            self._cursor_centered = True
         logger.info(
             "block {}/{}: countdown started ({} s)",
             self.block,

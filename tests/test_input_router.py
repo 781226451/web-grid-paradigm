@@ -96,6 +96,16 @@ def test_facade_cursor_setter_uses_pixels() -> None:
     assert reader.cursor_px == pytest.approx((200.0, -150.0))
 
 
+def test_facade_center_cursor_ignores_initial_position() -> None:
+    source = FakeSource()
+    source.initial = (0.5, 0.5)
+    reader = make_reader(source)
+    reader.center_cursor()
+    assert reader.cursor_px == (0.0, 0.0)
+    reader.read(1.0, None)
+    assert reader.cursor_px == (0.0, 0.0)
+
+
 def test_facade_start_and_reset_hooks() -> None:
     source = FakeSource([VelocityFrame(clicks=(1,))])
     reader = make_reader(source)
