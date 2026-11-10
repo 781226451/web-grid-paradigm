@@ -97,8 +97,6 @@ _FORM: list[dict[str, Any]] = [
      "max": 7680, "group": "显示"},
     {"name": "window_height", "label": "窗口高", "type": "int", "min": 480,
      "max": 4320, "group": "显示"},
-    {"name": "skip_instructions", "label": "跳过指导语", "type": "bool",
-     "group": "显示"},
     {"name": "auto_exit", "label": "结束后自动关闭", "type": "bool", "group": "显示"},
     # markers / LSL
     {"name": "lsl", "label": "发布 LSL 标记", "type": "bool", "group": "标记"},

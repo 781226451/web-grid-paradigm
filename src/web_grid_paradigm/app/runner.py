@@ -147,8 +147,6 @@ class WebGridApp:
             psychopy_version=psychopy.__version__,
             python_version=platform.python_version(),
         )
-        if config.skip_instructions:
-            self._begin_countdown(core.getTime())
 
     # ------------------------------------------------------------------
     # public entry points
@@ -319,7 +317,7 @@ class WebGridApp:
             self.cfg.countdown_seconds,
         )
         if self.block == 1:
-            self.reporter.instructions_end(now, skipped=self.cfg.skip_instructions)
+            self.reporter.instructions_end(now)
         self.reporter.countdown_start(now)
         if self.cfg.countdown_seconds <= 0:
             self._begin_run(now)

@@ -27,7 +27,6 @@ def test_cli_overrides_config() -> None:
             "12",
             "--show-cursor",
             "--windowed",
-            "--no-instructions",
         ]
     )
     config = load_config(args)
@@ -36,7 +35,6 @@ def test_cli_overrides_config() -> None:
     assert config.targets == 12
     assert config.hide_cursor is False
     assert config.fullscreen is False
-    assert config.skip_instructions is True
 
 
 def test_boolean_cli_flags_can_override_toml_in_both_directions(

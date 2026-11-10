@@ -92,7 +92,6 @@ class ExperimentConfig:
     window_height: int = 800
     screen: int = 0
     hide_cursor: bool = True
-    skip_instructions: bool = True
     auto_exit: bool = False
 
     # --- event markers ----------------------------------------------------

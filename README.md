@@ -52,7 +52,7 @@ uv run webgrid --input joystick --joystick-port COM4
 uv run webgrid --input lsl --lsl-velocity-stream WebGridVelocity
 ```
 
-点“启动实验”（或 `--run-now`）后，范式窗口立即进入倒计时并开始试次；需要和 EEG 对齐时勾选“发布 LSL 标记”（或 `--lsl`）。
+点“启动实验”（或 `--run-now`）后，范式窗口先显示开始页；在实验窗口内点击或按空格后才进入倒计时并开始试次；需要和 EEG 对齐时勾选“发布 LSL 标记”（或 `--lsl`）。
 
 数据默认写入 `data/<subject>/ses-<timestamp>/`。
 
@@ -63,13 +63,13 @@ uv run webgrid --input lsl --lsl-velocity-stream WebGridVelocity
 默认 **12×12** 网格，采用 CursorTasks 的 dark blue/red 视觉语言：
 
 - 深蓝黑底板（`#050D19`）+ 细白网格线，不留单元格间隙；
-- **动物模式默认不显示任何文字**：无指导语、无计时、无 BPS/NTPM、无目标进度、无错误数、无图例、无提示语；
+- **任务界面默认不显示文字**：无 BPS/NTPM、无目标进度、无错误数、无图例；开始页始终显示完整指导语；
 - 多键模式也不显示文字图例，目标颜色本身就是按键线索；
 - 目标格为纯色块：`click_types=1` 时蓝色；`=2` 时蓝/橙；`=3` 时蓝/橙/紫；
 - 目标带同色光晕，光标进入目标时放大 1.15×；
 - 蓝色 = 左键、橙色 = 右键、紫色 = 中键；目标颜色就是要求按下的键；
 - 光标为红色发光圆点（带光晕和渐隐拖尾）；悬停单元格显示目标色描边，误点单元格短暂闪红；
-- 倒计时只显示光标（从中心开始，无十字注视点）；鼠标模式下指针只在开始时回到窗口中心，之后光标直接跟随指针的绝对位置（不再周期回中），指针到窗口边缘时光标才到边缘，往回移动立即响应；Windows 下位置直接读取 `GetCursorPos`，不依赖 Pyglet 事件缓存，快速甩动不会先卡住再跳变；首次启动会先显示窗口、必要时把实验窗口切到前台、确认光标回中后才开始倒计时，回中失败会报错而不是带偏移开始；结束后为空白屏，保存路径只打印在实验者控制台。
+- 倒计时只显示光标（从中心开始，无十字注视点）；鼠标模式下指针只在开始时回到窗口中心，之后光标直接跟随指针的绝对位置（不再周期回中），指针到窗口边缘时光标才到边缘，往回移动立即响应；Windows 下位置直接读取 `GetCursorPos`，不依赖 Pyglet 事件缓存，快速甩动不会先卡住再跳变；首次启动会先显示开始页，点击实验窗口后才确认光标回中并开始倒计时，回中失败会报错而不是带偏移开始；结束后为空白屏，保存路径只打印在实验者控制台。
 
 主题默认 `dark`（暗色发光）；启动时加 `--theme classic`，或在 WebUI 的“显示”组选择 `classic`，即可切回经典白底黑线、无光晕/拖尾的样式。`theme` 也可以写在 `--config` TOML 里。
 
@@ -87,8 +87,8 @@ uv run webgrid --rows 10 --cols 10
 
 ## 范式流程
 
-1. 启动后直接进入准备阶段：网格 + 中央注视点，无文字。
-2. 注视点保持 `countdown_seconds` 秒（默认 2 s），随后出现第一个目标。
+1. 启动后先显示**开始页**：完整指导语 + 网格 + 中央光标 + 开始提示；在实验窗口内点击或按空格，窗口获得输入激活后才进入准备阶段。
+2. 开始页确认后再次将光标居中，随后进入倒计时；注视点保持 `countdown_seconds` 秒（默认 2 s），之后出现第一个目标。
 3. 每个试次：
    - 随机高亮一个目标格（单键模式为蓝色；多键模式按目标颜色区分所需按键），光标保留在上一帧位置；
    - 被试移动光标到目标格；
@@ -471,7 +471,7 @@ data/
 - `trials.csv` 字段包括：目标格 `target_row/target_col`、要求按键 `required_button`、`onset_s/offset_s/rt_s`、`outcome`、`misclicks`、`path_px/straight_px/path_efficiency` 等。
 - `path_efficiency = 直线距离 / 实际轨迹长度`，没有移动时为空白。
 - 多 block：`events.csv` 与 `trials.csv` 都有 `block` 列，`trial_index` 在每个 block 内从 1 开始；`summary.json` 的 `results.blocks` 为每个 block 的结果，顶层为全部 block 合计（NTPM/BPS 按 block 内时长计算，不含休息）。
-- 流程：倒计时 → block 1 → 空白休息 → 倒计时 → block 2 → …；各 block 目标序列不同但由 `seed` 决定、可复现。
+- 流程：开始页 → 倒计时 → block 1 → 空白休息 → 倒计时 → block 2 → …；各 block 目标序列不同但由 `seed` 决定、可复现。
 - 一个 block 内：目标 → 选中/超时 → 反馈（`--feedback`）→ trial 间休息（`--iti`，空网格）→ 下一个目标；最后一个 trial 之后不再休息，直接结束 block。`events.csv` 记录 `iti_start`；反应时仍从目标真正出现（flip）开始计时，不含休息时间。
 - 按 Esc 中止时仍会写出已产生的数据，`summary.json` 中 `aborted` 为 `true`。
 - 同一秒内重复启动会自动加 `-2`、`-3` 后缀，不覆盖已有数据。
@@ -540,8 +540,6 @@ data/
 | `--reward-duration-ms` | 50 | 奖励脉冲时长（毫秒） |
 | `--debug` | 关 | 调试：DEBUG 日志、完整堆栈 |
 | `--log-file` | 空 | 额外写一份滚动日志文件（每个会话目录总会有 `session.log`） |
-| `--instructions` | 关 | 显示人用指导语页；动物实验保持关闭 |
-| `--no-instructions` | 开 | 跳过指导语（默认） |
 | `--auto-exit` / `--no-auto-exit` | 关 | 空白结束屏 2.5 s 后是否自动关闭 |
 
 配置文件示例见 [`configs/default.toml`](configs/default.toml)，命令行参数会覆盖文件中的同名字段。例如：

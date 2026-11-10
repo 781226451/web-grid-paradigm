@@ -121,3 +121,40 @@ def test_escape_still_works_while_waiting_for_center(monkeypatch):
     app._loop()
     app._handle_stop.assert_called_once()
     assert started == []
+
+
+def test_start_page_is_always_shown_before_countdown(monkeypatch):
+    app = object.__new__(runner.WebGridApp)
+    app.cfg = SimpleNamespace()
+    app.state = "intro"
+    app.monitor = SimpleNamespace(stop_requested=False)
+    app._publish = lambda *args: None
+    app._last_frame = 0.0
+    app._exit = False
+
+    calls: list[str] = []
+
+    class Renderer:
+        def draw_intro(self):
+            calls.append("draw_intro")
+
+    class Input:
+        cursor_px = (0.0, 0.0)
+
+        def __init__(self):
+            self.calls = 0
+
+        def start_requested(self, now, keys):
+            self.calls += 1
+            return self.calls > 1
+
+    app.renderer = Renderer()
+    app.input = Input()
+    app.win = SimpleNamespace(flip=lambda: 0.0)
+    app._begin_countdown = lambda now: setattr(app, "_exit", True)
+    monkeypatch.setattr(runner.event, "getKeys", lambda: [])
+    monkeypatch.setattr(runner.core, "getTime", lambda: 0.0)
+
+    app._loop()
+
+    assert calls == ["draw_intro"]
