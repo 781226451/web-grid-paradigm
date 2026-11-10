@@ -157,6 +157,18 @@ def test_mouse_center_pointer_warps_and_restarts_baseline() -> None:
     assert mouse.read(now=1.1).samples == ()
 
 
+def test_mouse_recenters_pointer_near_window_edge() -> None:
+    device = FakeMouse(pos=(0.0, 0.0))
+    mouse = MouseVelocitySource(context=make_context(), device=device)
+    mouse.open()
+    mouse.read(now=1.0)
+
+    device.pos = (380.0, 0.0)  # 800px window: inside the 8% edge margin
+    mouse.read(now=1.1)
+    assert device.pos == (0.0, 0.0)
+    assert mouse.read(now=1.2).samples == ()
+
+
 def test_mouse_initial_position_capability() -> None:
     device = FakeMouse(pos=(200.0, -150.0))
     mouse = MouseVelocitySource(context=make_context(), device=device)

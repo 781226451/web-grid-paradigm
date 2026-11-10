@@ -32,6 +32,11 @@ from .registry import register_velocity_source
 # left=1, right=2, middle=3.
 _MOUSE_BUTTONS = ((0, 1), (2, 2), (1, 3))
 
+# Recenter the pointer before it reaches the physical window edge.  A pointer
+# pinned at an edge produces no further position delta, which makes the cursor
+# look stuck even though the user keeps moving the mouse.
+_EDGE_MARGIN_FRACTION = 0.08
+
 
 @dataclass(frozen=True, slots=True)
 class MouseVelocityOptions:
@@ -110,7 +115,8 @@ class MouseVelocitySource(InitialPositionProvider):
 
         The cursor itself starts at the centre too; without warping, a pointer
         already resting at a screen edge would leave almost no room to move in
-        that direction (the cursor appears to hit a wall).
+        that direction (the cursor appears to hit a wall).  The same warp is
+        used when the pointer approaches an edge during a session.
         """
         if self._device is not None:
             setter = getattr(self._device, "setPos", None)
@@ -122,6 +128,14 @@ class MouseVelocitySource(InitialPositionProvider):
                     self._error = f"{type(exc).__name__}: {exc}"
         self._last_norm = None
         self._last_t = None
+
+    def _near_window_edge(self, px: float, py: float) -> bool:
+        margin_x = self.layout.window_w * _EDGE_MARGIN_FRACTION
+        margin_y = self.layout.window_h * _EDGE_MARGIN_FRACTION
+        return (
+            abs(px) >= self.layout.window_w / 2 - margin_x
+            or abs(py) >= self.layout.window_h / 2 - margin_y
+        )
 
     def reset_buttons(self) -> None:
         """Forget button edges only (block start); keep tracking the pointer."""
@@ -154,6 +168,8 @@ class MouseVelocitySource(InitialPositionProvider):
         else:
             self._last_norm = norm
             self._last_t = now
+        if self._near_window_edge(float(px), float(py)):
+            self.center_pointer()
         return VelocityFrame(samples=samples, clicks=clicks)
 
     def _read_clicks(self) -> tuple[int, ...]:
