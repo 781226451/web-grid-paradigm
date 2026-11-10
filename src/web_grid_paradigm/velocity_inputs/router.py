@@ -24,6 +24,8 @@ from .lsl import LslVelocityOptions
 from .mouse import MouseVelocityOptions
 from .registry import build_velocity_source
 
+_CENTER_TOLERANCE_PX = 2.0
+
 
 class InputReader:
     """Cursor position, clicks and source lifecycle for the configured input."""
@@ -100,17 +102,38 @@ class InputReader:
     def cursor_px(self, value: tuple[float, float]) -> None:
         self.integrator.set_position_px(*value)
 
-    def center_cursor(self) -> None:
-        """Put the cursor at the window centre and disable the initial sync.
+    def center_cursor(self, now: float | None = None) -> bool:
+        """Put the cursor at the window centre and confirm the source.
 
-        A session starts from the centre even for absolute devices (the mouse);
-        subsequent movement is still relative to that centre.
+        Returns ``False`` when the source could not move the pointer or, when
+        ``now`` is given, when the next absolute frame does not report the
+        cursor at the centre.  The runner retries before starting the countdown
+        instead of silently beginning the session at an offset.
         """
         self.integrator.set_position_norm(0.0, 0.0)
         self._initial_synced = True
         center_pointer = getattr(self.source, "center_pointer", None)
-        if callable(center_pointer):
-            center_pointer()
+        if not callable(center_pointer):
+            return True
+        try:
+            result = center_pointer()
+        except Exception as exc:  # noqa: BLE001 - retried by the runner
+            logger.debug("cursor centring attempt failed: {}", exc)
+            return False
+        if result is False:
+            return False
+        if now is None:
+            return True
+        try:
+            frame = self.source.read(now)
+        except Exception as exc:  # noqa: BLE001 - retried by the runner
+            logger.debug("could not read the cursor after centring: {}", exc)
+            return False
+        if frame.position is None:
+            return False
+        self._apply_frame(frame, now)
+        x, y = self.cursor_px
+        return abs(x) <= _CENTER_TOLERANCE_PX and abs(y) <= _CENTER_TOLERANCE_PX
 
     def read(
         self,

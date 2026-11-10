@@ -37,6 +37,7 @@ from ..velocity_inputs.router import InputReader
 UI_SCALE_RANGE = (0.65, 2.2)
 REFERENCE_SIZE = (1280, 800)
 AUTO_EXIT_DELAY_S = 2.5
+CENTERING_TIMEOUT_S = 10.0
 
 
 class WebGridApp:
@@ -139,6 +140,7 @@ class WebGridApp:
         self._next_publish = 0.0
         self.countdown_start = 0.0
         self._cursor_centered = False
+        self._centering_started = 0.0
 
         self.reporter.session_open(
             self._last_frame,
@@ -222,6 +224,9 @@ class WebGridApp:
                     continue
 
             if self.state == "countdown":
+                if not self._cursor_centered:
+                    self._center_step(now)
+                    continue
                 if now - self.countdown_start >= self.cfg.countdown_seconds:
                     self._begin_run(now)
                 else:
@@ -270,10 +275,43 @@ class WebGridApp:
     # ------------------------------------------------------------------
     def _begin_countdown(self, now: float) -> None:
         self.state = "countdown"
-        self.countdown_start = now
         if not self._cursor_centered:
-            self.input.center_cursor()
+            self._centering_started = now
+            logger.info(
+                "block {}/{}: waiting for the window before centring the cursor",
+                self.block,
+                self.cfg.blocks,
+            )
+            return
+        self._start_countdown(now)
+
+    def _center_step(self, now: float) -> None:
+        """Show a frame, then try to centre the pointer without starting trials.
+
+        The first window of a process may not have its final full-screen client
+        geometry until at least one buffer swap.  Centring before that frame
+        can place the OS pointer at the centre of a temporary window, so the
+        absolute cursor starts offset.  Draw/flip first, retry, and only start
+        the countdown once the source confirms the pointer is centred.
+        """
+        self.renderer.draw_countdown(now, (0.0, 0.0))
+        flip_time = self.win.flip()
+        if self.input.center_cursor(core.getTime()):
             self._cursor_centered = True
+            self._start_countdown(flip_time)
+            return
+        if core.getTime() - self._centering_started > CENTERING_TIMEOUT_S:
+            detail = self.input.status().get("error")
+            if not detail:
+                x, y = self.input.cursor_px
+                detail = f"cursor at ({x:.1f}, {y:.1f})"
+            raise RuntimeError(
+                "could not centre the cursor before the window was ready: "
+                + detail
+            )
+
+    def _start_countdown(self, now: float) -> None:
+        self.countdown_start = now
         logger.info(
             "block {}/{}: countdown started ({} s)",
             self.block,
@@ -281,9 +319,7 @@ class WebGridApp:
             self.cfg.countdown_seconds,
         )
         if self.block == 1:
-            self.reporter.instructions_end(
-                now, skipped=self.cfg.skip_instructions
-            )
+            self.reporter.instructions_end(now, skipped=self.cfg.skip_instructions)
         self.reporter.countdown_start(now)
         if self.cfg.countdown_seconds <= 0:
             self._begin_run(now)
