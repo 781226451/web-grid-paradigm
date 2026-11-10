@@ -11,9 +11,14 @@ construction time instead of silently inheriting a value from another theme.
 
 from __future__ import annotations
 
+import re
+from collections.abc import Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 
 from ..core.settings import THEMES
+
+_HEX_COLOR = re.compile(r"#[0-9A-Fa-f]{6}\Z")
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,7 +52,7 @@ class Theme:
     cursor_radius_max: float
 
     # Targets.
-    target_colors: dict[int, str]
+    target_colors: Mapping[int, str]
     target_outline: bool
     target_line_width: float
     target_glow: bool
@@ -58,6 +63,7 @@ class Theme:
     target_overlay: bool
     target_overlay_color: str
     target_overlay_opacity: float
+    miss_opacity: float
 
     # Grid-cell hover.
     hover_outline: bool
@@ -87,6 +93,42 @@ class Theme:
                 raise ValueError(f"theme field {name!r} must not be empty")
         if set(self.target_colors) != {1, 2, 3}:
             raise ValueError("target_colors must define buttons 1, 2 and 3")
+        for button, color in self.target_colors.items():
+            if not isinstance(color, str) or not _HEX_COLOR.fullmatch(color):
+                raise ValueError(
+                    f"target_colors[{button}] must be a #RRGGBB colour"
+                )
+        object.__setattr__(
+            self,
+            "target_colors",
+            MappingProxyType(dict(self.target_colors)),
+        )
+
+        for name in (
+            "background",
+            "panel",
+            "panel_edge",
+            "grid",
+            "text",
+            "muted",
+            "accent",
+            "error",
+            "hover",
+            "cursor",
+            "cursor_flash",
+            "cursor_glow_color",
+            "target_overlay_color",
+            "dwell_fill",
+            "dwell_line",
+        ):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not _HEX_COLOR.fullmatch(value):
+                raise ValueError(f"theme field {name!r} must be a #RRGGBB colour")
+        if self.cursor_edge is not None and not _HEX_COLOR.fullmatch(
+            self.cursor_edge
+        ):
+            raise ValueError("cursor_edge must be None or a #RRGGBB colour")
+
         if self.cursor_radius_basis not in {"window", "cell"}:
             raise ValueError("cursor_radius_basis must be 'window' or 'cell'")
         if not 0.0 < self.grid_margin < 0.5:
@@ -103,14 +145,19 @@ class Theme:
             raise ValueError("target_glow_radius_factor must be at least 1")
         if self.target_line_width < 0 or self.hover_outline_width < 0:
             raise ValueError("line widths must not be negative")
+        if self.target_outline and self.target_line_width <= 0:
+            raise ValueError("target_line_width must be positive when target_outline is on")
+        if self.hover_outline and self.hover_outline_width <= 0:
+            raise ValueError("hover_outline_width must be positive when hover_outline is on")
         if self.target_pulse_scale < 1:
             raise ValueError("target_pulse_scale must be at least 1")
-        if not 0.0 <= self.hover_opacity <= 1.0:
-            raise ValueError("hover_opacity must be in [0, 1]")
+
         for name in (
             "cursor_glow_opacity",
             "target_glow_opacity",
             "target_overlay_opacity",
+            "miss_opacity",
+            "hover_opacity",
             "trail_opacity_min",
             "trail_opacity_max",
             "trail_glow_opacity_min",
@@ -119,21 +166,25 @@ class Theme:
             value = getattr(self, name)
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"{name} must be in [0, 1]")
-        if self.trail:
-            if self.trail_segments < 2:
-                raise ValueError("trail_segments must be at least 2 when trail is on")
-            if self.trail_duration_s <= 0:
-                raise ValueError("trail_duration_s must be positive")
-            if self.trail_max_width < self.trail_min_width:
-                raise ValueError("trail_max_width must be >= trail_min_width")
-            if self.trail_glow_width_factor < 1:
-                raise ValueError("trail_glow_width_factor must be at least 1")
-            if self.trail_opacity_max < self.trail_opacity_min:
-                raise ValueError("trail_opacity_max must be >= trail_opacity_min")
-            if self.trail_glow_opacity_max < self.trail_glow_opacity_min:
-                raise ValueError(
-                    "trail_glow_opacity_max must be >= trail_glow_opacity_min"
-                )
+
+        if self.trail_segments < 0:
+            raise ValueError("trail_segments must not be negative")
+        if self.trail_duration_s <= 0:
+            raise ValueError("trail_duration_s must be positive")
+        if self.trail_min_width < 0 or self.trail_max_width < 0:
+            raise ValueError("trail widths must not be negative")
+        if self.trail_max_width < self.trail_min_width:
+            raise ValueError("trail_max_width must be >= trail_min_width")
+        if self.trail_glow_width_factor < 1:
+            raise ValueError("trail_glow_width_factor must be at least 1")
+        if self.trail_opacity_max < self.trail_opacity_min:
+            raise ValueError("trail_opacity_max must be >= trail_opacity_min")
+        if self.trail_glow_opacity_max < self.trail_glow_opacity_min:
+            raise ValueError(
+                "trail_glow_opacity_max must be >= trail_glow_opacity_min"
+            )
+        if self.trail and self.trail_segments < 2:
+            raise ValueError("trail_segments must be at least 2 when trail is on")
 
 
 DARK = Theme(
@@ -171,6 +222,7 @@ DARK = Theme(
     target_overlay=False,
     target_overlay_color="#000000",
     target_overlay_opacity=0.18,
+    miss_opacity=0.85,
     hover_outline=True,
     hover_outline_width=3.0,
     hover_opacity=1.0,
@@ -224,6 +276,7 @@ CLASSIC = Theme(
     target_overlay=True,
     target_overlay_color="#000000",
     target_overlay_opacity=0.18,
+    miss_opacity=0.85,
     hover_outline=False,
     hover_outline_width=0.0,
     hover_opacity=1.0,
@@ -247,6 +300,11 @@ if tuple(_THEMES) != THEMES:  # pragma: no cover - import-time guard
     raise RuntimeError(
         f"theme registry {tuple(_THEMES)} does not match settings.THEMES {THEMES}"
     )
+for _key, _theme in _THEMES.items():  # pragma: no cover - import-time guard
+    if _theme.name != _key:
+        raise RuntimeError(
+            f"theme registry key {_key!r} does not match Theme.name {_theme.name!r}"
+        )
 
 
 def get_theme(name: str) -> Theme:

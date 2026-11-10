@@ -146,7 +146,7 @@ class Stimuli:
             height=layout.cell,
             fillColor=theme.error,
             lineColor=None,
-            opacity=0.85,
+            opacity=theme.miss_opacity,
             units="pix",
         )
         if theme.cursor_radius_basis == "cell":
