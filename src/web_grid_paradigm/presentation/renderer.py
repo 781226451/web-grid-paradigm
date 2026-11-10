@@ -140,12 +140,9 @@ class Renderer:
         stim.intro_mode.draw()
         stim.intro_start.draw()
 
-    def draw_countdown(self) -> None:
-        stim = self.stim
-        stim.grid_bg.draw()
-        stim.fixation_bg.draw()
-        stim.fixation_h.draw()
-        stim.fixation_v.draw()
+    def draw_countdown(self, now: float, cursor_px: tuple[float, float]) -> None:
+        self.stim.grid_bg.draw()
+        self._draw_cursor(now, cursor_px)
 
     def draw_rest(self) -> None:
         """Blank screen between blocks."""
@@ -216,14 +213,17 @@ class Renderer:
                 stim.dwell_bar.fillColor = theme.dwell_fill
                 self._draw_dwell_bar(target_x, target_y, progress)
 
+        self._draw_cursor(now, cursor_px)
+
+    def _draw_cursor(self, now: float, cursor_px: tuple[float, float]) -> None:
+        stim = self.stim
+        theme = self.theme
         if theme.trail:
             self._append_trail(cursor_px, now)
 
         flashing = now < self._cursor_flash_until
         cursor_color = theme.cursor_flash if flashing else theme.cursor
-        cursor_rgb = (
-            self._cursor_flash_rgb if flashing else self._cursor_rgb
-        )
+        cursor_rgb = self._cursor_flash_rgb if flashing else self._cursor_rgb
         self._draw_trail(cursor_color, now)
 
         if stim.cursor_glow is not None:

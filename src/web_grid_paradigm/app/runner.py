@@ -219,7 +219,7 @@ class WebGridApp:
                     self._begin_run(now)
                 else:
                     self.input.poll_cursor(now)
-                    self.renderer.draw_countdown()
+                    self.renderer.draw_countdown(now, self.input.cursor_px)
                     self.win.flip()
                     continue
 

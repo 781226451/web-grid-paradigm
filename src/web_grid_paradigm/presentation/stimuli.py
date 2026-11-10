@@ -42,7 +42,6 @@ class Stimuli:
 
         self._build_board()
         self._build_task_stimuli()
-        self._build_fixation()
         self._build_intro()
 
     # ------------------------------------------------------------------
@@ -218,36 +217,6 @@ class Stimuli:
             fillColor=theme.dwell_fill,
             lineColor=theme.dwell_line,
             lineWidth=1,
-            units="pix",
-        )
-
-    def _build_fixation(self) -> None:
-        # The animal-facing screen has no text: the only chrome is the
-        # fixation cross shown before each block.
-        theme = self.theme
-        fix = 18 * self.ui
-        self.fixation_bg = visual.Circle(
-            self.win,
-            radius=26 * self.ui,
-            fillColor=theme.panel,
-            lineColor=theme.panel_edge,
-            lineWidth=1,
-            units="pix",
-        )
-        self.fixation_h = visual.Line(
-            self.win,
-            start=(-fix, 0),
-            end=(fix, 0),
-            lineColor=theme.text,
-            lineWidth=2,
-            units="pix",
-        )
-        self.fixation_v = visual.Line(
-            self.win,
-            start=(0, -fix),
-            end=(0, fix),
-            lineColor=theme.text,
-            lineWidth=2,
             units="pix",
         )
 
