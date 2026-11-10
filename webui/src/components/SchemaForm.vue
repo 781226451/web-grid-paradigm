@@ -39,7 +39,7 @@ const groups = computed(() =>
         class="row"
       >
         <template #label>
-          <span v-if="field.label" class="label">{{ field.label }}</span>
+          <span class="label">{{ field.label }}</span>
           <span
             v-if="form.sources[field.name] && form.sources[field.name] !== 'default'"
             class="source"
