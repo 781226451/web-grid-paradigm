@@ -7,9 +7,10 @@ import {
   NDescriptionsItem,
   NTag,
   dateZhCN,
+  useMessage,
   zhCN,
 } from "naive-ui";
-import { computed, onBeforeUnmount, onMounted } from "vue";
+import { computed, onBeforeUnmount, onMounted, watch } from "vue";
 
 import BlockTable from "@/components/BlockTable.vue";
 import ConfigPanel from "@/components/ConfigPanel.vue";
@@ -26,6 +27,27 @@ import { connect, disconnect, station } from "@/stores/station";
 
 const cfg = computed(() => station.state.config ?? {});
 const phase = computed(() => phaseLabel(station.state.phase, station.status));
+const message = useMessage();
+let lastError = "";
+
+watch(
+  () => station.state.error,
+  (error) => {
+    if (!error) {
+      lastError = "";
+      return;
+    }
+    if (error === lastError) {
+      return;
+    }
+    lastError = error;
+    message.error(`实验启动/运行失败：${error}`, {
+      duration: 8000,
+      closable: true,
+    });
+  },
+);
+
 const tagType = computed(() => {
   const value = String(station.state.phase ?? "");
   if (station.status === "idle") return "default";
@@ -84,6 +106,9 @@ onBeforeUnmount(disconnect);
 
       <n-alert v-if="station.error" type="warning" closable @close="station.error = ''">
         {{ station.error }}
+      </n-alert>
+      <n-alert v-if="station.state.error" type="error" class="run-error">
+        实验失败：{{ station.state.error }}
       </n-alert>
 
       <main class="layout">
