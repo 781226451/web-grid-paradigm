@@ -259,10 +259,9 @@ class SessionEngine:
             dwell=dwell,
         )
         self.stats.add_trial(hit=trial.correct, rt=rt, efficiency=efficiency)
-        # There is no feedback interval: finish the trial and go straight to
-        # the optional inter-trial interval (zero means the next target is
-        # started on the next frame).  The last trial ends the block
-        # immediately, so no ITI is added after it.
+        # Finish the trial and go straight to the optional inter-trial
+        # interval (zero means the next target starts on the next frame).
+        # The last trial ends the block immediately, so no ITI follows it.
         if self.block_over(now):
             self._end(now)
         else:

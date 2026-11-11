@@ -162,7 +162,7 @@ def test_session_ends_after_target_count() -> None:
     assert engine.session_end == pytest.approx(0.2)
 
 
-def test_bps_duration_has_no_feedback_interval() -> None:
+def test_bps_duration_is_active_target_time() -> None:
     engine = make_engine(targets=1)
     engine.begin(0.0)
     x, y = centre(engine)

@@ -108,9 +108,9 @@ class SessionStats:
         instead of a negative rate.
 
         ``duration_s`` is active target time: the sum of the intervals during
-        which a target is on screen.  Countdown, feedback, the optional ITI
-        and inter-block rest are not included, so none of them can inflate
-        the denominator.
+        which a target is on screen.  Countdown, the optional ITI and
+        inter-block rest are not included, so they cannot inflate the
+        denominator.
         """
         if duration_s <= 0:
             return 0.0
@@ -142,8 +142,8 @@ def merge_stats(
 ) -> dict:
     """Session totals over ``(stats, duration_s)`` blocks.
 
-    Rates are computed on the summed active target time, so ITI, feedback,
-    countdown and inter-block rest do not lower NTPM/BPS.
+    Rates are computed on the summed active target time, so ITI, countdown and
+    inter-block rest do not lower NTPM/BPS.
     """
     total = SessionStats()
     duration = 0.0

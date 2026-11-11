@@ -94,7 +94,7 @@ uv run webgrid --rows 10 --cols 10
    - 被试移动光标到目标格；
    - **click** 模式：按下与目标颜色对应的鼠标/BCI 按键；**dwell** 模式：在目标格内连续停留 `dwell_time` 秒自动选择。
 4. 命中：立即进入下一个目标；如果设置了 `iti`，先显示空网格和光标。
-5. 点错：目标保留，可继续尝试；仅用视觉反馈（光标/单元格闪红），不显示文字。
+5. 点错：目标保留，可继续尝试；仅用视觉提示（光标/单元格闪红），不显示文字。
 6. 超时（默认 15 s）或达到 `targets` 个目标 / `max_seconds` 后结束。
 7. 结束后显示空白屏；实验者按空格或 Esc 退出，数据路径打印在控制台。
 
@@ -122,7 +122,7 @@ achieved-bitrate 定义：`B = log2(N) × max(S_c − S_i, 0) / t`。论文里�
 是因为其中有一个符号是 delete 键；web-grid 没有 delete 键，因此直接使用 `log2(N)`。
 `max(…, 0)` 保证误点多于命中时 BPS 为 0，而不是负数（NTPM 仍保留原值，可为负，便于分析）。
 
-`t` 是所有 trial 中目标在屏的时间之和（target onset → finish）：开始页、countdown、feedback、ITI、block 间休息都不计入。`summary.json` 同时保留 `wall_duration_s` 作为整个 block 的实际墙钟时长。
+`t` 是所有 trial 中目标在屏的时间之和（target onset → finish）：开始页、countdown、ITI、block 间休息都不计入。`summary.json` 同时保留 `wall_duration_s` 作为整个 block 的实际墙钟时长。
 
 示例：12×12、`click_types=1`、120 s 内 20 次命中、1 次误点：
 
@@ -474,7 +474,7 @@ data/
 - `path_efficiency = 直线距离 / 实际轨迹长度`，没有移动时为空白。
 - 多 block：`events.csv` 与 `trials.csv` 都有 `block` 列，`trial_index` 在每个 block 内从 1 开始；`summary.json` 的 `results.blocks` 为每个 block 的结果，顶层为全部 block 合计（NTPM/BPS 按 block 内时长计算，不含休息）。
 - 流程：倒计时 → block 1 → 空白休息 → 倒计时 → block 2 → …；各 block 目标序列不同但由 `seed` 决定、可复现。
-- 一个 block 内：目标 → 选中/超时 → trial 间休息（`--iti`，空网格）→ 下一个目标；没有反馈停留，最后一个 trial 之后不再休息，直接结束 block。`events.csv` 记录 `iti_start`；反应时从目标真正出现（flip）开始计时，不含休息时间。
+- 一个 block 内：目标 → 选中/超时 → trial 间休息（`--iti`，空网格）→ 下一个目标；没有额外停留，最后一个 trial 之后不再休息，直接结束 block。`events.csv` 记录 `iti_start`；反应时从目标真正出现（flip）开始计时，不含休息时间。
 - 按 Esc 中止时仍会写出已产生的数据，`summary.json` 中 `aborted` 为 `true`。
 - 同一秒内重复启动会自动加 `-2`、`-3` 后缀，不覆盖已有数据。
 
@@ -581,7 +581,7 @@ src/web_grid_paradigm/
 │   ├── palette.py       # 颜色
 │   ├── window.py        # PsychoPy 窗口创建
 │   ├── stimuli.py       # 所有视觉刺激对象（一次性构建）
-│   └── renderer.py      # 逐帧绘制 + 误点/光标反馈
+│   └── renderer.py      # 逐帧绘制 + 误点/光标提示
 ├── velocity_inputs/     # 输入策略 + 门面
 │   ├── router.py        # 选策略 + 积分 + 目标注入
 │   └── ...              # base/registry/integrator/mouse/demo/joystick/hall_protocol/lsl

@@ -1,7 +1,7 @@
 """Drawing routines.
 
 The renderer turns engine state into pixels.  It owns the short-lived visual
-feedback (miss flash, cursor flash, motion trail) so that the session logic in
+error cues (miss flash, cursor flash, motion trail) so that the session logic in
 :mod:`web_grid_paradigm.app.runner` never has to think about drawing state.
 All theme-dependent choices come from :class:`~.themes.Theme`.
 """
@@ -51,7 +51,7 @@ class Renderer:
         self._trail: list[tuple[float, float, float]] = []
 
     # ------------------------------------------------------------------
-    # feedback state (owned here, triggered by the runner)
+    # error / cursor flash state (owned here, triggered by the runner)
     # ------------------------------------------------------------------
     def flash_miss(self, cell: Cell | None, now: float) -> None:
         """Short error-colour flash on a wrong click and on the cursor."""
