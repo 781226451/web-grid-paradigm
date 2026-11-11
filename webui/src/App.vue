@@ -56,7 +56,7 @@ const info = computed(() => {
     ["Grid", station.state.grid ? `${station.state.grid.rows} × ${station.state.grid.cols}` : "–"],
     ["Block × Trial", `${config.blocks ?? 1} × ${config.targets ?? 0}`],
     ["输入 / 选择", `${config.input ?? "–"} / ${config.selection ?? "–"}`],
-    ["反馈 / Trial 间休息", `${fmt(config.feedback)} s / ${fmt(config.iti)} s`],
+    ["Trial 间休息", `${fmt(config.iti)} s`],
     ["Block 间休息", `${fmt(config.block_rest, 1)} s`],
     ["LSL 标记", config.lsl ? String(config.lsl_stream ?? "") : "关闭"],
     ["奖励", reward],

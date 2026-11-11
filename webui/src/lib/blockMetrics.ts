@@ -24,7 +24,7 @@ export function useBlockMetrics() {
     if (base === null || base === undefined) {
       return null;
     }
-    const running = ["run", "feedback", "iti"].includes(String(station.state.phase));
+    const running = ["run", "iti"].includes(String(station.state.phase));
     return base + (running ? (performance.now() - station.receivedAt) / 1000 : 0);
   });
 

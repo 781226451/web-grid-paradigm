@@ -22,7 +22,6 @@ export interface ExperimentConfigView {
   cols?: number;
   blocks?: number;
   targets?: number;
-  feedback?: number;
   iti?: number;
   block_rest?: number;
   countdown_seconds?: number;

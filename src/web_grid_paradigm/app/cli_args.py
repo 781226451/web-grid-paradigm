@@ -143,12 +143,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=(1, 2, 3),
         help="1-3 click types; target colour + required button",
     )
-    grid.add_argument("--feedback", type=float, metavar="S", help="feedback interval")
     grid.add_argument(
         "--iti",
         type=float,
         metavar="S",
-        help="inter-trial rest after feedback: empty grid, no target (default: 0)",
+        help="inter-trial rest after a trial: empty grid, no target (default: 0)",
     )
     grid.add_argument(
         "--countdown-seconds", type=float, metavar="S", help="countdown duration"
@@ -531,7 +530,6 @@ def load_config_resolved(args: argparse.Namespace) -> ResolvedConfig:
         "dwell_time": "dwell_time",
         "trial_timeout": "trial_timeout",
         "click_types": "click_types",
-        "feedback": "feedback",
         "iti": "iti",
         "countdown_seconds": "countdown_seconds",
         "input": "input",

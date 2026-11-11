@@ -113,7 +113,7 @@ watch(grid, draw, { deep: true });
     <canvas ref="canvas" class="grid-canvas" />
     <div class="legend">
       <span><i class="swatch target" />当前目标</span>
-      <span><i class="swatch idle" />trial 间 / 反馈</span>
+      <span><i class="swatch idle" />trial 间休息</span>
       <span><i class="swatch flash" />光标闪红 = 误点</span>
       <span><i class="swatch cursor" />光标</span>
     </div>

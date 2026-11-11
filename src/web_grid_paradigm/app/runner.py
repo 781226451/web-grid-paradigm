@@ -134,7 +134,6 @@ class WebGridApp:
         self._summary: dict[str, Any] = {}
 
         self._pending_target_onset = False
-        self._pending_feedback_start = False
         self._fps = 0.0
         self._next_publish = 0.0
         self.countdown_start = 0.0
@@ -291,7 +290,6 @@ class WebGridApp:
     def _begin_run(self, now: float) -> None:
         self.state = "run"
         self._pending_target_onset = True
-        self._pending_feedback_start = False
         self.renderer.reset()
         self.input.reset_buttons()
         self.engine.begin(now, *self.input.cursor_px)
@@ -370,16 +368,18 @@ class WebGridApp:
                 self._end_block(now)
                 self.win.flip()
                 return
-            if self.engine.phase is Phase.ITI:
-                self._log_iti_start(now)
             if target is not None:
                 self._pending_target_onset = True
 
         if self.engine.phase is Phase.RUNNING and not self._pending_target_onset:
             x, y, clicks = self.input.read(now, self.engine.target)
             self._handle_outcome(self.engine.update(now, x, y, clicks))
-        elif self.engine.phase in (Phase.FEEDBACK, Phase.ITI):
-            # Keep the devices fresh during feedback/ITI but discard any click.
+            if self.engine.phase is Phase.DONE:
+                self._end_block(now)
+                self.win.flip()
+                return
+        elif self.engine.phase is Phase.ITI:
+            # Keep devices fresh during the ITI but discard any click.
             self.input.read(now, self.engine.target)
 
         self.renderer.draw_run(now, self.engine, self.input.cursor_px)
@@ -388,18 +388,9 @@ class WebGridApp:
         if self._pending_target_onset:
             self._mark_target_onset(flip_time)
             self._pending_target_onset = False
-        if self._pending_feedback_start:
-            self.engine.feedback_until = flip_time + self.cfg.feedback
-            self._pending_feedback_start = False
 
     def _trial_boundary_reached(self, now: float) -> bool:
         engine = self.engine
-        if (
-            engine.phase is Phase.FEEDBACK
-            and not self._pending_feedback_start
-            and now >= engine.feedback_until
-        ):
-            return True
         return engine.phase is Phase.ITI and now >= engine.iti_until
 
     def _handle_outcome(self, outcome: FrameOutcome) -> None:
@@ -420,7 +411,12 @@ class WebGridApp:
                     reason=decision.reason,
                     trial_index=outcome.trial.index,
                 )
-            self._pending_feedback_start = True
+            if (
+                self.cfg.iti > 0
+                and self.engine.phase is Phase.ITI
+                and not self.engine.block_over(outcome.trial.offset)
+            ):
+                self._log_iti_start(outcome.trial.offset)
 
     def _log_iti_start(self, now: float) -> None:
         logger.debug(
@@ -463,11 +459,8 @@ class WebGridApp:
         self._next_publish = now + self.PUBLISH_INTERVAL
         engine = self.engine
         phase = self.state
-        if phase == "run":
-            if engine.phase is Phase.FEEDBACK:
-                phase = "feedback"
-            elif engine.phase is Phase.ITI:
-                phase = "iti"
+        if phase == "run" and engine.phase is Phase.ITI:
+            phase = "iti"
         target = engine.target
         target_info = (
             {
@@ -477,7 +470,7 @@ class WebGridApp:
                 "button": target.required_button,
                 "index": target.index,
             }
-            if target is not None and phase in ("run", "feedback", "iti")
+            if target is not None and phase in ("run", "iti")
             else None
         )
         block_elapsed = (

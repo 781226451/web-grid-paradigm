@@ -50,7 +50,6 @@ EXPERIMENT_FIELDS = frozenset(
         "dwell_time",
         "trial_timeout",
         "click_types",
-        "feedback",
         "iti",
         "countdown_seconds",
         "seed",

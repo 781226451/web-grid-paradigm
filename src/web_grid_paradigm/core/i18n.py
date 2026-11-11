@@ -25,9 +25,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "legend_left": "左键",
         "legend_right": "右键",
         "legend_middle": "中键",
-        "feedback_hit": "命中",
-        "feedback_miss": "未命中，再试一次",
-        "feedback_timeout": "超时，进入下一个目标",
         "done_title": "本组完成",
         "done_stats": "命中 {hits}   ·   错误 {errors}   ·   超时 {timeouts}\n"
         "正确率 {accuracy:.0%}   ·   平均用时 {rt}\n"
@@ -63,9 +60,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "legend_left": "Left click",
         "legend_right": "Right click",
         "legend_middle": "Middle click",
-        "feedback_hit": "Hit",
-        "feedback_miss": "Missed, try again",
-        "feedback_timeout": "Timeout, next target",
         "done_title": "Block complete",
         "done_stats": "Hits {hits}   ·   Errors {errors}   ·   Timeouts {timeouts}\n"
         "Accuracy {accuracy:.0%}   ·   Mean time {rt}\n"

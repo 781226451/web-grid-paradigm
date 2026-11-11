@@ -106,6 +106,10 @@ class SessionStats:
         ``N = n_cells * click_types`` is used directly.  The ``max(..., 0)``
         clamp reports 0 bits/s for a block with more misclicks than hits
         instead of a negative rate.
+
+        ``duration_s`` is the block's task time from the first target to the
+        end of the block.  The paradigm has no feedback phase, so no feedback
+        interval can inflate this denominator.
         """
         if duration_s <= 0:
             return 0.0

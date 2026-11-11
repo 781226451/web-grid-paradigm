@@ -11,7 +11,6 @@ export const PHASE_LABELS: Record<string, string> = {
   intro: "指导语",
   countdown: "倒计时",
   run: "运行中",
-  feedback: "反馈",
   iti: "trial 间休息",
   rest: "block 间休息",
   done: "已结束",

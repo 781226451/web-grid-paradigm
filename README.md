@@ -93,7 +93,7 @@ uv run webgrid --rows 10 --cols 10
    - 随机高亮一个目标格（单键模式为蓝色；多键模式按目标颜色区分所需按键），光标保留在上一帧位置；
    - 被试移动光标到目标格；
    - **click** 模式：按下与目标颜色对应的鼠标/BCI 按键；**dwell** 模式：在目标格内连续停留 `dwell_time` 秒自动选择。
-4. 命中：目标短暂反馈后出现下一个目标。
+4. 命中：立即进入下一个目标；如果设置了 `iti`，先显示空网格和光标。
 5. 点错：目标保留，可继续尝试；仅用视觉反馈（光标/单元格闪红），不显示文字。
 6. 超时（默认 15 s）或达到 `targets` 个目标 / `max_seconds` 后结束。
 7. 结束后显示空白屏；实验者按空格或 Esc 退出，数据路径打印在控制台。
@@ -121,6 +121,9 @@ BPS           = log2(N × C) × max(net, 0) / t     （bit/s）
 achieved-bitrate 定义：`B = log2(N) × max(S_c − S_i, 0) / t`。论文里写作 `log2(N − 1)`，
 是因为其中有一个符号是 delete 键；web-grid 没有 delete 键，因此直接使用 `log2(N)`。
 `max(…, 0)` 保证误点多于命中时 BPS 为 0，而不是负数（NTPM 仍保留原值，可为负，便于分析）。
+
+`t` 是 block 内从首个目标出现到 block 结束的时间：开始页、countdown、block 间休息不计入；
+trial 后不再有 feedback 停留，因此 feedback 不进入 BPS 分母；如果设置了 `iti`，ITI 会计入 `t`。
 
 示例：12×12、`click_types=1`、120 s 内 20 次命中、1 次误点：
 
@@ -248,7 +251,7 @@ uv run webgrid --lsl-state --lsl-state-stream MyRig --lsl-state-rate 20
 {
   "schema": "webgrid.state/1", "utc": "2026-11-07T17:12:31.245+08:00",
   "status": "running",              // idle | running | stopping
-  "phase": "run",                   // starting|intro|countdown|run|feedback|iti|rest|done
+  "phase": "run",                   // starting|intro|countdown|run|iti|rest|done
   "subject": "sub-01", "session_id": "20261107-171124",
   "blocks": 2, "trials_per_block": 6, "block": 1, "trial": 3,
   "target": {"index": 3, "row": 5, "col": 6, "label": "r6c7", "button": 1},
@@ -472,7 +475,7 @@ data/
 - `path_efficiency = 直线距离 / 实际轨迹长度`，没有移动时为空白。
 - 多 block：`events.csv` 与 `trials.csv` 都有 `block` 列，`trial_index` 在每个 block 内从 1 开始；`summary.json` 的 `results.blocks` 为每个 block 的结果，顶层为全部 block 合计（NTPM/BPS 按 block 内时长计算，不含休息）。
 - 流程：倒计时 → block 1 → 空白休息 → 倒计时 → block 2 → …；各 block 目标序列不同但由 `seed` 决定、可复现。
-- 一个 block 内：目标 → 选中/超时 → 反馈（`--feedback`）→ trial 间休息（`--iti`，空网格）→ 下一个目标；最后一个 trial 之后不再休息，直接结束 block。`events.csv` 记录 `iti_start`；反应时仍从目标真正出现（flip）开始计时，不含休息时间。
+- 一个 block 内：目标 → 选中/超时 → trial 间休息（`--iti`，空网格）→ 下一个目标；没有反馈停留，最后一个 trial 之后不再休息，直接结束 block。`events.csv` 记录 `iti_start`；反应时从目标真正出现（flip）开始计时，不含休息时间。
 - 按 Esc 中止时仍会写出已产生的数据，`summary.json` 中 `aborted` 为 `true`。
 - 同一秒内重复启动会自动加 `-2`、`-3` 后缀，不覆盖已有数据。
 
@@ -500,8 +503,7 @@ data/
 | `--dwell-time` | 1.0 | 停留选择时长（秒） |
 | `--trial-timeout` | 15 | 单目标超时；0 关闭 |
 | `--click-types` | 1 | 1–3；目标颜色/要求按键，同时影响计分 |
-| `--feedback` | 0.35 | 命中/超时反馈时长 |
-| `--iti` | 0 | trial 间休息（秒）：反馈之后只显示空网格和光标、不显示目标；0 为无 |
+| `--iti` | 0 | trial 间休息（秒）：只显示空网格和光标、不显示目标；0 为无 |
 | `--countdown-seconds` | 2.0 | 倒计时总时长 |
 | `--input` | `mouse` | `mouse` / `demo` / `joystick` / `lsl` |
 | `--demo-speed` | 2.2 | autopilot 速度 |

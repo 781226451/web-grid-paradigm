@@ -16,7 +16,6 @@ def make_config(**overrides: object) -> ExperimentConfig:
         cols=4,
         targets=3,
         max_seconds=0,
-        feedback=0.2,
         countdown_seconds=0,
         trial_timeout=10.0,
         seed=1,
@@ -35,7 +34,7 @@ def centre(engine: SessionEngine, cell: Cell | None = None) -> tuple[float, floa
     return engine.layout.centre_px(target_cell)
 
 
-def test_hit_moves_to_feedback_and_scores() -> None:
+def test_hit_finishes_trial_and_scores() -> None:
     engine = make_engine()
     target = engine.begin(0.0)
     x, y = centre(engine)
@@ -47,9 +46,9 @@ def test_hit_moves_to_feedback_and_scores() -> None:
     assert trial.correct is True
     assert trial.rt == pytest.approx(0.2)
     assert trial.path_efficiency == pytest.approx(1.0)
-    assert engine.phase is Phase.FEEDBACK
+    assert engine.phase is Phase.ITI
+    assert engine.iti_until == pytest.approx(0.2)
     assert engine.stats.hits == 1
-    assert engine.feedback_until == pytest.approx(0.4)
     assert engine.target is not None and engine.target.cell == target.cell
 
 
@@ -102,7 +101,7 @@ def test_timeout_ends_the_trial() -> None:
     assert outcome.trial.reason == "trial_timeout"
     assert engine.stats.timeouts == 1
     assert engine.stats.attempts == 1
-    assert engine.phase is Phase.FEEDBACK
+    assert engine.phase is Phase.ITI
 
 
 def test_dwell_selection() -> None:
@@ -159,11 +158,20 @@ def test_session_ends_after_target_count() -> None:
     x, y = centre(engine)
     outcome = engine.update(0.2, x, y, [1])
     assert outcome.trial is not None
-    assert engine.advance(0.39) is None
-    assert engine.phase is Phase.FEEDBACK
-    assert engine.advance(0.4) is None
     assert engine.phase is Phase.DONE
-    assert engine.session_end == pytest.approx(0.4)
+    assert engine.session_end == pytest.approx(0.2)
+
+
+def test_bps_duration_has_no_feedback_interval() -> None:
+    engine = make_engine(targets=1)
+    engine.begin(0.0)
+    x, y = centre(engine)
+    assert engine.update(0.2, x, y, [1]).trial is not None
+    summary = engine.summary(0.2)
+    assert summary["duration_s"] == pytest.approx(0.2)
+    assert summary["bps"] == pytest.approx(
+        summary["bits_per_target"] / 0.2
+    )
 
 
 def test_advance_starts_next_target() -> None:
@@ -226,19 +234,18 @@ def _hit(engine: SessionEngine, t: float) -> None:
     assert engine.update(t, x, y, [1]).trial is not None
 
 
-def test_iti_follows_feedback_before_next_target() -> None:
-    engine = make_engine(iti=1.0, feedback=0.2)
+def test_iti_follows_trial_before_next_target() -> None:
+    engine = make_engine(iti=1.0)
     first = engine.begin(0.0)
-    _hit(engine, 0.5)  # feedback until 0.7
-    assert engine.advance(0.6) is None and engine.phase is Phase.FEEDBACK
-    assert engine.advance(0.7) is None
+    _hit(engine, 0.5)
     assert engine.phase is Phase.ITI
-    assert engine.iti_until == pytest.approx(1.7)
+    assert engine.iti_until == pytest.approx(1.5)
+    assert engine.advance(0.6) is None and engine.phase is Phase.ITI
     # Inputs during the ITI do nothing.
     x, y = centre(engine, first.cell)
     assert engine.update(1.0, x, y, [1]).trial is None
-    assert engine.advance(1.6) is None and engine.phase is Phase.ITI
-    nxt = engine.advance(1.7)
+    assert engine.advance(1.4) is None and engine.phase is Phase.ITI
+    nxt = engine.advance(1.5)
     assert nxt is not None and nxt.index == 2
     assert engine.phase is Phase.RUNNING
 

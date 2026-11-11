@@ -21,7 +21,6 @@ from .scoring import SessionStats
 class Phase(str, Enum):
     READY = "ready"
     RUNNING = "running"
-    FEEDBACK = "feedback"
     ITI = "iti"  # inter-trial interval: no target on screen
     DONE = "done"
 
@@ -89,7 +88,6 @@ class SessionEngine:
         self.target: Target | None = None
         self.session_start: float | None = None
         self.session_end: float | None = None
-        self.feedback_until = 0.0
         self.iti_until = 0.0
         self.aborted = False
 
@@ -258,8 +256,15 @@ class SessionEngine:
             dwell=dwell,
         )
         self.stats.add_trial(hit=trial.correct, rt=rt, efficiency=efficiency)
-        self.phase = Phase.FEEDBACK
-        self.feedback_until = now + self.config.feedback
+        # There is no feedback interval: finish the trial and go straight to
+        # the optional inter-trial interval (zero means the next target is
+        # started on the next frame).  The last trial ends the block
+        # immediately, so no ITI is added after it.
+        if self.block_over(now):
+            self._end(now)
+        else:
+            self.phase = Phase.ITI
+            self.iti_until = now + self.config.iti
         return trial
 
     # ------------------------------------------------------------------
@@ -271,37 +276,25 @@ class SessionEngine:
         x_px: float | None = None,
         y_px: float | None = None,
     ) -> Target | None:
-        """Move on after feedback: into the ITI, then to the next trial.
+        """Move on after a trial: wait out the ITI, then start the next target.
 
-        Sequence between two trials: FEEDBACK -> ITI (``config.iti`` s, skipped
+        Sequence between two trials: trial -> ITI (``config.iti`` s, skipped
         when 0) -> next target.  No ITI follows the last trial of a block.
         Returns the new target, or ``None`` while still waiting / when done.
         """
-        if self.target is None:
+        if self.target is None or self.phase is not Phase.ITI:
             return None
-        if self.phase is Phase.FEEDBACK:
-            if now < self.feedback_until:
-                return None
-            if self._block_over(now):
-                self._end(now)
-                return None
-            if self.config.iti > 0:
-                self.phase = Phase.ITI
-                self.iti_until = now + self.config.iti
-                return None
-        elif self.phase is Phase.ITI:
-            if now < self.iti_until:
-                return None
-            if self._block_over(now):
-                self._end(now)
-                return None
-        else:
+        if now < self.iti_until:
+            return None
+        if self.block_over(now):
+            self._end(now)
             return None
         if x_px is not None and y_px is not None:
             self._current_px = (float(x_px), float(y_px))
         return self._start_target(now, *self._current_px)
 
-    def _block_over(self, now: float) -> bool:
+    def block_over(self, now: float) -> bool:
+        """True when the block has reached its target count or time limit."""
         if (
             self.config.max_seconds > 0
             and self.session_start is not None
