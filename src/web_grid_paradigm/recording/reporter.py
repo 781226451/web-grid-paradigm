@@ -89,8 +89,8 @@ class Reporter:
             },
         )
 
-    def instructions_end(self, now: float, *, skipped: bool) -> None:
-        self._event("instructions_end", now, detail={"skipped": skipped})
+    def instructions_end(self, now: float) -> None:
+        self._event("instructions_end", now, detail={"skipped": False})
 
     def countdown_start(self, now: float) -> None:
         self._event("countdown_start", now)

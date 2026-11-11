@@ -59,7 +59,6 @@ EXPERIMENT_FIELDS = frozenset(
         "window_height",
         "screen",
         "hide_cursor",
-        "skip_instructions",
         "auto_exit",
     }
 )

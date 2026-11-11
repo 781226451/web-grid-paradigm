@@ -39,7 +39,6 @@ window_width = 1280
 window_height = 800
 screen = 0
 hide_cursor = true
-skip_instructions = true     # animal use: no instruction screen
 auto_exit = false
 
 # --- web control panel (bootstrap) ------------------------------------

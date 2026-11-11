@@ -109,44 +109,58 @@ def test_source_classes_are_looked_up_by_name() -> None:
 
 
 # ----------------------------------------------------------------------
-# mouse strategy (velocity contract)
+# mouse strategy (absolute contract)
 # ----------------------------------------------------------------------
-def test_mouse_first_frame_only_establishes_the_baseline() -> None:
-    mouse = MouseVelocitySource(context=make_context(), device=FakeMouse())
-    mouse.open()
-    assert mouse.read(now=10.0).samples == ()
-
-
-def test_mouse_position_delta_becomes_velocity() -> None:
+def test_mouse_reports_the_absolute_pointer_position() -> None:
     context = make_context()
-    device = FakeMouse(pos=(0.0, 0.0))
-    mouse = MouseVelocitySource(options=MouseVelocityOptions(visible=True), context=context, device=device)
+    device = FakeMouse(pos=(100.0, 60.0))
+    mouse = MouseVelocitySource(context=context, device=device)
     mouse.open()
-    mouse.read(now=1.0)
-
-    device.pos = (100.0, 60.0)  # 800x600 window: 0.25 / 0.20 norm units
-    read = mouse.read(now=1.1)
-    assert len(read.samples) == 1
-    sample = read.samples[0]
-    assert sample.timestamp == pytest.approx(1.1)
-    assert sample.vx == pytest.approx(0.25 / 0.1)
-    assert sample.vy == pytest.approx(0.20 / 0.1)
+    frame = mouse.read(now=10.0)
+    assert frame.samples == ()
+    assert frame.position == pytest.approx((0.25, 0.20))
 
 
-def test_mouse_reset_clears_the_position_baseline() -> None:
-    device = FakeMouse()
+def test_mouse_position_follows_the_pointer_each_frame() -> None:
+    device = FakeMouse(pos=(0.0, 0.0))
+    mouse = MouseVelocitySource(context=make_context(), device=device)
+    mouse.open()
+    assert mouse.read(now=1.0).position == pytest.approx((0.0, 0.0))
+
+    device.pos = (200.0, -150.0)
+    assert mouse.read(now=1.1).position == pytest.approx((0.5, -0.5))
+
+    device.pos = (-400.0, 300.0)
+    assert mouse.read(now=1.2).position == pytest.approx((-1.0, 1.0))
+
+
+def test_mouse_never_recenters_near_the_window_edge() -> None:
+    device = FakeMouse(pos=(0.0, 0.0))
     mouse = MouseVelocitySource(context=make_context(), device=device)
     mouse.open()
     mouse.read(now=1.0)
 
-    device.pos = (50.0, 0.0)
-    mouse.read(now=1.1)
+    device.pos = (380.0, 0.0)  # inside the old 8% edge margin
+    frame = mouse.read(now=1.1)
+    assert device.pos == (380.0, 0.0)
+    assert frame.position == pytest.approx((0.95, 0.0))
+    mouse.read(now=1.2)
+    assert device.pos == (380.0, 0.0)
+
+
+def test_mouse_reset_keeps_the_absolute_position() -> None:
+    device = FakeMouse(pos=(100.0, 60.0))
+    mouse = MouseVelocitySource(context=make_context(), device=device)
+    mouse.open()
+    mouse.read(now=1.0)
 
     mouse.reset()
-    assert mouse.read(now=1.2).samples == ()  # baseline re-established
+    frame = mouse.read(now=1.1)
+    assert frame.position == pytest.approx((0.25, 0.20))
+    assert frame.clicks == ()
 
 
-def test_mouse_center_pointer_warps_and_restarts_baseline() -> None:
+def test_mouse_center_pointer_warps_the_pointer_once() -> None:
     device = FakeMouse(pos=(200.0, -150.0))
     mouse = MouseVelocitySource(context=make_context(), device=device)
     mouse.open()
@@ -154,19 +168,7 @@ def test_mouse_center_pointer_warps_and_restarts_baseline() -> None:
 
     mouse.center_pointer()
     assert device.pos == (0.0, 0.0)
-    assert mouse.read(now=1.1).samples == ()
-
-
-def test_mouse_recenters_pointer_near_window_edge() -> None:
-    device = FakeMouse(pos=(0.0, 0.0))
-    mouse = MouseVelocitySource(context=make_context(), device=device)
-    mouse.open()
-    mouse.read(now=1.0)
-
-    device.pos = (380.0, 0.0)  # 800px window: inside the 8% edge margin
-    mouse.read(now=1.1)
-    assert device.pos == (0.0, 0.0)
-    assert mouse.read(now=1.2).samples == ()
+    assert mouse.read(now=1.1).position == pytest.approx((0.0, 0.0))
 
 
 def test_mouse_initial_position_capability() -> None:
@@ -263,9 +265,11 @@ def test_lsl_match_predicate_requires_and_trims_both() -> None:
 def test_data_model_defaults() -> None:
     read = VelocityFrame()
     assert read.samples == () and read.clicks == ()
+    assert read.position is None
     sample = VelocitySample(timestamp=1.0, vx=0.5, vy=-0.25)
     assert (sample.timestamp, sample.vx, sample.vy) == (1.0, 0.5, -0.25)
     assert VelocityFrame(clicks=(1,)).clicks == (1,)
+    assert VelocityFrame(position=(0.5, 0.5)).position == (0.5, 0.5)
 
 
 def test_mouse_button_edges_are_reported_once() -> None:

@@ -289,19 +289,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="hide the operating-system cursor (default)",
     )
-    instruction_mode = display.add_mutually_exclusive_group()
-    instruction_mode.add_argument(
-        "--instructions",
-        action="store_true",
-        default=None,
-        help="show the human instruction screen (off by default for animal use)",
-    )
-    instruction_mode.add_argument(
-        "--no-instructions",
-        action="store_true",
-        default=None,
-        help="skip the instruction screen (default)",
-    )
     auto_exit = display.add_mutually_exclusive_group()
     auto_exit.add_argument(
         "--auto-exit",
@@ -577,10 +564,6 @@ def load_config_resolved(args: argparse.Namespace) -> ResolvedConfig:
         overrides["fullscreen"] = True
     if args.windowed:
         overrides["fullscreen"] = False
-    if args.no_instructions:
-        overrides["skip_instructions"] = True
-    if args.instructions:
-        overrides["skip_instructions"] = False
     if args.open_dashboard:
         overrides["dashboard_open"] = True
     if args.no_open_dashboard:

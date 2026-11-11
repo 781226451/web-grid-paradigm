@@ -1,10 +1,10 @@
-"""Input facade: one strategy plus the velocity integrator.
+"""Input facade: one strategy plus the cursor integrator.
 
 The runner asks for ``(x, y, clicks)`` once per frame, exactly as before.  This
 module owns the selected :class:`~web_grid_paradigm.velocity_inputs.base.VelocitySource`,
-sets the demo target, integrates the returned velocity samples and exposes the
-cursor position.  The render loop therefore never talks to a device or to a
-concrete strategy.
+sets the demo target, applies either the returned velocity samples or an
+absolute cursor position and exposes the cursor position.  The render loop
+therefore never talks to a device or to a concrete strategy.
 """
 
 from __future__ import annotations
@@ -16,13 +16,15 @@ from loguru import logger
 from ..core.config import ExperimentConfig
 from ..core.geometry import Layout
 from ..core.session import Target
-from .base import DeviceContext, VelocitySource
+from .base import DeviceContext, VelocityFrame, VelocitySource
 from .demo import DemoVelocityOptions
 from .integrator import VelocityIntegrator
 from .joystick import SerialJoystickVelocityOptions
 from .lsl import LslVelocityOptions
 from .mouse import MouseVelocityOptions
 from .registry import build_velocity_source
+
+_CENTER_TOLERANCE_PX = 2.0
 
 
 class InputReader:
@@ -100,17 +102,38 @@ class InputReader:
     def cursor_px(self, value: tuple[float, float]) -> None:
         self.integrator.set_position_px(*value)
 
-    def center_cursor(self) -> None:
-        """Put the cursor at the window centre and disable the initial sync.
+    def center_cursor(self, now: float | None = None) -> bool:
+        """Put the cursor at the window centre and confirm the source.
 
-        A session starts from the centre even for absolute devices (the mouse);
-        subsequent movement is still relative to that centre.
+        Returns ``False`` when the source could not move the pointer or, when
+        ``now`` is given, when the next absolute frame does not report the
+        cursor at the centre.  The runner retries before starting the countdown
+        instead of silently beginning the session at an offset.
         """
         self.integrator.set_position_norm(0.0, 0.0)
         self._initial_synced = True
         center_pointer = getattr(self.source, "center_pointer", None)
-        if callable(center_pointer):
-            center_pointer()
+        if not callable(center_pointer):
+            return True
+        try:
+            result = center_pointer()
+        except Exception as exc:  # noqa: BLE001 - retried by the runner
+            logger.debug("cursor centring attempt failed: {}", exc)
+            return False
+        if result is False:
+            return False
+        if now is None:
+            return True
+        try:
+            frame = self.source.read(now)
+        except Exception as exc:  # noqa: BLE001 - retried by the runner
+            logger.debug("could not read the cursor after centring: {}", exc)
+            return False
+        if frame.position is None:
+            return False
+        self._apply_frame(frame, now)
+        x, y = self.cursor_px
+        return abs(x) <= _CENTER_TOLERANCE_PX and abs(y) <= _CENTER_TOLERANCE_PX
 
     def read(
         self,
@@ -121,7 +144,7 @@ class InputReader:
         self._set_target(target)
         frame = self.source.read(now)
         self._sync_initial()
-        self.integrator.update(frame, now)
+        self._apply_frame(frame, now)
         x, y = self.cursor_px
         return x, y, [int(button) for button in frame.clicks]
 
@@ -130,7 +153,7 @@ class InputReader:
         self._set_target(None)
         frame = self.source.read(now)
         self._sync_initial()
-        self.integrator.update(frame, now)
+        self._apply_frame(frame, now)
         return self.cursor_px
 
     def start_requested(self, now: float, keys: list[str]) -> bool:
@@ -140,7 +163,7 @@ class InputReader:
         self._set_target(None)
         frame = self.source.read(now)
         self._sync_initial()
-        self.integrator.update(frame, now)
+        self._apply_frame(frame, now)
         if frame.clicks:
             return True
         pressed = getattr(self.source, "button_pressed", None)
@@ -183,6 +206,13 @@ class InputReader:
     # ------------------------------------------------------------------
     # helpers
     # ------------------------------------------------------------------
+    def _apply_frame(self, frame: VelocityFrame, now: float) -> None:
+        """Apply one source frame: absolute position or integrated velocity."""
+        if frame.position is not None:
+            self.integrator.set_position_norm(*frame.position)
+        else:
+            self.integrator.update(frame, now)
+
     def _set_target(self, target: Target | None) -> None:
         setter = getattr(self.source, "set_target_norm", None)
         if not callable(setter):

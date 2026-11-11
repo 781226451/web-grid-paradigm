@@ -78,7 +78,6 @@ def test_theme_renders_its_declared_colours(tmp_path, theme_name: str) -> None:
         cols=4,
         click_types=1,
         reward="off",
-        skip_instructions=True,
     )
     app = WebGridApp(config, recorder=None, marker_sink=NullMarkerSink())
     try:

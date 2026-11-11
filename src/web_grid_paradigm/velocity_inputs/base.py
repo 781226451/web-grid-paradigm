@@ -9,17 +9,20 @@ the interface below, so adding a device never touches the render loop.
 
 Contract
 --------
-* A source emits **velocity samples** ``(timestamp, vx, vy)``.  The cursor
-  position is derived by integrating them; a source never knows the window
-  geometry, the current target, the trial state or the scoring rules.
+* A source emits either **velocity samples** ``(timestamp, vx, vy)`` or, for
+  an absolute device, one **absolute cursor position** per frame in the same
+  normalised units.  Velocity sources are integrated; an absolute frame sets
+  the cursor directly.  In both cases the source never knows the grid, the
+  current target, the trial state or the scoring rules.
 * ``timestamp`` is on the runner's monotonic clock (``core.getTime()``), the
   same timebase as ``win.flip()`` and the session engine, in seconds.
 * ``vx``/``vy`` are normalised window units per second: ``+x`` right, ``+y``
   up and ``1.0`` means half the window dimension per second.  The integrator
   converts them to pixels, so sources stay resolution independent.
 * ``read(now)`` is called once per rendered frame.  It must not block and
-  returns ``0..N`` velocity samples that arrived since the previous call.
-  Device I/O stays outside the render loop.
+  returns the samples that arrived since the previous call, or the current
+  absolute position for an absolute device.  Device I/O stays outside the
+  render loop.
 * A source with a selection channel (mouse buttons, joystick trigger, LSL
   button channel) returns button **edges** in :attr:`VelocityFrame.clicks`.
   Button numbers follow the paradigm convention: 1 = left/primary, 2 = right,
@@ -79,11 +82,15 @@ class VelocityFrame:
     """Everything a source produced for one frame.
 
     ``samples`` is ordered by ``timestamp``; ``clicks`` holds button edges
-    (1/2/3) that happened since the previous call.
+    (1/2/3) that happened since the previous call.  Absolute sources (the
+    mouse) set ``position`` instead of emitting samples: a cursor position in
+    normalised window units.  When ``position`` is set it takes precedence and
+    the facade applies it directly, bypassing the integrator.
     """
 
     samples: tuple[VelocitySample, ...] = ()
     clicks: tuple[int, ...] = ()
+    position: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,7 +154,7 @@ class VelocitySource(Protocol):
         """Release the device.  Must be idempotent."""
 
     def read(self, now: float) -> VelocityFrame:
-        """Return the velocity samples and button edges since the last call."""
+        """Return the samples or absolute position plus any button edges."""
 
     def reset(self) -> None:
         """Forget per-block state (button edges, velocity baseline)."""
