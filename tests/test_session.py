@@ -174,6 +174,22 @@ def test_bps_duration_has_no_feedback_interval() -> None:
     )
 
 
+def test_iti_is_not_part_of_bps_duration() -> None:
+    engine = make_engine(targets=2, iti=1.0)
+    engine.begin(0.0)
+    _hit(engine, 0.5)  # 0.5 s active, then 1 s ITI
+    next_target = engine.advance(1.5)
+    assert next_target is not None
+    _hit(engine, 2.0)  # another 0.5 s active
+
+    summary = engine.summary(2.0)
+    assert summary["duration_s"] == pytest.approx(1.0)
+    assert summary["wall_duration_s"] == pytest.approx(2.0)
+    assert summary["bps"] == pytest.approx(
+        2 * summary["bits_per_target"] / 1.0
+    )
+
+
 def test_advance_starts_next_target() -> None:
     engine = make_engine(targets=3)
     engine.begin(0.0)

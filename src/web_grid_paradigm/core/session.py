@@ -99,6 +99,7 @@ class SessionEngine:
         self._dwell_s = 0.0
         self._trial_misclicks = 0
         self._last_update: float | None = None
+        self._active_s = 0.0
         # A new block must not open on the cell the previous block ended on.
         self._last_cell: Cell | None = avoid_first
 
@@ -109,6 +110,7 @@ class SessionEngine:
         if self.phase is not Phase.READY:
             raise RuntimeError("session already started")
         self.session_start = now
+        self._active_s = 0.0
         self.phase = Phase.RUNNING
         return self._start_target(now, x_px, y_px)
 
@@ -166,8 +168,9 @@ class SessionEngine:
 
         x_px = _clamp(x_px, -self.layout.window_w / 2, self.layout.window_w / 2)
         y_px = _clamp(y_px, -self.layout.window_h / 2, self.layout.window_h / 2)
-        dt = 0.0 if self._last_update is None else now - self._last_update
-        dt = _clamp(dt, 0.0, 0.25)
+        elapsed = 0.0 if self._last_update is None else now - self._last_update
+        self._active_s += max(0.0, elapsed)
+        dt = _clamp(elapsed, 0.0, 0.25)
         if self._prev_px is not None:
             step = math.dist((x_px, y_px), self._prev_px)
             # Ignore implausible teleports (for example a device reset).
@@ -308,6 +311,8 @@ class SessionEngine:
         self.session_end = now
 
     def abort(self, now: float) -> None:
+        if self.phase is Phase.RUNNING and self._last_update is not None:
+            self._active_s += max(0.0, now - self._last_update)
         self.aborted = True
         self.stats.aborted = True
         self.session_end = now
@@ -334,10 +339,11 @@ class SessionEngine:
 
     def summary(self, now: float) -> dict:
         data = self.stats.summary(
-            self.elapsed(now), self.config.n_cells, self.config.click_types
+            self._active_s, self.config.n_cells, self.config.click_types
         )
         data["session_start"] = self.session_start
         data["session_end"] = self.session_end if self.session_end is not None else now
+        data["wall_duration_s"] = self.elapsed(now)
         return data
 
 

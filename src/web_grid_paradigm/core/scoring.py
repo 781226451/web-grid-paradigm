@@ -107,9 +107,10 @@ class SessionStats:
         clamp reports 0 bits/s for a block with more misclicks than hits
         instead of a negative rate.
 
-        ``duration_s`` is the block's task time from the first target to the
-        end of the block.  The paradigm has no feedback phase, so no feedback
-        interval can inflate this denominator.
+        ``duration_s`` is active target time: the sum of the intervals during
+        which a target is on screen.  Countdown, feedback, the optional ITI
+        and inter-block rest are not included, so none of them can inflate
+        the denominator.
         """
         if duration_s <= 0:
             return 0.0
@@ -141,8 +142,8 @@ def merge_stats(
 ) -> dict:
     """Session totals over ``(stats, duration_s)`` blocks.
 
-    Rates are computed on the summed in-block time, so inter-block rests do
-    not lower NTPM/BPS.
+    Rates are computed on the summed active target time, so ITI, feedback,
+    countdown and inter-block rest do not lower NTPM/BPS.
     """
     total = SessionStats()
     duration = 0.0

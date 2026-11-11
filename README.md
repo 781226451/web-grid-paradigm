@@ -122,8 +122,7 @@ achieved-bitrate 定义：`B = log2(N) × max(S_c − S_i, 0) / t`。论文里�
 是因为其中有一个符号是 delete 键；web-grid 没有 delete 键，因此直接使用 `log2(N)`。
 `max(…, 0)` 保证误点多于命中时 BPS 为 0，而不是负数（NTPM 仍保留原值，可为负，便于分析）。
 
-`t` 是 block 内从首个目标出现到 block 结束的时间：开始页、countdown、block 间休息不计入；
-trial 后不再有 feedback 停留，因此 feedback 不进入 BPS 分母；如果设置了 `iti`，ITI 会计入 `t`。
+`t` 是所有 trial 中目标在屏的时间之和（target onset → finish）：开始页、countdown、feedback、ITI、block 间休息都不计入。`summary.json` 同时保留 `wall_duration_s` 作为整个 block 的实际墙钟时长。
 
 示例：12×12、`click_types=1`、120 s 内 20 次命中、1 次误点：
 
