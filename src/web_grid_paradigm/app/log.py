@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import inspect
 import logging
+import subprocess
 import sys
+from functools import lru_cache
 from pathlib import Path
 
 from loguru import logger
@@ -29,6 +31,33 @@ FILE_FORMAT = (
     "{time:YYYY-MM-DD HH:mm:ss.SSS ZZ} | {level: <7} | "
     "{name}:{function}:{line} - {message}"
 )
+
+
+@lru_cache(maxsize=1)
+def git_branch() -> str:
+    """Best-effort current git branch, or ``unknown`` outside a checkout."""
+    root = Path(__file__).resolve()
+    for parent in root.parents:
+        if (parent / ".git").exists():
+            root = parent
+            break
+    else:
+        root = Path.cwd()
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=2,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    branch = result.stdout.strip()
+    if result.returncode != 0 or not branch:
+        return "unknown"
+    return branch
 
 
 class InterceptHandler(logging.Handler):

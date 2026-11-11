@@ -16,7 +16,7 @@ from .. import __version__
 from ..core.config import ExperimentConfig
 from ..recording.recorder import SessionRecorder
 from .cli_args import build_parser, load_config_resolved
-from .log import add_session_log, setup_logging
+from .log import add_session_log, git_branch, setup_logging
 
 
 def _preview(config: ExperimentConfig, path: Path) -> int:
@@ -55,6 +55,7 @@ def _run(
         config_files=run_files,
     )
     sink_id = add_session_log(recorder.dir)
+    logger.info("git branch: {}", git_branch())
     try:
         logger.info(
             "subject={} session={} grid={}x{} blocks={} trials/block={} "
