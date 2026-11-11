@@ -33,16 +33,62 @@ FILE_FORMAT = (
 )
 
 
+def _find_git_dir(start: Path) -> Path | None:
+    """Return the git metadata directory for *start*, if it is in a checkout."""
+    for parent in (start, *start.parents):
+        marker = parent / ".git"
+        if marker.is_dir():
+            return marker
+        if not marker.is_file():
+            continue
+        try:
+            content = marker.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if content.lower().startswith("gitdir:"):
+            target = Path(content.split(":", 1)[1].strip())
+            if not target.is_absolute():
+                target = (marker.parent / target).resolve()
+            return target
+    return None
+
+
+def _branch_from_head(git_dir: Path) -> str | None:
+    """Read ``HEAD`` directly; no git executable or subprocess required."""
+    try:
+        head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if head.startswith("ref:"):
+        ref = head[4:].strip()
+        prefix = "refs/heads/"
+        return ref[len(prefix):] if ref.startswith(prefix) else ref or None
+    # Detached HEAD contains a commit hash instead of a symbolic ref.
+    return "HEAD" if head else None
+
+
+def _branch_from_files() -> str | None:
+    seen: set[Path] = set()
+    for start in (Path(__file__).resolve(), Path.cwd().resolve()):
+        git_dir = _find_git_dir(start)
+        if git_dir is None or git_dir in seen:
+            continue
+        seen.add(git_dir)
+        branch = _branch_from_head(git_dir)
+        if branch:
+            return branch
+    return None
+
+
 @lru_cache(maxsize=1)
 def git_branch() -> str:
     """Best-effort current git branch, or ``unknown`` outside a checkout."""
-    root = Path(__file__).resolve()
-    for parent in root.parents:
-        if (parent / ".git").exists():
-            root = parent
-            break
-    else:
-        root = Path.cwd()
+    branch = _branch_from_files()
+    if branch is not None:
+        return branch
+    # Fall back to git for unusual layouts (GIT_DIR, bare repos, linked
+    # worktrees whose metadata cannot be read directly).
+    root = Path.cwd()
     try:
         result = subprocess.run(
             ["git", "-C", str(root), "rev-parse", "--abbrev-ref", "HEAD"],
