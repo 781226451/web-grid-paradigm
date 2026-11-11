@@ -60,6 +60,7 @@ class ExperimentConfig:
     iti: float = 0.0  # inter-trial rest (blank grid, no target) after a trial
     countdown_seconds: float = 2.0
     seed: int = 20261107
+    require_clean_git: bool = False  # abort if the worktree is not clean
 
     # --- input ------------------------------------------------------------
     input: str = "mouse"  # mouse | demo | joystick | lsl

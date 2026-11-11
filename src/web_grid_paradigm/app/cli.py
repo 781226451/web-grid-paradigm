@@ -16,7 +16,12 @@ from .. import __version__
 from ..core.config import ExperimentConfig
 from ..recording.recorder import SessionRecorder
 from .cli_args import build_parser, load_config_resolved
-from .log import add_session_log, git_branch, setup_logging
+from .log import add_session_log, setup_logging
+from .provenance import (
+    collect_code_version,
+    format_code_version,
+    write_code_version,
+)
 
 
 def _preview(config: ExperimentConfig, path: Path) -> int:
@@ -48,6 +53,19 @@ def _run(
 
     run_sources = getattr(view, "config_sources", None) or sources
     run_files = getattr(view, "config_files", None) or config_files
+    code_version = collect_code_version()
+    if config.require_clean_git and (
+        code_version["dirty"] is not False or code_version["commit"] is None
+    ):
+        detail = format_code_version(code_version)
+        logger.error(
+            "refusing to start: require_clean_git is set but the git state is {}",
+            detail,
+        )
+        raise RuntimeError(
+            "require_clean_git: the worktree is not a clean git commit "
+            f"({detail}); commit or stash the changes first"
+        )
     recorder = SessionRecorder(
         config,
         psychopy_version=psychopy.__version__,
@@ -55,7 +73,14 @@ def _run(
         config_files=run_files,
     )
     sink_id = add_session_log(recorder.dir)
-    logger.info("git branch: {}", git_branch())
+    logger.info("code version: {}", format_code_version(code_version))
+    if code_version["dirty"]:
+        logger.warning(
+            "git worktree is dirty; only the recorded code.diff/tracked changes "
+            "are reproducible from {}",
+            code_version["commit_short"] or "the current checkout",
+        )
+    write_code_version(recorder.dir, code_version)
     try:
         logger.info(
             "subject={} session={} grid={}x{} blocks={} trials/block={} "

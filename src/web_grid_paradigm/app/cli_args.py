@@ -144,6 +144,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="inter-trial rest after a trial: empty grid, no target (default: 0)",
     )
     grid.add_argument(
+        "--require-clean-git",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="abort if the git worktree has uncommitted or untracked files",
+    )
+    grid.add_argument(
         "--countdown-seconds", type=float, metavar="S", help="countdown duration"
     )
 
@@ -511,6 +517,7 @@ def load_config_resolved(args: argparse.Namespace) -> ResolvedConfig:
         "dwell_time": "dwell_time",
         "trial_timeout": "trial_timeout",
         "iti": "iti",
+        "require_clean_git": "require_clean_git",
         "countdown_seconds": "countdown_seconds",
         "input": "input",
         "demo_speed": "demo_speed",

@@ -176,6 +176,28 @@ def test_saved_device_file_is_accepted_by_cli(tmp_path: Path) -> None:
     assert resolved.sources["joystick_port"] == "device"
 
 
+def test_run_refuses_a_dirty_worktree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from web_grid_paradigm.app import cli
+
+    monkeypatch.setattr(
+        cli,
+        "collect_code_version",
+        lambda: {
+            "branch": "dev",
+            "commit": "abc1234",
+            "commit_short": "abc1234",
+            "dirty": True,
+            "changes": [" M src/app.py"],
+            "git": True,
+        },
+    )
+
+    with pytest.raises(RuntimeError, match="require_clean_git"):
+        cli._run(ExperimentConfig(require_clean_git=True))
+
+
 def test_run_passes_config_files_to_recorder(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

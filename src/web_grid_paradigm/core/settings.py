@@ -52,6 +52,7 @@ EXPERIMENT_FIELDS = frozenset(
         "iti",
         "countdown_seconds",
         "seed",
+        "require_clean_git",
         "input",
         "fullscreen",
         "window_width",

@@ -460,6 +460,8 @@ data/
         ├── rewards.csv      # 每次奖励一行（amount/duration/reason/sink）
         ├── reward_out.txt   # 仅 reward=test：原始的串口字节
         ├── summary.json     # 汇总指标 + 配置快照 + 版本
+        ├── code_version.json # 分支、完整 commit、dirty 状态、变更列表
+        ├── code.diff        # 仅 dirty 时：相对 HEAD 的已跟踪文件差异
         └── session.log      # loguru 运行日志（DEBUG 级）
 ```
 
@@ -473,6 +475,50 @@ data/
 - 按 Esc 中止时仍会写出已产生的数据，`summary.json` 中 `aborted` 为 `true`。
 - 同一秒内重复启动会自动加 `-2`、`-3` 后缀，不覆盖已有数据。
 
+## 代码版本与可复现性
+
+每次 session 启动时，日志会打印一行：
+
+```text
+code version: dev@86e4301 (clean)
+```
+
+同时写入 `code_version.json`：
+
+```json
+{
+  "branch": "dev",
+  "commit": "86e43014608c50664c2eb22c90664444bb7dec83",
+  "commit_short": "86e4301",
+  "dirty": false,
+  "git": true,
+  "repository": "C:/Users/.../web-grid-paradigm",
+  "recorded_at": "2026-11-11T10:15:00+00:00"
+}
+```
+
+- `commit` 是完整 SHA，比分支名更能唯一标识代码；
+- `dirty=true` 表示存在未提交或未跟踪文件；
+- dirty 时还会写 `code.diff`（相对 `HEAD` 的已跟踪文件差异），并记录变更列表；
+- 未跟踪文件只记录在 `changes` 中，不会自动打包；要严格复现，应提交或清理它们；
+- 跨平台实现使用参数数组调用 `git status --porcelain=v2 --branch`，不经过 shell；Git 不可用时退化为读取 `.git/HEAD`，commit/dirty 显示 `unknown`。
+
+### 严格模式
+
+在 WebUI 任务组勾选 **“要求工作区干净”**，或使用：
+
+```powershell
+uv run webgrid --require-clean-git
+```
+
+此时如果：
+
+- 有未提交修改；
+- 有未跟踪文件；
+- 无法确认 commit（Git 不可用、仓库无 commit 等）；
+
+程序会拒绝启动，不创建 session 数据。该选项默认关闭，便于开发时直接运行；正式采集建议开启。
+
 ## 常用参数
 
 | 参数 | 默认 | 说明 |
@@ -483,6 +529,7 @@ data/
 | `--session` | 时间戳 | 会话标签 |
 | `--output-dir` | `data` | 数据根目录 |
 | `--seed` | `20261107` | 目标序列随机种子 |
+| `--require-clean-git` | 关 | 严格可复现：工作区不干净或 commit 未知时拒绝启动 |
 | `--rows`, `--cols` | 12, 12 | 网格尺寸（2–40，需足够分辨率） |
 | `--blocks` | 1 | block 数 |
 | `--trials`（别名 `--targets`） | 40 | 每个 block 的 trial（目标）数 |

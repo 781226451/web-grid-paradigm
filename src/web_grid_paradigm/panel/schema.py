@@ -46,6 +46,8 @@ _FORM: list[dict[str, Any]] = [
      "min": 0, "max": 10, "step": 0.5, "group": "任务"},
     {"name": "seed", "label": "随机种子", "type": "int", "min": 0,
      "max": 2147483647, "group": "任务"},
+    {"name": "require_clean_git", "label": "要求工作区干净", "type": "bool",
+     "group": "任务", "hint": "严格可复现；有未提交修改时拒绝启动"},
     # input
     {"name": "input", "label": "输入方式", "type": "choice",
      "options": ["mouse", "demo", "joystick", "lsl"], "group": "输入"},

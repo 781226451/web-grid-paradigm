@@ -28,6 +28,7 @@ trial_timeout = 15.0         # per-target timeout; 0 disables
 iti = 0.0                    # inter-trial rest; 0 = none
 countdown_seconds = 2.0
 seed = 20261107
+require_clean_git = false    # true = refuse to start from a dirty worktree
 
 # --- input ------------------------------------------------------------
 input = "mouse"              # mouse | demo | joystick | lsl
