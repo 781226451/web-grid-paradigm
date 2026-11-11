@@ -149,7 +149,6 @@ def test_toml_sections_are_rejected(tmp_path: Path, body: str) -> None:
         {"rows": 1},
         {"cols": 60},
         {"targets": 0},
-        {"click_types": 4},
         {"input": "invalid"},
         {"selection": "blink"},
         {"subject": "../escape"},

@@ -38,8 +38,6 @@ _FORM: list[dict[str, Any]] = [
      "options": ["click", "dwell"], "group": "任务"},
     {"name": "dwell_time", "label": "停留时长 (s)", "type": "float", "min": 0.1,
      "max": 10, "step": 0.1, "group": "任务", "hint": "仅 dwell 模式"},
-    {"name": "click_types", "label": "点击类型数", "type": "int", "min": 1,
-     "max": 3, "group": "任务"},
     {"name": "trial_timeout", "label": "单 Trial 超时 (s)", "type": "float",
      "min": 0, "max": 600, "step": 1, "group": "任务", "hint": "0 = 关闭"},
     {"name": "max_seconds", "label": "单 Block 时间上限 (s)", "type": "float",

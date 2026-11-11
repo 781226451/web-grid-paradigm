@@ -64,11 +64,9 @@ uv run webgrid --input lsl --lsl-velocity-stream WebGridVelocity
 
 - 深蓝黑底板（`#050D19`）+ 细白网格线，不留单元格间隙；
 - **任务界面默认不显示文字**：无 BPS/NTPM、无目标进度、无错误数、无图例；开始页始终显示完整指导语；
-- 多键模式也不显示文字图例，目标颜色本身就是按键线索；
-- 目标格为纯色块：`click_types=1` 时蓝色；`=2` 时蓝/橙；`=3` 时蓝/橙/紫；
+- 目标格为纯色块：蓝色；
 - 目标带同色光晕，光标进入目标时放大 1.15×；
-- 蓝色 = 左键、橙色 = 右键、紫色 = 中键；目标颜色就是要求按下的键；
-- 光标为红色发光圆点（带光晕和渐隐拖尾）；悬停单元格显示目标色描边，误点单元格短暂闪红；
+- 蓝色目标 = 左键；光标为红色发光圆点（带光晕和渐隐拖尾）；悬停单元格显示目标色描边，误点单元格短暂闪红；
 - 倒计时只显示光标（从中心开始，无十字注视点）；鼠标模式下指针只在开始时回到窗口中心，之后光标直接跟随指针的绝对位置（不再周期回中），指针到窗口边缘时光标才到边缘，往回移动立即响应；Windows 下位置直接读取 `GetCursorPos`，不依赖 Pyglet 事件缓存，快速甩动不会先卡住再跳变；首次启动会先显示开始页，点击实验窗口后才确认光标回中并开始倒计时，回中失败会报错而不是带偏移开始；结束后为空白屏，保存路径只打印在实验者控制台。
 
 主题默认 `dark`（暗色发光）；启动时加 `--theme classic`，或在 WebUI 的“显示”组选择 `classic`，即可切回经典白底黑线、无光晕/拖尾的样式。`theme` 也可以写在 `--config` TOML 里。
@@ -76,8 +74,6 @@ uv run webgrid --input lsl --lsl-velocity-stream WebGridVelocity
 ![暗色发光主题](docs/preview.png)
 
 ![经典白底主题](docs/preview_classic.png)
-
-![三键模式（无文字图例）](docs/preview_multi.png)
 
 修改默认网格：
 
@@ -90,7 +86,7 @@ uv run webgrid --rows 10 --cols 10
 1. 启动后先显示**开始页**：完整指导语 + 网格 + 中央光标 + 开始提示；在实验窗口内点击或按空格，窗口获得输入激活后才进入准备阶段。
 2. 开始页确认后再次将光标居中，随后进入倒计时；注视点保持 `countdown_seconds` 秒（默认 2 s），之后出现第一个目标。
 3. 每个试次：
-   - 随机高亮一个目标格（单键模式为蓝色；多键模式按目标颜色区分所需按键），光标保留在上一帧位置；
+   - 随机高亮一个蓝色目标格，光标保留在上一帧位置；
    - 被试移动光标到目标格；
    - **click** 模式：按下与目标颜色对应的鼠标/BCI 按键；**dwell** 模式：在目标格内连续停留 `dwell_time` 秒自动选择。
 4. 命中：立即进入下一个目标；如果设置了 `iti`，先显示空网格和光标。
@@ -105,16 +101,15 @@ uv run webgrid --rows 10 --cols 10
 设：
 
 - `N = rows × cols`：网格格子数
-- `C = click_types`：点击类型数（1–3）
 - `H`：命中数，`M`：误点次数，`T`：超时数
 - `net = H − M`：净正确目标数
 
 则：
 
 ```text
-每目标信息量 = log2(N × C)                       （bit/target）
+每目标信息量 = log2(N)                          （bit/target）
 NTPM          = net / duration_min                （targets/min，可为负）
-BPS           = log2(N × C) × max(net, 0) / t     （bit/s）
+BPS           = log2(N) × max(net, 0) / t         （bit/s）
 ```
 
 `BPS` 采用 Nuyujukian et al. 2021（*Technical Report 01: GPT-BCIs*）Eqn. 2 的
@@ -124,13 +119,13 @@ achieved-bitrate 定义：`B = log2(N) × max(S_c − S_i, 0) / t`。论文里�
 
 `t` 是所有 trial 中目标在屏的时间之和（target onset → finish）：开始页、countdown、ITI、block 间休息都不计入。`summary.json` 同时保留 `wall_duration_s` 作为整个 block 的实际墙钟时长。
 
-示例：12×12、`click_types=1`、120 s 内 20 次命中、1 次误点：
+示例：12×12、120 s 内 20 次命中、1 次误点：
 
 ```text
 net = 19, NTPM = 9.5, bits/target = log2(144) ≈ 7.17, BPS ≈ 1.14
 ```
 
-> 注意：`click_types` 同时决定“目标颜色/要求按键”和计分信息量。设为 1 时只有蓝色目标和 1 号键；设为 2 时目标为蓝/橙，必须分别按左/右键；设为 3 时增加紫色中键。按错键计一次 misclick，目标保留。
+> 目标固定为蓝色，只接受左键；右键/中键不会成为有效选择。点错位置计一次 misclick，目标保留。
 
 ## 串口 Hall 效应摇杆
 
@@ -164,7 +159,7 @@ FF YYH YYL XXH XXL ZZH ZZL Button CH
 
 串口读取在后台线程完成，渲染循环只排空队列，不会阻塞。`status()` 会给出帧数、无效帧、丢帧、延迟和 stale 状态。
 
-> 扳机固定映射为 **1 号键**。`click_types > 1` 时摇杆无法产生 2/3 号键，请改用 `selection = "dwell"`，或使用支持多键的 LSL/鼠标输入。
+> 扳机固定映射为 **1 号键**；只有左键/扳机是有效选择。
 
 ## LSL 速度解码器
 
@@ -501,7 +496,6 @@ data/
 | `--selection` | `click` | `click` 或 `dwell` |
 | `--dwell-time` | 1.0 | 停留选择时长（秒） |
 | `--trial-timeout` | 15 | 单目标超时；0 关闭 |
-| `--click-types` | 1 | 1–3；目标颜色/要求按键，同时影响计分 |
 | `--iti` | 0 | trial 间休息（秒）：只显示空网格和光标、不显示目标；0 为无 |
 | `--countdown-seconds` | 2.0 | 倒计时总时长 |
 | `--input` | `mouse` | `mouse` / `demo` / `joystick` / `lsl` |

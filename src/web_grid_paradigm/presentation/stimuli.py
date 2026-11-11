@@ -286,8 +286,6 @@ class Stimuli:
         """Fill the intro page with the wording for this configuration."""
         if config.selection == "dwell":
             body_key = "instr_dwell"
-        elif config.click_types > 1:
-            body_key = "instr_click_multi"
         else:
             body_key = "instr_click"
         strings = self.strings

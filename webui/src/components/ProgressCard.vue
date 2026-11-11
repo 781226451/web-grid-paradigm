@@ -6,7 +6,7 @@ import { useBlockMetrics } from "@/lib/blockMetrics";
 import { fmt } from "@/lib/format";
 import { station } from "@/stores/station";
 
-const { elapsed: elapsedSeconds, stats } = useBlockMetrics();
+const { elapsed: elapsedSeconds, bps } = useBlockMetrics();
 
 const cfg = computed(() => station.state.config ?? {});
 const blocksTotal = computed(() => Number(cfg.value.blocks ?? 1));
@@ -62,8 +62,8 @@ const elapsed = computed(() => {
     </div>
     <div class="meta">
       {{ fmt(station.state.fps, 0) }} fps
-      <template v-if="stats.bps !== null">
-        · 本 block {{ fmt(stats.bps) }} BPS
+      <template v-if="bps !== null">
+        · 本 block {{ fmt(bps) }} BPS
       </template>
     </div>
   </div>

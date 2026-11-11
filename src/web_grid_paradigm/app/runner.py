@@ -170,7 +170,7 @@ class WebGridApp:
         self.engine.target = Target(
             index=15,
             cell=cell,
-            required_button=min(self.cfg.click_types, 3),
+            required_button=1,
             onset=now - 1.3,
             start_px=(0.0, 0.0),
             centre_px=self.layout.centre_px(cell),
@@ -542,9 +542,7 @@ class WebGridApp:
         # An abort mid-block records the partial block; aborting during the
         # countdown before a block starts records nothing for it.
         self._close_block(now, aborted=aborted)
-        summary = merge_stats(
-            self._block_stats, self.cfg.n_cells, self.cfg.click_types
-        )
+        summary = merge_stats(self._block_stats, self.cfg.n_cells)
         summary.update(
             {
                 "blocks_planned": self.cfg.blocks,

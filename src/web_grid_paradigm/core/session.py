@@ -129,12 +129,8 @@ class SessionEngine:
         cell = self._bag.next(avoid=self._last_cell)
         self._last_cell = cell
         centre = self.layout.centre_px(cell)
-        # Dwell mode has no button channel; a single blue target is enough.
-        required_button = (
-            1
-            if self.config.selection == "dwell"
-            else self._rng.randint(1, self.config.click_types)
-        )
+        # Only the left button (1) is a selection symbol in this paradigm.
+        required_button = 1
         self.target = Target(
             index=self.stats.attempts + 1,
             cell=cell,
@@ -182,7 +178,7 @@ class SessionEngine:
 
         cell = self.layout.cell_at_px(x_px, y_px)
         on_target = cell == self.target.cell
-        valid_buttons = [b for b in clicks if 1 <= int(b) <= self.config.click_types]
+        valid_buttons = [b for b in clicks if int(b) == 1]
 
         # Dwell selection is evaluated before clicks: in dwell mode clicks are
         # not a selection channel, but they are still recorded for QC.
@@ -337,9 +333,7 @@ class SessionEngine:
         return max(0.0, end - self.session_start)
 
     def summary(self, now: float) -> dict:
-        data = self.stats.summary(
-            self._active_s, self.config.n_cells, self.config.click_types
-        )
+        data = self.stats.summary(self._active_s, self.config.n_cells)
         data["session_start"] = self.session_start
         data["session_end"] = self.session_end if self.session_end is not None else now
         data["wall_duration_s"] = self.elapsed(now)

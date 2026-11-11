@@ -25,7 +25,6 @@ max_seconds = 300.0          # per-block limit; 0 disables
 selection = "click"          # click | dwell
 dwell_time = 1.0             # used when selection = "dwell"
 trial_timeout = 15.0         # per-target timeout; 0 disables
-click_types = 1              # 1..3
 iti = 0.0                    # inter-trial rest; 0 = none
 countdown_seconds = 2.0
 seed = 20261107

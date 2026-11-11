@@ -108,7 +108,6 @@ class Reporter:
                     "cols": self.cfg.cols,
                     "blocks": self.cfg.blocks,
                     "trials_per_block": self.cfg.targets,
-                    "click_types": self.cfg.click_types,
                     "selection": self.cfg.selection,
                 },
             )

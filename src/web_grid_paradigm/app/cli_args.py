@@ -138,12 +138,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="per-target timeout (0 disables)",
     )
     grid.add_argument(
-        "--click-types",
-        type=int,
-        choices=(1, 2, 3),
-        help="1-3 click types; target colour + required button",
-    )
-    grid.add_argument(
         "--iti",
         type=float,
         metavar="S",
@@ -516,7 +510,6 @@ def load_config_resolved(args: argparse.Namespace) -> ResolvedConfig:
         "selection": "selection",
         "dwell_time": "dwell_time",
         "trial_timeout": "trial_timeout",
-        "click_types": "click_types",
         "iti": "iti",
         "countdown_seconds": "countdown_seconds",
         "input": "input",

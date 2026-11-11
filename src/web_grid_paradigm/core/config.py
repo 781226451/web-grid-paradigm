@@ -57,7 +57,6 @@ class ExperimentConfig:
     selection: str = "click"  # click | dwell
     dwell_time: float = 1.0
     trial_timeout: float = 15.0  # 0 disables the per-target timeout
-    click_types: int = 1  # 1..3: target colour / required button + score
     iti: float = 0.0  # inter-trial rest (blank grid, no target) after a trial
     countdown_seconds: float = 2.0
     seed: int = 20261107
@@ -175,8 +174,6 @@ class ExperimentConfig:
                 raise ValueError("trial_timeout must exceed dwell_time")
         if self.trial_timeout < 0:
             raise ValueError("trial_timeout must be >= 0")
-        if not 1 <= self.click_types <= 3:
-            raise ValueError("click_types must be between 1 and 3")
         if not 0 <= self.iti <= 60:
             raise ValueError("iti must be between 0 and 60 s")
         if not 0 <= self.countdown_seconds <= 10:

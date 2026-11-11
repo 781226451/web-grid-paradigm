@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import math
-
 import pytest
 
 from web_grid_paradigm.core.scoring import SessionStats, bits_per_target, merge_stats
@@ -22,11 +20,8 @@ def test_merge_stats_sums_blocks_on_in_block_time() -> None:
 
 def test_bits_per_target() -> None:
     assert bits_per_target(64) == pytest.approx(6.0)
-    assert bits_per_target(64, 3) == pytest.approx(math.log2(192))
     with pytest.raises(ValueError):
         bits_per_target(0)
-    with pytest.raises(ValueError):
-        bits_per_target(4, 0)
 
 
 def test_session_metrics() -> None:
@@ -47,9 +42,9 @@ def test_session_metrics() -> None:
     assert stats.median_rt == pytest.approx(2.0)
     assert stats.mean_path_efficiency == pytest.approx(0.8)
     assert stats.ntpm(120.0) == pytest.approx(0.5)
-    assert stats.bps(120.0, 64, 1) == pytest.approx(0.05)
+    assert stats.bps(120.0, 64) == pytest.approx(0.05)
 
-    summary = stats.summary(120.0, 64, 1)
+    summary = stats.summary(120.0, 64)
     assert summary["bits_per_target"] == pytest.approx(6.0)
     assert summary["bps"] == pytest.approx(0.05)
     assert summary["attempts"] == 4
@@ -74,8 +69,4 @@ def test_bps_follows_the_achieved_bitrate_formula() -> None:
     # One misclick per hit: net is 0, so the rate clamps to zero.
     stats = SessionStats(hits=4, misclicks=4)
     assert stats.bps(30.0, 16) == 0.0
-
-    # Click types count as extra symbols: N = cells * click types.
-    stats = SessionStats(hits=3, misclicks=0)
-    assert stats.bps(10.0, 8, 2) == pytest.approx(3 * 4 / 10)
 

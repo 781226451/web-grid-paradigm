@@ -14,7 +14,7 @@ const payload = {
     trials_done: 1,
     block_elapsed: 4,
     block_bps: 0,
-    config: { blocks: 1, targets: 8, rows: 8, cols: 10, click_types: 1, max_seconds: 0 },
+    config: { blocks: 1, targets: 8, rows: 8, cols: 10, max_seconds: 0 },
     grid: { rows: 8, cols: 10, left: 0, top: 0, pitch: 1, line: 1 },
     reward_count: 0,
     reward_total: 0,

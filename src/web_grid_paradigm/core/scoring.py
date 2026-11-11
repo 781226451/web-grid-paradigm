@@ -20,13 +20,11 @@ import statistics
 from dataclasses import dataclass, field
 
 
-def bits_per_target(n_cells: int, click_types: int = 1) -> float:
+def bits_per_target(n_cells: int) -> float:
     """Information carried by one selection (bits)."""
     if n_cells < 1:
         raise ValueError("n_cells must be >= 1")
-    if click_types < 1:
-        raise ValueError("click_types must be >= 1")
-    return math.log2(n_cells * click_types)
+    return math.log2(n_cells)
 
 
 @dataclass
@@ -91,7 +89,7 @@ class SessionStats:
             return 0.0
         return self.net_targets / (duration_s / 60.0)
 
-    def bps(self, duration_s: float, n_cells: int, click_types: int = 1) -> float:
+    def bps(self, duration_s: float, n_cells: int) -> float:
         """Achieved bitrate in bits per second.
 
         Follows Eqn. 2 of Shenoy, Willett, Nuyujukian & Henderson,
@@ -103,7 +101,7 @@ class SessionStats:
 
         The report writes ``log2(N - 1)`` because one of the symbols of a
         keyboard is the delete key; the web-grid task has no delete key, so
-        ``N = n_cells * click_types`` is used directly.  The ``max(..., 0)``
+        ``N = n_cells`` is used directly.  The ``max(..., 0)``
         clamp reports 0 bits/s for a block with more misclicks than hits
         instead of a negative rate.
 
@@ -115,10 +113,10 @@ class SessionStats:
         if duration_s <= 0:
             return 0.0
         net = max(self.net_targets, 0)
-        return net * bits_per_target(n_cells, click_types) / duration_s
+        return net * bits_per_target(n_cells) / duration_s
 
     # ------------------------------------------------------------------
-    def summary(self, duration_s: float, n_cells: int, click_types: int = 1) -> dict:
+    def summary(self, duration_s: float, n_cells: int) -> dict:
         return {
             "attempts": self.attempts,
             "hits": self.hits,
@@ -128,8 +126,8 @@ class SessionStats:
             "hit_rate": self.hit_rate,
             "duration_s": duration_s,
             "ntpm": self.ntpm(duration_s),
-            "bits_per_target": bits_per_target(n_cells, click_types),
-            "bps": self.bps(duration_s, n_cells, click_types),
+            "bits_per_target": bits_per_target(n_cells),
+            "bps": self.bps(duration_s, n_cells),
             "mean_rt_s": self.mean_rt,
             "median_rt_s": self.median_rt,
             "mean_path_efficiency": self.mean_path_efficiency,
@@ -138,7 +136,7 @@ class SessionStats:
 
 
 def merge_stats(
-    blocks: list[tuple[SessionStats, float]], n_cells: int, click_types: int = 1
+    blocks: list[tuple[SessionStats, float]], n_cells: int
 ) -> dict:
     """Session totals over ``(stats, duration_s)`` blocks.
 
@@ -155,4 +153,4 @@ def merge_stats(
         total.durations.extend(stats.durations)
         total.path_efficiencies.extend(stats.path_efficiencies)
         duration += block_duration
-    return total.summary(duration, n_cells, click_types)
+    return total.summary(duration, n_cells)

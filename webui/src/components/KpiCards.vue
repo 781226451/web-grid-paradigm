@@ -5,7 +5,7 @@ import { useBlockMetrics } from "@/lib/blockMetrics";
 import { fmt } from "@/lib/format";
 import { station } from "@/stores/station";
 
-const { stats } = useBlockMetrics();
+const { bps } = useBlockMetrics();
 
 const hits = computed(() => station.trials.filter((trial) => trial.outcome === "hit"));
 const timeouts = computed(() => station.trials.length - hits.value.length);
@@ -24,7 +24,7 @@ const meanRt = computed(() =>
 );
 
 const items = computed(() => {
-  const bps = stats.value.bps;
+  const blockBps = bps.value;
   return [
     { label: "命中", value: String(hits.value.length), color: "var(--green)" },
     { label: "超时", value: String(timeouts.value), color: "var(--red)" },
@@ -33,11 +33,11 @@ const items = computed(() => {
     { label: "平均 RT (s)", value: meanRt.value, color: "var(--text)" },
     {
       label: "本 block BPS",
-      value: fmt(bps),
+      value: fmt(blockBps),
       color: "var(--blue)",
       title:
-        "log2(格子数 × 点击类型数) × max(命中 − 误点, 0) ÷ 本 block 秒数" +
-        "（Nuyujukian 2021, Eqn. 2；无 delete 键故用 log2 N）",
+        "log2(格子数) × max(命中 − 误点, 0) ÷ 本 block 目标在屏时间" +
+        "（ITI 不计；Nuyujukian 2021, Eqn. 2；无 delete 键故用 log2 N）",
     },
     { label: "奖励次数", value: String(station.state.reward_count ?? 0), color: "var(--purple)" },
     { label: "累计奖励量", value: String(station.state.reward_total ?? 0), color: "var(--purple)" },

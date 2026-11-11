@@ -69,25 +69,24 @@ def test_misclick_does_not_end_the_trial() -> None:
     assert engine.stats.attempts == 0
 
 
-def test_target_requires_the_matching_click_type() -> None:
-    engine = make_engine(click_types=3)
+def test_only_the_left_button_selects() -> None:
+    engine = make_engine()
     engine.begin(0.0)
     target = engine.target
-    assert target is not None
-    wrong_button = 1 if target.required_button != 1 else 2
+    assert target is not None and target.required_button == 1
     x, y = centre(engine)
 
-    outcome = engine.update(0.2, x, y, [wrong_button])
-    assert outcome.trial is None
-    assert outcome.clicks[0].correct is False
-    assert engine.stats.misclicks == 1
+    ignored = engine.update(0.2, x, y, [2])
+    assert ignored.trial is None
+    assert ignored.clicks == []
+    assert engine.stats.misclicks == 0
     assert engine.phase is Phase.RUNNING
 
-    outcome = engine.update(0.4, x, y, [target.required_button])
+    outcome = engine.update(0.4, x, y, [1])
     assert outcome.trial is not None
     assert outcome.trial.correct is True
-    assert outcome.trial.required_button == target.required_button
-    assert outcome.trial.button == target.required_button
+    assert outcome.trial.required_button == 1
+    assert outcome.trial.button == 1
 
 
 def test_timeout_ends_the_trial() -> None:
